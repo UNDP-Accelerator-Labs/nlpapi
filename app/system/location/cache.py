@@ -31,7 +31,6 @@ def read_geo_cache(db: DBConnector, queries: set[str]) -> dict[str, GeoResult]:
             else:
                 query_ids.add(row_id)
         qids = sorted(query_ids)
-        print(qids)
         estmt = sa.select(
             LocationEntries.location_id,
             LocationEntries.pos,
@@ -57,7 +56,6 @@ def read_geo_cache(db: DBConnector, queries: set[str]) -> dict[str, GeoResult]:
             for (_, elem)
             in sorted(resp.items(), key=lambda item: item[0])
         ]
-        print(id_map, resp_id)
         res[id_map[resp_id]] = (resp_arr, "cache_hit")
     for qin in qins:
         if qin not in res:
