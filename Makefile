@@ -1,5 +1,6 @@
 help:
 	@echo "The following make targets are available:"
+	@echo "build	build the docker image"
 	@echo "install	install all python dependencies"
 	@echo "lint-comment	ensures fixme comments are grepable"
 	@echo "lint-emptyinit	main inits must be empty"
@@ -92,6 +93,9 @@ lint-all: \
 	lint-pylint \
 	lint-type-check \
 	lint-flake8
+
+build:
+	./sh/build.sh
 
 install:
 	PYTHON=$(PYTHON) ./sh/install.sh
