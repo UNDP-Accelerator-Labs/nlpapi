@@ -48,6 +48,7 @@ class FreqStrategy(LocationStrategy):  # pylint: disable=too-few-public-methods
                     continue
                 for geo in res:
                     country_count[geo["country"]] += 1
+                    # break  # NOTE: uncomment to use topmost frequency only
             return [
                 country
                 for (country, _)

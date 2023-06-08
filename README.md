@@ -44,3 +44,28 @@ make run-api
 ```
 To start the server. The server has an interactive mode. You can type commands
 in the terminal. The most useful commands are `quit`, `restart`, and `help`.
+
+## Use docker image locally
+
+Prepare a config file for the image to use named `docker.config.json`
+(you can copy your local config file but keep in mind that your `localhost` is
+`host.docker.internal` inside the container).
+
+Run
+```
+make -s build
+```
+to build the docker image
+(note that the config file will be baked into the image).
+Use `make -s git-check` to verify that the current working copy is clean and
+that no unwanted (or uncommit) files will be included in the image.
+
+If you just want to run the API locally start the container via:
+```
+docker run -d -p 8080:8080 -t "smartsearch-$(make -s name)"
+```
+
+Test the connection via:
+```
+curl -X POST --json '{"input": "Is London really a place?"}' http://localhost:8080/api/locations
+```

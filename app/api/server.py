@@ -84,7 +84,7 @@ def setup(
             "input": args["input"],
             "return_input": args.get("return_input", False),
             "return_context": args.get("return_context", True),
-            "strategy": args.get("strategy", "frequency"),
+            "strategy": args.get("strategy", "top"),
             "language": args.get("language", "en"),
         }
         return extract_locations(db, obj)
