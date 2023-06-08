@@ -6,6 +6,6 @@ IMAGE_NAME="smartsearch-$(make -s name)"
 
 echo "building ${IMAGE_NAME}"
 
-docker build --no-cache --progress=plain -t "${IMAGE_NAME}" -f deploy/Dockerfile .
+docker build -t "${IMAGE_NAME}" -f deploy/Dockerfile .
 
 echo "built ${IMAGE_NAME}"
