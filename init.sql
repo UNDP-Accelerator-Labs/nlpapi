@@ -15,5 +15,6 @@ CREATE TABLE IF NOT EXISTS public.location_entries
     lng DOUBLE PRECISION NOT NULL,
     formatted TEXT COLLATE pg_catalog."default" NOT NULL,
     country VARCHAR(5) COLLATE pg_catalog."default" NOT NULL,
+    confidence DOUBLE PRECISION NOT NULL,
     CONSTRAINT location_entries_pkey PRIMARY KEY (location_id, pos)
 );

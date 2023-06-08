@@ -35,6 +35,7 @@ def geo_result(query: str) -> GeoResult:
                     "lng": float(result["geometry"]["lng"]),
                     "formatted": result["formatted"],
                     "country": country,
+                    "confidence": float(result["confidence"]),
                 })
             return (res, "ok")
         return (None, "invalid")

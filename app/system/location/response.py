@@ -29,6 +29,7 @@ GeoResponse = TypedDict('GeoResponse', {
     "lng": float,
     "formatted": str,
     "country": str,
+    "confidence": float,
 })
 
 

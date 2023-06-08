@@ -88,6 +88,8 @@ class LocationEntries(Base):  # pylint: disable=too-few-public-methods
         sa.Double, nullable=False)
     formatted = sa.Column(sa.Text(), nullable=False)
     country = sa.Column(sa.String(COUNTRY_MAX_LEN), nullable=False)
+    confidence: sa.Column[float] = sa.Column(  # type: ignore
+        sa.Double, nullable=False)
 
 
 class ModelsTable(Base):  # pylint: disable=too-few-public-methods
