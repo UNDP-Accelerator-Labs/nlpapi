@@ -50,14 +50,15 @@ def get_config() -> Config:
     if CONFIG is not None:
         return CONFIG
     config_path = get_config_path()
-    if not config_path:
+    if config_path == "-":
+        print("loading config from env")
         CONFIG = {
             "db": {
                 "dbname": envload_str("LOGIN_DB_NAME"),
                 "dialect": envload_str(
                     "LOGIN_DB_DIALECT", default="postgresql"),
                 "host": envload_str("LOGIN_DB_HOST"),
-                "port": envload_int("LOGIN_DB_PORT"),
+                "port": envload_int("LOGIN_DB_PORT", default=5432),
                 "user": envload_str("LOGIN_DB_USERNAME"),
                 "passwd": envload_str("LOGIN_DB_PASSWORD"),
                 "schema": envload_str("LOGIN_DB_SCHEMA", default="public"),
@@ -65,6 +66,7 @@ def get_config() -> Config:
             "opencage": envload_str("OPENCAGE_API"),
         }
     else:
+        print(f"loading config file: {config_path}")
         if not os.path.exists(config_path):
             with open_write(config_path, text=True) as fout:
                 print(
