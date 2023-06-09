@@ -8,12 +8,10 @@ RUN apt-get update && apt-get -y upgrade \
     libc6-dev \
     make
 WORKDIR /usr/src/app
-RUN pwd
 COPY Makefile .
 COPY requirements.txt .
 RUN mkdir sh
 COPY sh/install.sh sh
-RUN ls -la
 RUN make install
 COPY . .
 ARG API_SERVER_PORT=8080
