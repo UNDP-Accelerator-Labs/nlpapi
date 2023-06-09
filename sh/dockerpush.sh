@@ -2,7 +2,7 @@
 
 cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
-IMAGE_NAME="smartsearch-$(make -s name)"
+IMAGE_NAME="smartsearch:$(make -s name)"
 DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io"
 DOCKER_IMAGE_URL="${DOCKER_LOGIN_SERVER}/${IMAGE_NAME}"
 

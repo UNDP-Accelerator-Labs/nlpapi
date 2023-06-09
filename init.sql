@@ -1,15 +1,15 @@
 -- location cache
-CREATE TABLE IF NOT EXISTS public.location_cache
+CREATE TABLE IF NOT EXISTS location_cache
 (
     query TEXT COLLATE pg_catalog."default" UNIQUE NOT NULL PRIMARY KEY,
     id SERIAL UNIQUE NOT NULL,
     access_last TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     access_count INTEGER NOT NULL DEFAULT 1,
-    no_cache BOOLEAN NOT NULL,
+    no_cache BOOLEAN NOT NULL
 );
-CREATE TABLE IF NOT EXISTS public.location_entries
+CREATE TABLE IF NOT EXISTS location_entries
 (
-    location_id INTEGER NOT NULL REFERENCES public.location_cache(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    location_id INTEGER NOT NULL REFERENCES location_cache(id) ON UPDATE CASCADE ON DELETE CASCADE,
     pos INTEGER NOT NULL,
     lat DOUBLE PRECISION NOT NULL,
     lng DOUBLE PRECISION NOT NULL,

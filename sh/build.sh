@@ -2,7 +2,7 @@
 
 cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
-IMAGE_NAME="smartsearch-$(make -s name)"
+IMAGE_NAME="smartsearch:$(make -s name)"
 CONFIG_PATH=${CONFIG_PATH:-docker.config.json}
 API_SERVER_PORT=${API_SERVER_PORT:-8080}
 
@@ -11,7 +11,9 @@ if [ "${CONFIG_PATH}" == "config.json" ]; then
     echo "WARNING: using local config file!" 1>&2
 fi
 
-cp "${CONFIG_PATH}" docker.config.json
+if [ "${CONFIG_PATH}" != "docker.config.json" ]; then
+    cp "${CONFIG_PATH}" docker.config.json
+fi
 
 make -s version-file
 
