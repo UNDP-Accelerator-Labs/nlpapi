@@ -7,3 +7,8 @@ SourceResponse = TypedDict('SourceResponse', {
 SourceListResponse = TypedDict('SourceListResponse', {
     "sources": list[str],
 })
+VersionResponse = TypedDict('VersionResponse', {
+    "app_name": str,
+    "app_commit": str,
+    "python": str,
+})

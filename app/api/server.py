@@ -6,8 +6,13 @@ from quick_server import create_server, QuickServer
 from quick_server import QuickServerRequestHandler as QSRH
 from quick_server import ReqArgs
 
-from app.api.response_types import SourceListResponse, SourceResponse
+from app.api.response_types import (
+    SourceListResponse,
+    SourceResponse,
+    VersionResponse,
+)
 from app.misc.env import envload_int, envload_str
+from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
 from app.system.location.pipeline import extract_locations
@@ -50,13 +55,28 @@ def setup(
     if deploy:
         server.no_command_loop = True
 
-    print(f"python version: {sys.version}")
+    py_version = sys.version
+    version_name = get_version(return_hash=False)
+    version_hash = get_version(return_hash=True)
+    print(f"python version: {py_version}")
+    print(f"app version: {version_name}")
+    print(f"app commit: {version_hash}")
 
     server.set_default_token_expiration(48 * 60 * 60)  # 2 days
 
     config = get_config()
     db = DBConnector(config["db"])
     ops = get_ops("db", config)
+
+    # *** misc ***
+
+    @server.json_get(f"{prefix}/version")
+    def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
+        return {
+            "app_name": version_name,
+            "app_commit": version_hash,
+            "python": py_version,
+        }
 
     # *** sources ***
 

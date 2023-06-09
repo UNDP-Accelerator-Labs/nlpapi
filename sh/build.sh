@@ -13,6 +13,8 @@ fi
 
 cp "${CONFIG_PATH}" docker.config.json
 
+make -s version-file
+
 echo "building ${IMAGE_NAME}"
 
 docker build \
@@ -23,3 +25,5 @@ docker build \
     .
 
 echo "built ${IMAGE_NAME}"
+
+rm version.txt

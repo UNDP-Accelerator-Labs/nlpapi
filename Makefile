@@ -17,6 +17,8 @@ help:
 	@echo "lint-all	run all lints"
 	@echo "pre-commit 	sort python package imports using isort"
 	@echo "name	generate a unique permanent name for the current commit"
+	@echo "commit	print precise commit hash (with a * if the working copy is dirty)"
+	@echo "version-file	create the version file"
 	@echo "current-version	computes the current version"
 	@echo "next-version	computes the next version"
 	@echo "git-check	ensures no git visible files have been altered"
@@ -108,6 +110,12 @@ requirements-complete:
 
 name:
 	git describe --abbrev=10 --tags HEAD
+
+commit:
+	git describe --match NOTATAG --always --abbrev=40 --dirty='*'
+
+version-file:
+	./sh/versionfile.sh
 
 current-version:
 	./sh/version.sh --current
