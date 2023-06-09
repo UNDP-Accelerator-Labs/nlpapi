@@ -1,6 +1,7 @@
 help:
 	@echo "The following make targets are available:"
 	@echo "build	build the docker image"
+	@echo "azlogin	log in to azure container storage"
 	@echo "install	install all python dependencies"
 	@echo "lint-comment	ensures fixme comments are grepable"
 	@echo "lint-emptyinit	main inits must be empty"
@@ -98,6 +99,12 @@ lint-all: \
 
 build:
 	./sh/build.sh
+
+azlogin:
+	./sh/azlogin.sh
+
+dockerpush:
+	./sh/dockerpush.sh
 
 install:
 	PYTHON=$(PYTHON) ./sh/install.sh

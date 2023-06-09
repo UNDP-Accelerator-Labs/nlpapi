@@ -44,6 +44,17 @@ def config_template() -> Config:
     }
 
 
+def create_config_and_err(config_path: str) -> None:
+    with open_write(config_path, text=True) as fout:
+        print(
+            json.dumps(config_template(), indent=4, sort_keys=True),
+            file=fout)
+    raise ValueError(
+        "config file missing. "
+        f"new file was created at '{config_path}'. "
+        "please correct values in file and run again")
+
+
 def get_config() -> Config:
     global CONFIG
 
@@ -68,14 +79,10 @@ def get_config() -> Config:
     else:
         print(f"loading config file: {config_path}")
         if not os.path.exists(config_path):
-            with open_write(config_path, text=True) as fout:
-                print(
-                    json.dumps(config_template(), indent=4, sort_keys=True),
-                    file=fout)
-            raise ValueError(
-                "config file missing. "
-                f"new file was created at '{config_path}'. "
-                "please correct values in file and run again")
+            create_config_and_err(config_path)
         with open_read(config_path, text=True) as fin:
-            CONFIG = cast(Config, json.load(fin))
+            config = cast(Config, json.load(fin))
+            if not config:
+                create_config_and_err(config_path)
+            CONFIG = config
     return CONFIG

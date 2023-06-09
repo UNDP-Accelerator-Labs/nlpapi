@@ -69,3 +69,15 @@ Test the connection via:
 ```
 curl -X POST --json '{"input": "Is London really a place?"}' http://localhost:8080/api/locations
 ```
+
+## Push docker image
+
+Make sure to log in to azure via `make azlogin`.
+
+Run
+```
+CONFIG_PATH=- make -s build
+make -s dockerpush
+```
+to build the image and push it to azure. Note, that the settings are read
+from the environment at deploy time and not from the config file.
