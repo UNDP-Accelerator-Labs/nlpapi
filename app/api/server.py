@@ -55,10 +55,11 @@ def setup(
     if deploy:
         server.no_command_loop = True
 
-    py_version = sys.version
+    py_version_detail = f"{sys.version}"
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     version_name = get_version(return_hash=False)
     version_hash = get_version(return_hash=True)
-    print(f"python version: {py_version}")
+    print(f"python version: {py_version_detail}")
     print(f"app version: {version_name}")
     print(f"app commit: {version_hash}")
 
