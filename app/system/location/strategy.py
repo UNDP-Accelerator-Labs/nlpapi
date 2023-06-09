@@ -40,20 +40,17 @@ class FreqStrategy(LocationStrategy):  # pylint: disable=too-few-public-methods
             queries: list[str],
             results: dict[str, 'GeoResult']) -> StrategyCallback:
 
-        def get_order() -> list[str]:
-            country_count: collections.Counter[str] = collections.Counter()
+        def get_order() -> dict[str, float]:
+            country_count: collections.defaultdict[str, float] = \
+                collections.defaultdict(lambda: 0.0)
             for query in queries:
                 res, _ = results.get(query, (None, "invalid"))
                 if res is None:
                     continue
-                for geo in res:
-                    country_count[geo["country"]] += 1
-                    # break  # NOTE: uncomment to use topmost frequency only
-            return [
-                country
-                for (country, _)
-                in country_count.most_common()
-            ]
+                for (pos, geo) in enumerate(res):
+                    cur_confidence = geo["confidence"] / (pos + 1.0)
+                    country_count[geo["country"]] += cur_confidence
+            return country_count
 
         country_order = get_order()
 
@@ -61,11 +58,19 @@ class FreqStrategy(LocationStrategy):  # pylint: disable=too-few-public-methods
             resps, status = results.get(query, (None, "invalid"))
             if resps is None:
                 return (None, status)
-            for country in country_order:
-                for resp in resps:
-                    if resp["country"] == country:
-                        return (resp, status)
-            return (None, status)
+            max_confidence_ratio = None
+            best_resp = None
+            for (pos, resp) in enumerate(resps):
+                country_confidence = country_order.get(resp["country"], 0.0)
+                confidence_ratio = (
+                    resp["confidence"]
+                    / (pos + 1.0)
+                    / (1.0 + country_confidence))
+                if (max_confidence_ratio is None
+                        or confidence_ratio > max_confidence_ratio):
+                    max_confidence_ratio = confidence_ratio
+                    best_resp = resp
+            return (best_resp, status)
 
         return get_response
 
