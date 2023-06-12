@@ -15,7 +15,7 @@ from app.misc.env import envload_int, envload_str
 from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
-from app.system.jwt import is_valid_token, parse_token
+from app.system.jwt import is_valid_token
 from app.system.location.pipeline import extract_locations
 from app.system.location.response import GeoOutput, GeoQuery
 from app.system.ops.ops import get_ops
@@ -73,7 +73,7 @@ def setup(
     def verify_token(token: str) -> None:
         if is_valid_token(config, token):
             return
-        raise PreventDefaultResponse(403, "invalid token provided")
+        raise PreventDefaultResponse(401, "invalid token provided")
 
     # *** misc ***
 
