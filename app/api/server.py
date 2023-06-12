@@ -2,7 +2,7 @@
 import sys
 import threading
 
-from quick_server import create_server, QuickServer
+from quick_server import create_server, PreventDefaultResponse, QuickServer
 from quick_server import QuickServerRequestHandler as QSRH
 from quick_server import ReqArgs
 
@@ -15,6 +15,7 @@ from app.misc.env import envload_int, envload_str
 from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
+from app.system.jwt import is_valid_token, parse_token
 from app.system.location.pipeline import extract_locations
 from app.system.location.response import GeoOutput, GeoQuery
 from app.system.ops.ops import get_ops
@@ -69,6 +70,11 @@ def setup(
     db = DBConnector(config["db"])
     ops = get_ops("db", config)
 
+    def verify_token(token: str) -> None:
+        if is_valid_token(config, token):
+            return
+        raise PreventDefaultResponse(403, "invalid token provided")
+
     # *** misc ***
 
     @server.json_get(f"{prefix}/version")
@@ -101,6 +107,7 @@ def setup(
     @server.json_post(f"{prefix}/locations")
     def _post_locations(_req: QSRH, rargs: ReqArgs) -> GeoOutput:
         args = rargs["post"]
+        verify_token(args["token"])
         obj: GeoQuery = {
             "input": args["input"],
             "return_input": args.get("return_input", False),

@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 Config = TypedDict('Config', {
     "db": 'DBConfig',
     "opencage": str,
+    "appsecret": str,
 })
 
 
@@ -41,6 +42,7 @@ def config_template() -> Config:
     return {
         "db": default_conn.copy(),
         "opencage": "INVALID",
+        "appsecret": "INVALID",
     }
 
 
@@ -75,6 +77,7 @@ def get_config() -> Config:
                 "schema": envload_str("LOGIN_DB_SCHEMA", default="public"),
             },
             "opencage": envload_str("OPENCAGE_API"),
+            "appsecret": envload_str("APP_SECRET"),
         }
     else:
         print(f"loading config file: {config_path}")

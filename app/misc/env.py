@@ -7,6 +7,7 @@ EnvPath = Literal[
 ]
 EnvStr = Literal[
     "API_SERVER_HOST",
+    "APP_SECRET",
     "LOGIN_DB_DIALECT",
     "LOGIN_DB_HOST",
     "LOGIN_DB_NAME",
