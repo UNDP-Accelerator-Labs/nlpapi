@@ -29,7 +29,8 @@ make -s version-file
 
 echo "building ${IMAGE_NAME}"
 
-docker build \
+docker buildx build \
+    --platform linux/x86_64 \
     --build-arg "CONFIG_PATH=${CONFIG_PATH}" \
     --build-arg "PORT=${PORT}" \
     -t "${IMAGE_NAME}" \
