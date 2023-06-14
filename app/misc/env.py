@@ -6,7 +6,6 @@ EnvPath = Literal[
     "CONFIG_PATH",
 ]
 EnvStr = Literal[
-    "API_SERVER_HOST",
     "APP_SECRET",
     "LOGIN_DB_DIALECT",
     "LOGIN_DB_HOST",
@@ -15,10 +14,11 @@ EnvStr = Literal[
     "LOGIN_DB_SCHEMA",
     "LOGIN_DB_USERNAME",
     "OPENCAGE_API",
+    "WEBSITE_HOSTNAME",
 ]
 EnvInt = Literal[
-    "API_SERVER_PORT",
     "LOGIN_DB_PORT",
+    "PORT",
 ]
 
 

@@ -8,7 +8,7 @@ NO_CONFIG=noconfig.json
 
 IMAGE_NAME="smartsearch:$(make -s name)"
 CONFIG_PATH="${CONFIG_PATH:-${DOCKER_CONFIG}}"
-API_SERVER_PORT="${API_SERVER_PORT:-8080}"
+PORT="${PORT:-8080}"
 
 echo "using config: ${CONFIG_PATH}"
 if [ "${CONFIG_PATH}" == "${LOCAL_CONFIG}" ]; then
@@ -31,7 +31,7 @@ echo "building ${IMAGE_NAME}"
 
 docker build \
     --build-arg "CONFIG_PATH=${CONFIG_PATH}" \
-    --build-arg "API_SERVER_PORT=${API_SERVER_PORT}" \
+    --build-arg "PORT=${PORT}" \
     -t "${IMAGE_NAME}" \
     -f deploy/Dockerfile \
     .
