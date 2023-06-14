@@ -14,7 +14,7 @@ EnvStr = Literal[
     "LOGIN_DB_SCHEMA",
     "LOGIN_DB_USERNAME",
     "OPENCAGE_API",
-    "WEBSITE_HOSTNAME",
+    "HOST",
 ]
 EnvInt = Literal[
     "LOGIN_DB_PORT",
