@@ -77,6 +77,11 @@ def setup(
 
     # *** misc ***
 
+    @server.json_get("/")
+    def _ping(req: QSRH, _rargs: ReqArgs) -> dict[str, str]:
+        req.send_header("keep-alive", "timeout=60, max=1000")
+        return {}
+
     @server.json_get(f"{prefix}/version")
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
         return {
