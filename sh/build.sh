@@ -9,7 +9,7 @@ NO_CONFIG=noconfig.json
 IMAGE_TAG="${IMAGE_TAG-$(make -s name)}"
 IMAGE_NAME="smartsearch:${IMAGE_TAG}"
 CONFIG_PATH="${CONFIG_PATH:-${DOCKER_CONFIG}}"
-PORT="${PORT:-80}"
+PORT="${PORT:-8080}"
 
 echo "using config: ${CONFIG_PATH}"
 if [ "${CONFIG_PATH}" == "${LOCAL_CONFIG}" ]; then
