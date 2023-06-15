@@ -4,7 +4,7 @@ cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
 IMAGE_TAG="${IMAGE_TAG:-$(make -s name)}"
 IMAGE_NAME="smartsearch:${IMAGE_TAG}"
-DOCKER_LOGIN_SERVER="acclabdockereu.azurecr.io"
+DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io"
 DOCKER_IMAGE_URL="${DOCKER_LOGIN_SERVER}/${IMAGE_NAME}"
 
 echo "pushing ${IMAGE_NAME} to ${DOCKER_IMAGE_URL}"
