@@ -14,10 +14,8 @@ if [ $(make -s branch) != "${BRANCH_MAIN}" ]; then
     exit 2
 fi
 
-IMAGE_TAG=$(make -s next-version)
+TAG=$(make -s next-version)
 
-echo "building for version: ${IMAGE_TAG}"
-
-CONFIG_PATH=- IMAGE_TAG=IMAGE_TAG make -s build
-make -s azlogin
-IMAGE_TAG=IMAGE_TAG make -s dockerpush
+echo "deploying version: ${TAG}"
+git tag "${TAG}"
+git push --tags
