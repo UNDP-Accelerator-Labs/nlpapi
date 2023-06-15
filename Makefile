@@ -1,6 +1,7 @@
 help:
 	@echo "The following make targets are available:"
 	@echo "build	build the docker image"
+	@echo "publish	deploys the next version with the current commit"
 	@echo "azlogin	log in to azure container storage"
 	@echo "install	install all python dependencies"
 	@echo "lint-comment	ensures fixme comments are grepable"
@@ -19,6 +20,7 @@ help:
 	@echo "pre-commit 	sort python package imports using isort"
 	@echo "name	generate a unique permanent name for the current commit"
 	@echo "commit	print precise commit hash (with a * if the working copy is dirty)"
+	@echo "branch	print current branch and exit"
 	@echo "version-file	create the version file"
 	@echo "current-version	computes the current version"
 	@echo "next-version	computes the next version"
@@ -100,6 +102,9 @@ lint-all: \
 build:
 	./sh/build.sh
 
+publish:
+	./sh/deploy.sh
+
 azlogin:
 	./sh/azlogin.sh
 
@@ -120,6 +125,9 @@ name:
 
 commit:
 	git describe --match NOTATAG --always --abbrev=40 --dirty='*'
+
+branch:
+	git rev-parse --abbrev-ref HEAD
 
 version-file:
 	./sh/versionfile.sh

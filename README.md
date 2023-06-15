@@ -81,3 +81,12 @@ make -s dockerpush
 ```
 to build the image and push it to azure. Note, that the settings are read
 from the environment at deploy time and not from the config file.
+
+## Deploying new version
+
+Make sure to be on the main branch with a clean working copy.
+
+Run
+```
+make -s deploy
+```

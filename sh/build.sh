@@ -6,7 +6,8 @@ DOCKER_CONFIG=docker.config.json
 LOCAL_CONFIG=config.json
 NO_CONFIG=noconfig.json
 
-IMAGE_NAME="smartsearch:$(make -s name)"
+IMAGE_TAG="${IMAGE_TAG-$(make -s name)}"
+IMAGE_NAME="smartsearch:${IMAGE_TAG}"
 CONFIG_PATH="${CONFIG_PATH:-${DOCKER_CONFIG}}"
 PORT="${PORT:-80}"
 
