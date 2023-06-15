@@ -77,13 +77,6 @@ def setup(
 
     # *** misc ***
 
-    @server.json_get("/")
-    def _ping(req: QSRH, rargs: ReqArgs) -> dict[str, str] | None:
-        if rargs["paths"]:
-            return None
-        req.send_header("keep-alive", "timeout=60, max=1000")
-        return {}
-
     @server.json_get(f"{prefix}/version")
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
         return {
