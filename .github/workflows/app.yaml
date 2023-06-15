@@ -160,8 +160,6 @@ jobs:
     needs: lints_pipeline  # , tests_pipeline
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    env:
-      CONFIG_PATH: "-"
 
     steps:
     - uses: actions/checkout@v2
@@ -173,9 +171,14 @@ jobs:
         username: ${{ secrets.REGISTRY_USERNAME }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
 
+    - name: Set env
+      run: echo "IMAGE_TAG=$(make -s name)" >> $GITHUB_ENV
+
     - name: Build docker image
       run: |
         make -s build
+      env:
+        CONFIG_PATH: "-"
 
     - name: Push docker image
       run: |
@@ -185,4 +188,4 @@ jobs:
       with:
         app-name: 'nlpapi'
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        images: 'acclabdocker.azurecr.io/smartsearch:${{ make -s name }}'
+        images: 'acclabdocker.azurecr.io/smartsearch:${{ env.IMAGE_TAG }}'
