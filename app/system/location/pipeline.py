@@ -60,7 +60,8 @@ def extract_locations(
     for entity in entities:
         query, start, stop = entity
         if query != input_text[start:stop]:
-            raise ValueError(f"oh no: {query} {start} {stop}")
+            raise ValueError(
+                f"oh no: '{query}' {start} {stop} '{input_text[start:stop]}'")
         info = entity_map.get(query, None)
         if info is None:
             loc, status = get_resp(query)
