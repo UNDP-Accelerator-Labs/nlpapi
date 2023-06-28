@@ -134,6 +134,7 @@ def setup(
     def _post_language(_req: QSRH, rargs: ReqArgs) -> LangResponse:
         args = rargs["post"]
         input_str = verify_input(args["input"])
+        verify_token(args["token"])
         return get_lang(input_str)
 
     return server, prefix
