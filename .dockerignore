@@ -3,4 +3,4 @@ deploy/
 data/
 notebooks/
 test-results/
-config.json
+*.json
