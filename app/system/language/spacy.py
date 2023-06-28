@@ -38,7 +38,7 @@ def get_raw_lang(text: str) -> LangTuple:
 def probe(text: str, rng: random.Random | None) -> LangTuple:
     pos = 0
     if rng is not None:
-        pos = rng.randint(0, len(text) - MAX_PROCESSING_SIZE)
+        pos = rng.randint(0, max(0, len(text) - MAX_PROCESSING_SIZE))
     probe_text = text[pos:pos + MAX_PROCESSING_SIZE + 1]
     if len(probe_text) > MAX_PROCESSING_SIZE:
         rpos = min(probe_text.rfind(" "), MAX_PROCESSING_SIZE)
