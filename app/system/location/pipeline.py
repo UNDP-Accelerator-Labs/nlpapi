@@ -18,7 +18,7 @@ from app.system.location.response import (
 )
 from app.system.location.spacy import get_locations
 from app.system.location.strategy import get_strategy
-from app.system.spacy import get_spacy
+from app.system.spacy import create_length_counter, get_spacy
 
 
 def extract_locations(
@@ -27,12 +27,13 @@ def extract_locations(
     rt_context = geo_query["return_context"]
     rt_input = geo_query["return_input"]
     input_text = geo_query["input"]
+    lnc, lnr = create_length_counter()
 
     with get_spacy(geo_query["language"]) as nlp:
         entities = [
             (entity.strip(), start, stop)
             for (entity, start, stop)
-            in get_locations(nlp, input_text)
+            in get_locations(nlp, input_text, lnc)
         ]
 
     query_list = [entity for entity, _, _ in entities]
@@ -94,7 +95,7 @@ def extract_locations(
         key=lambda entity: entity["count"],
         reverse=True)
     with db.get_session() as session:
-        total_length = len(input_text)
+        total_length = lnr()
         stmt = db.upsert(LocationUsers).values(
             userid=user,
             cache_miss=status_count["cache_miss"],

@@ -3,6 +3,8 @@ from typing import Iterable
 
 import spacy
 
+from app.system.spacy import LengthCounter
+
 
 Location = tuple[str, int]
 
@@ -15,9 +17,10 @@ BOUNDARY = re.compile(r"\b")
 
 def get_raw_locations(
         nlp: spacy.language.Language,
-        chunk: Location) -> Iterable[tuple[str, int, int]]:
+        chunk: Location,
+        lnc: LengthCounter) -> Iterable[tuple[str, int, int]]:
     text, offset = chunk
-    doc = nlp(text)
+    doc = nlp(lnc(text))
     for ent in doc.ents:
         if ent.label_ not in ["LOC", "GPE"]:
             continue
@@ -44,7 +47,8 @@ def next_chunk(text: str, offset: int) -> tuple[Location, Location | None]:
 
 def get_locations(
         nlp: spacy.language.Language,
-        text: str) -> Iterable[tuple[str, int, int]]:
+        text: str,
+        lnc: LengthCounter) -> Iterable[tuple[str, int, int]]:
     overlap_end = 0
 
     def get_overlap_end(chunk: Location) -> int:
@@ -56,7 +60,7 @@ def get_locations(
     buff: list[tuple[str, int, int]] = []
     while True:
         chunk, remain = next_chunk(next_text, next_offset)
-        next_buff = list(get_raw_locations(nlp, chunk))
+        next_buff = list(get_raw_locations(nlp, chunk, lnc))
         overlaps = {
             start
             for (_, start, _) in next_buff

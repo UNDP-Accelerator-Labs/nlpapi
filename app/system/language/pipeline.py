@@ -3,13 +3,15 @@ from uuid import UUID
 from app.system.db.base import LocationUsers
 from app.system.db.db import DBConnector
 from app.system.language.spacy import get_lang, LangResponse
+from app.system.spacy import create_length_counter
 
 
 def extract_language(
         db: DBConnector, text: str, user: UUID) -> LangResponse:
-    res = get_lang(text)
+    lnc, lnr = create_length_counter()
+    res = get_lang(text, lnc)
     with db.get_session() as session:
-        total_length = len(text)
+        total_length = lnr()
         stmt = db.upsert(LocationUsers).values(
             userid=user,
             language_count=1,

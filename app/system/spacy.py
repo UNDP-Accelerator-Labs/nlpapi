@@ -1,5 +1,5 @@
 import contextlib
-from typing import Iterator, Literal
+from typing import Callable, Iterator, Literal
 
 import spacy
 from spacy.language import Language
@@ -53,3 +53,22 @@ def get_lang_detector() -> Iterator[spacy.language.Language]:
         nlp.add_pipe("language_detector", last=True)
         SPACY_LANG_DETECTOR = nlp
     yield SPACY_LANG_DETECTOR
+
+
+LengthCounter = Callable[[str], str]
+LengthResult = Callable[[], int]
+
+
+def create_length_counter() -> tuple[LengthCounter, LengthResult]:
+    total = 0
+
+    def length_counter(text: str) -> str:
+        nonlocal total
+
+        total += len(text)
+        return text
+
+    def length_result() -> int:
+        return total
+
+    return length_counter, length_result
