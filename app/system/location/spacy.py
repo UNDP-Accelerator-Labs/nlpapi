@@ -1,5 +1,5 @@
 import re
-from typing import get_args, Iterable, Literal
+from typing import Iterable
 
 import spacy
 
@@ -7,25 +7,10 @@ import spacy
 Location = tuple[str, int]
 
 
-MAX_PROCESSING_SIZE = 10000
-PROCESSING_GRACE = 100
+MAX_PROCESSING_SIZE = 1000
+PROCESSING_GRACE = 50
 
 BOUNDARY = re.compile(r"\b")
-
-Language = Literal["en"]
-LANGUAGES = get_args(Language)
-
-SPACY_NLP: spacy.language.Language | None = None
-
-
-def get_spacy(language: Language) -> spacy.language.Language:
-    global SPACY_NLP
-
-    if language not in LANGUAGES:
-        raise ValueError(f"unknown language ({LANGUAGES}): {language}")
-    if SPACY_NLP is None:
-        SPACY_NLP = spacy.load("en_core_web_sm")
-    return SPACY_NLP
 
 
 def get_raw_locations(
@@ -43,19 +28,17 @@ def next_chunk(text: str, offset: int) -> tuple[Location, Location | None]:
     if len(text) < MAX_PROCESSING_SIZE:
         return (text, offset), None
     bix = MAX_PROCESSING_SIZE
-    boundary = BOUNDARY.search(
-        text,
-        MAX_PROCESSING_SIZE - PROCESSING_GRACE,
-        MAX_PROCESSING_SIZE + PROCESSING_GRACE)
+    min_pos = MAX_PROCESSING_SIZE - PROCESSING_GRACE
+    max_pos = MAX_PROCESSING_SIZE + PROCESSING_GRACE
+    boundary = BOUNDARY.search(f"w{text[min_pos:max_pos]}", 1)
     if boundary is not None:
-        bix = boundary.start() - 1
+        bix = min_pos + boundary.start() - 1
     fix = bix + PROCESSING_GRACE
-    boundary = BOUNDARY.search(text, bix, bix + PROCESSING_GRACE)
+    boundary = BOUNDARY.search(f"w{text[bix:bix + PROCESSING_GRACE][::-1]}", 1)
     if boundary is not None:
-        fix = boundary.start() - 1
+        fix = bix + PROCESSING_GRACE - (boundary.start() - 1)
     chunk = text[:fix]
     remain = text[bix:]
-    print(f"chunk: '...{chunk[:-150]}'\nremain: '{remain[:150]}...'")
     return (chunk, offset), (remain, offset + bix)
 
 

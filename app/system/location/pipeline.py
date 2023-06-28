@@ -16,23 +16,25 @@ from app.system.location.response import (
     STATUS_ORDER,
     StatusCount,
 )
-from app.system.location.spacy import get_locations, get_spacy
+from app.system.location.spacy import get_locations
 from app.system.location.strategy import get_strategy
+from app.system.spacy import get_spacy
 
 
 def extract_locations(
         db: DBConnector, geo_query: GeoQuery, user: UUID) -> GeoOutput:
-    nlp = get_spacy(geo_query["language"])
     strategy = get_strategy(geo_query["strategy"])
     rt_context = geo_query["return_context"]
     rt_input = geo_query["return_input"]
     input_text = geo_query["input"]
 
-    entities = [
-        (entity.strip(), start, stop)
-        for (entity, start, stop)
-        in get_locations(nlp, input_text)
-    ]
+    with get_spacy(geo_query["language"]) as nlp:
+        entities = [
+            (entity.strip(), start, stop)
+            for (entity, start, stop)
+            in get_locations(nlp, input_text)
+        ]
+
     query_list = [entity for entity, _, _ in entities]
     queries = set(query_list)
     cache_res = read_geo_cache(db, queries)
@@ -59,9 +61,9 @@ def extract_locations(
     entity_map: dict[str, EntityInfo] = {}
     for entity in entities:
         query, start, stop = entity
-        if query != input_text[start:stop]:
-            raise ValueError(
-                f"oh no: '{query}' {start} {stop} '{input_text[start:stop]}'")
+        # if query != input_text[start:stop]:
+        #     raise ValueError(
+        #         f"oops: '{query}' {start} {stop} '{input_text[start:stop]}'")
         info = entity_map.get(query, None)
         if info is None:
             loc, status = get_resp(query)

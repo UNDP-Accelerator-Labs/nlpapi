@@ -1,7 +1,7 @@
 from typing import Literal, TypedDict
 
-from app.system.location.spacy import Language
 from app.system.location.strategy import Strategy
+from app.system.spacy import LanguageStr
 
 
 GeoStatus = Literal[
@@ -86,5 +86,5 @@ GeoQuery = TypedDict('GeoQuery', {
     "return_input": bool,
     "return_context": bool,
     "strategy": Strategy,
-    "language": Language,
+    "language": LanguageStr,
 })

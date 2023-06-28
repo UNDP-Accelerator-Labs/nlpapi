@@ -17,6 +17,7 @@ from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
 from app.system.jwt import is_valid_token
+from app.system.language.spacy import get_lang, LangResponse
 from app.system.location.pipeline import extract_locations
 from app.system.location.response import GeoOutput, GeoQuery
 from app.system.ops.ops import get_ops
@@ -78,6 +79,12 @@ def setup(
             raise PreventDefaultResponse(401, "invalid token provided")
         return user
 
+    def verify_input(text: str) -> str:
+        if len(text) > MAX_INPUT_LENGTH:
+            raise PreventDefaultResponse(
+                413, f"input length exceeds {MAX_INPUT_LENGTH} bytes")
+        return text
+
     # *** misc ***
 
     @server.json_get(f"{prefix}/version")
@@ -110,18 +117,24 @@ def setup(
     @server.json_post(f"{prefix}/locations")
     def _post_locations(_req: QSRH, rargs: ReqArgs) -> GeoOutput:
         args = rargs["post"]
-        if len(args["input"]) > MAX_INPUT_LENGTH:
-            raise PreventDefaultResponse(
-                413, f"input length exceeds {MAX_INPUT_LENGTH} bytes")
+        input_str = verify_input(args["input"])
         user = verify_token(args["token"])
         obj: GeoQuery = {
-            "input": args["input"],
+            "input": input_str,
             "return_input": args.get("return_input", False),
             "return_context": args.get("return_context", True),
             "strategy": args.get("strategy", "top"),
             "language": args.get("language", "en"),
         }
         return extract_locations(db, obj, user)
+
+    # *** language ***
+
+    @server.json_post(f"{prefix}/language")
+    def _post_language(_req: QSRH, rargs: ReqArgs) -> LangResponse:
+        args = rargs["post"]
+        input_str = verify_input(args["input"])
+        return get_lang(input_str)
 
     return server, prefix
 
