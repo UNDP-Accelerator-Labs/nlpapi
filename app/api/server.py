@@ -17,7 +17,8 @@ from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
 from app.system.jwt import is_valid_token
-from app.system.language.spacy import get_lang, LangResponse
+from app.system.language.pipeline import extract_language
+from app.system.language.spacy import LangResponse
 from app.system.location.pipeline import extract_locations
 from app.system.location.response import GeoOutput, GeoQuery
 from app.system.ops.ops import get_ops
@@ -134,8 +135,8 @@ def setup(
     def _post_language(_req: QSRH, rargs: ReqArgs) -> LangResponse:
         args = rargs["post"]
         input_str = verify_input(args["input"])
-        verify_token(args["token"])
-        return get_lang(input_str)
+        user = verify_token(args["token"])
+        return extract_language(db, input_str, user)
 
     return server, prefix
 

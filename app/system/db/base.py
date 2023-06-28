@@ -101,6 +101,10 @@ class LocationUsers(Base):  # pylint: disable=too-few-public-methods
     cache_hit = sa.Column(sa.Integer, nullable=False, default=0)
     invalid = sa.Column(sa.Integer, nullable=False, default=0)
     ratelimit = sa.Column(sa.Integer, nullable=False, default=0)
+    location_count = sa.Column(sa.Integer, nullable=False, default=0)
+    location_length = sa.Column(sa.Integer, nullable=False, default=0)
+    language_count = sa.Column(sa.Integer, nullable=False, default=0)
+    language_length = sa.Column(sa.Integer, nullable=False, default=0)
 
 
 class ModelsTable(Base):  # pylint: disable=too-few-public-methods

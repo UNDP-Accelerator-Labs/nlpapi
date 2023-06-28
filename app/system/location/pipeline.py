@@ -94,12 +94,15 @@ def extract_locations(
         key=lambda entity: entity["count"],
         reverse=True)
     with db.get_session() as session:
+        total_length = len(input_text)
         stmt = db.upsert(LocationUsers).values(
             userid=user,
             cache_miss=status_count["cache_miss"],
             cache_hit=status_count["cache_hit"],
             invalid=status_count["invalid"],
             ratelimit=status_count["ratelimit"],
+            location_count=1,
+            location_length=total_length,
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=[LocationUsers.userid],
@@ -112,6 +115,10 @@ def extract_locations(
                     LocationUsers.invalid + status_count["invalid"],
                 LocationUsers.ratelimit:
                     LocationUsers.ratelimit + status_count["ratelimit"],
+                LocationUsers.location_count:
+                    LocationUsers.location_count + 1,
+                LocationUsers.location_length:
+                    LocationUsers.location_length + total_length,
             })
         session.execute(stmt)
     return {

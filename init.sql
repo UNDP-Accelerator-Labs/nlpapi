@@ -24,5 +24,9 @@ CREATE TABLE IF NOT EXISTS location_users
     cache_miss integer NOT NULL DEFAULT 0,
     cache_hit integer NOT NULL DEFAULT 0,
     invalid integer NOT NULL DEFAULT 0,
-    ratelimit integer NOT NULL DEFAULT 0
+    ratelimit integer NOT NULL DEFAULT 0,
+    location_count integer NOT NULL DEFAULT 0,
+    location_length integer NOT NULL DEFAULT 0,
+    language_count integer NOT NULL DEFAULT 0,
+    language_length integer NOT NULL DEFAULT 0
 );
