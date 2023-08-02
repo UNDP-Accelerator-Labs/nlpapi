@@ -18,6 +18,7 @@ if [ ${MAJOR} -eq 3 ] && [ ${MINOR} -lt 10 ] || [ ${MAJOR} -lt 3 ]; then
     exit 1
 fi
 
+${PYTHON} -m pip install --progress-bar off --upgrade pip
 ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.txt
 
 ! read -r -d '' PY_TORCH_VERIFY <<'EOF'
