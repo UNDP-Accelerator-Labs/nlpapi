@@ -5,6 +5,7 @@ flake8
 flake8-commas
 flake8-isort
 huggingface-hub
+ipykernel
 ipywidgets
 jupyter
 jupyter-console
