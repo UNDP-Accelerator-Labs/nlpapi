@@ -29,8 +29,9 @@ pylint
 pytest
 pytest-cov
 python-dateutil
-python-dateutil
+qtconsole
 pytz
+jupyter_server
 quick-server
 redis
 requests
