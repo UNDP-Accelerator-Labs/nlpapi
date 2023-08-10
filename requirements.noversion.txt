@@ -8,7 +8,10 @@ huggingface-hub
 ipykernel
 ipywidgets
 jupyter
+jupyter_server
+jupyter-client
 jupyter-console
+jupyter-server
 jupyterlab-widgets
 keras
 matplotlib
@@ -29,9 +32,8 @@ pylint
 pytest
 pytest-cov
 python-dateutil
-qtconsole
 pytz
-jupyter_server
+qtconsole
 quick-server
 redis
 requests
