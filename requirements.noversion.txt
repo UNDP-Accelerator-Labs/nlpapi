@@ -26,7 +26,6 @@ pyarrow
 pycodestyle
 PyJWT
 pylint
-pylint
 pytest
 pytest-cov
 python-dateutil
