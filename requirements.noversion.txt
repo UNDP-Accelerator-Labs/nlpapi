@@ -8,7 +8,6 @@ huggingface-hub
 ipykernel
 ipywidgets
 jupyter
-jupyter_server
 jupyter-client
 jupyter-console
 jupyter-server
