@@ -3,9 +3,9 @@ import sys
 import threading
 import uuid
 
-from quick_server import create_server, PreventDefaultResponse, QuickServer
+from quick_server import create_server, QuickServer
 from quick_server import QuickServerRequestHandler as QSRH
-from quick_server import ReqArgs
+from quick_server import ReqArgs, ReqNext, Response
 
 from app.api.response_types import (
     SourceListResponse,
@@ -36,7 +36,7 @@ def setup(
         deploy: bool) -> tuple[QuickServer, str]:
     server: QuickServer = create_server(
         (addr, port),
-        parallel,
+        parallel=parallel,
         thread_factory=threading.Thread,
         token_handler=None,
         worker_constructor=None,
@@ -74,17 +74,24 @@ def setup(
     db = DBConnector(config["db"])
     ops = get_ops("db", config)
 
-    def verify_token(token: str) -> uuid.UUID:
-        user = is_valid_token(config, token)
+    def verify_token(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        args = rargs["post"]
+        user = is_valid_token(config, args["token"])
         if user is None:
-            raise PreventDefaultResponse(401, "invalid token provided")
-        return user
+            return Response("invalid token provided", 401)
+        rargs["meta"]["user"] = user
+        return okay
 
-    def verify_input(text: str) -> str:
+    def verify_input(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        args = rargs["post"]
+        text = args["input"]
         if len(text) > MAX_INPUT_LENGTH:
-            raise PreventDefaultResponse(
-                413, f"input length exceeds {MAX_INPUT_LENGTH} bytes")
-        return text
+            return Response(
+                f"input length exceeds {MAX_INPUT_LENGTH} bytes", 413)
+        rargs["meta"]["input"] = text
+        return okay
 
     # *** misc ***
 
@@ -116,10 +123,13 @@ def setup(
     # *** location ***
 
     @server.json_post(f"{prefix}/locations")
+    @server.middleware(verify_input)
+    @server.middleware(verify_token)
     def _post_locations(_req: QSRH, rargs: ReqArgs) -> GeoOutput:
         args = rargs["post"]
-        input_str = verify_input(args["input"])
-        user = verify_token(args["token"])
+        meta = rargs["meta"]
+        input_str: str = meta["input"]
+        user: uuid.UUID = meta["user"]
         obj: GeoQuery = {
             "input": input_str,
             "return_input": args.get("return_input", False),
@@ -132,10 +142,12 @@ def setup(
     # *** language ***
 
     @server.json_post(f"{prefix}/language")
+    @server.middleware(verify_input)
+    @server.middleware(verify_token)
     def _post_language(_req: QSRH, rargs: ReqArgs) -> LangResponse:
-        args = rargs["post"]
-        input_str = verify_input(args["input"])
-        user = verify_token(args["token"])
+        meta = rargs["meta"]
+        input_str: str = meta["input"]
+        user: uuid.UUID = meta["user"]
         return extract_language(db, input_str, user)
 
     return server, prefix
