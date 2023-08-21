@@ -77,7 +77,7 @@ GeoOutput = TypedDict('GeoOutput', {
     "status": GeoStatus,
     "country": str,
     "input": str | None,
-    "entites": list[EntityInfo],
+    "entities": list[EntityInfo],
 })
 
 
