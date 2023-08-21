@@ -42,5 +42,3 @@ docker buildx build \
     .
 
 echo "built ${IMAGE_NAME}"
-
-rm version.txt
