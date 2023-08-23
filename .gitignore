@@ -9,6 +9,7 @@
 /version.txt
 
 # misc
+.env
 .DS_Store
 *.pq
 *.png

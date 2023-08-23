@@ -5,9 +5,12 @@ flake8
 flake8-commas
 flake8-isort
 huggingface-hub
+ipykernel
 ipywidgets
 jupyter
+jupyter-client
 jupyter-console
+jupyter-server
 jupyterlab-widgets
 keras
 matplotlib
@@ -22,13 +25,16 @@ pre-commit
 psycopg2-binary
 pyarrow
 pycodestyle
-pyjwt
+PyJWT
 pylint
 pytest
 pytest-cov
 python-dateutil
 pytz
+qtconsole
 quick-server
+redis
+requests
 scikit-learn
 scipy
 seaborn
@@ -43,4 +49,6 @@ types-Pillow
 types-psycopg2
 types-python-dateutil
 types-pytz
+types-requests
+types-urllib3
 widgetsnbextension

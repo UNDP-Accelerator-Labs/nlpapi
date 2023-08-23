@@ -126,7 +126,7 @@ def extract_locations(
         "status": worst_status,
         "country": likely_country[0][0] if likely_country else "NUL",
         "input": input_text if rt_input else None,
-        "entites": final_entries,
+        "entities": final_entries,
     }
 
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
 DOCKER_CONFIG=docker.config.json
@@ -27,6 +29,7 @@ else
 fi
 
 make -s version-file
+trap 'rm -- version.txt' EXIT
 
 echo "building ${IMAGE_NAME}"
 
@@ -39,5 +42,3 @@ docker buildx build \
     .
 
 echo "built ${IMAGE_NAME}"
-
-rm version.txt
