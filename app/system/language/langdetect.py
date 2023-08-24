@@ -2,9 +2,11 @@
 
 import collections
 import random
-from typing import TypedDict
+from typing import Iterable, TypedDict
 
-from app.system.spacy import get_lang_detector, LengthCounter
+from langdetect import detect_langs  # type: ignore
+
+from app.system.stats import LengthCounter
 
 
 MAX_PROCESSING_SIZE = 1000
@@ -26,17 +28,17 @@ LangResponse = TypedDict('LangResponse', {
 })
 
 
-def get_raw_lang(text: str, lnc: LengthCounter) -> LangTuple:
+def get_raw_lang(text: str, lnc: LengthCounter) -> Iterable[LangTuple]:
     if len(text) > MAX_PROCESSING_SIZE:
         raise ValueError(f"text too long {len(text)} > {MAX_PROCESSING_SIZE}")
-    with get_lang_detector() as nlp:
-        mdoc = nlp(lnc(text))
-        lang = mdoc._.language
-    return (f"{lang['language']}", float(lang['score']))
+    for res in detect_langs(lnc(text)):
+        yield (f"{res.lang}", float(res.prob))
 
 
 def probe(
-        text: str, rng: random.Random | None, lnc: LengthCounter) -> LangTuple:
+        text: str,
+        rng: random.Random | None,
+        lnc: LengthCounter) -> Iterable[LangTuple]:
     pos = 0
     if rng is not None:
         pos = rng.randint(0, max(0, len(text) - MAX_PROCESSING_SIZE))
@@ -44,7 +46,7 @@ def probe(
     if len(probe_text) > MAX_PROCESSING_SIZE:
         rpos = min(probe_text.rfind(" "), MAX_PROCESSING_SIZE)
         probe_text = probe_text[:rpos]
-    return get_raw_lang(probe_text, lnc)
+    yield from get_raw_lang(probe_text, lnc)
 
 
 def get_lang(text: str, lnc: LengthCounter) -> LangResponse:
@@ -53,9 +55,9 @@ def get_lang(text: str, lnc: LengthCounter) -> LangResponse:
         collections.defaultdict(lambda: 0.0)
     counts: collections.Counter[str] = collections.Counter()
     for _ in range(NUM_PROBES):
-        lang, score = probe(text, rng, lnc)
-        res[lang] += score
-        counts[lang] += 1
+        for lang, score in probe(text, rng, lnc):
+            res[lang] += score
+            counts[lang] += 1
     return {
         "languages": sorted(
             (

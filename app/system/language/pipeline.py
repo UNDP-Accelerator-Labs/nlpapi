@@ -2,8 +2,8 @@ from uuid import UUID
 
 from app.system.db.base import LocationUsers
 from app.system.db.db import DBConnector
-from app.system.language.spacy import get_lang, LangResponse
-from app.system.spacy import create_length_counter
+from app.system.language.langdetect import get_lang, LangResponse
+from app.system.stats import create_length_counter
 
 
 def extract_language(

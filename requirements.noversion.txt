@@ -13,6 +13,7 @@ jupyter-console
 jupyter-server
 jupyterlab-widgets
 keras
+langdetect
 matplotlib
 matplotlib-inline
 mypy
@@ -39,7 +40,6 @@ scikit-learn
 scipy
 seaborn
 spacy
-spacy-language-detection
 SQLAlchemy
 SQLAlchemy[mypy]
 tokenizers

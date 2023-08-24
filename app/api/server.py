@@ -17,8 +17,8 @@ from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
 from app.system.jwt import is_valid_token
+from app.system.language.langdetect import LangResponse
 from app.system.language.pipeline import extract_language
-from app.system.language.spacy import LangResponse
 from app.system.location.pipeline import extract_locations
 from app.system.location.response import GeoOutput, GeoQuery
 from app.system.ops.ops import get_ops
