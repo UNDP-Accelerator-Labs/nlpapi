@@ -3,7 +3,7 @@ from typing import Iterable
 
 import spacy
 
-from app.system.spacy import LengthCounter
+from app.system.stats import LengthCounter
 
 
 Location = tuple[str, int]

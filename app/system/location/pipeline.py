@@ -18,7 +18,8 @@ from app.system.location.response import (
 )
 from app.system.location.spacy import get_locations
 from app.system.location.strategy import get_strategy
-from app.system.spacy import create_length_counter, get_spacy
+from app.system.spacy import get_spacy
+from app.system.stats import create_length_counter
 
 
 def extract_locations(
