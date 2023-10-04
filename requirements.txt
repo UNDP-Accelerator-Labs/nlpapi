@@ -9,7 +9,7 @@ ipykernel==6.19.2
 ipywidgets==8.0.3
 jupyter-client==8.1.0
 jupyter-console==6.4.4
-jupyter-server==1.23.4
+jupyter-server==2.7.2
 jupyter==1.0.0
 jupyterlab-widgets==3.0.4
 keras==2.11.0
@@ -21,7 +21,7 @@ mypy==0.991
 numpy==1.24.2
 opencage==2.2.0
 pandas==1.5.0
-Pillow==9.2.0
+Pillow==10.0.1
 pre-commit==3.0.3
 psycopg2-binary==2.9.6
 pyarrow==10.0.1
