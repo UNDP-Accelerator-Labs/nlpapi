@@ -36,6 +36,7 @@ qtconsole
 quick-server
 redis
 requests
+scattermind
 scikit-learn
 scipy
 seaborn
