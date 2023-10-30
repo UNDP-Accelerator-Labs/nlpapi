@@ -166,6 +166,8 @@ def setup_server(
 
 def start(server: QuickServer, prefix: str) -> None:
     addr, port = server.server_address
+    if not isinstance(addr, str):
+        addr = addr.decode("utf-8")
     print(
         f"starting API at http://{addr}:{port}{prefix}/")
     try:
