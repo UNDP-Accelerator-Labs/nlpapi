@@ -1,3 +1,4 @@
+astroid
 backoff
 evaluate
 fastcluster
@@ -34,7 +35,6 @@ python-dateutil
 pytz
 qtconsole
 quick-server
-redis
 requests
 scattermind
 scikit-learn
