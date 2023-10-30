@@ -9,7 +9,7 @@ TMP=$(mktemp tmp.XXXXXX)
 
 cat ${FILE} | sed -E 's/(\[[a-z]+\])?//g' > ${TMP}
 
-${PYTHON} -m pip freeze | sort -sf | grep -i -E "^($(cat ${TMP} | sed -E 's/[=~]=.+//g' | perl -p -e 'chomp if eof' | tr '\n' '|'))=" | diff -U 0 ${TMP} -
+${PYTHON} -m pip freeze | sort -sf | grep -i -E "^($(cat ${TMP} | sed -E 's/[=~>]=.+//g' | perl -p -e 'chomp if eof' | tr '\n' '|'))=" | diff -U 0 ${TMP} -
 
 rm ${TMP}
 
