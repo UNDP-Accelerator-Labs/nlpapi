@@ -97,7 +97,7 @@ def as_df(series: pd.Series) -> pd.DataFrame:
 
 
 def fillnonnum(df: DT, val: float) -> DT:
-    return df.replace([-np.inf, np.inf], np.nan).fillna(val)
+    return df.replace([-np.inf, np.inf], np.nan).fillna(val)  # type: ignore
 
 
 def only(arr: list[RT]) -> RT:

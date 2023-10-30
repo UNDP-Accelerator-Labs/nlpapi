@@ -8,7 +8,19 @@
     multi_line_output = 3
     lines_after_imports = 2
 
-[tool.pylint.BASIC]
+[tool.darglint]
+    docstring_style = "google"
+    enable_disabled = "DAR104"
+    strictness = "short"
+
+[tool.pylint.main]
+    load-plugins = [
+        "pylint.extensions.typing",
+        "pylint.extensions.docparams",
+        "pylint.extensions.docstyle",
+    ]
+
+[tool.pylint.basic]
     good-names = [
         "_",
         "a",
@@ -65,17 +77,13 @@
         "i",
         "j",
     ]
+    no-docstring-rgx = '^_'
 
-[tool.pylint."MESSAGES CONTROL"]
+[tool.pylint.messages_control]
     disable = [
-        "duplicate-code",
+        "docstring-first-line-empty",
         "fixme",
-        "global-statement",
-        "import-outside-toplevel",
-        "invalid-unary-operand-type",
         "missing-docstring",
-        "not-an-iterable",
-        "not-callable",
         "too-many-arguments",
         "too-many-branches",
         "too-many-instance-attributes",
@@ -84,34 +92,25 @@
         "too-many-public-methods",
         "too-many-return-statements",
         "too-many-statements",
-        "unsubscriptable-object"
     ]
+    const-rgx = '^[A-Z]'
 
-[tool.pylint.VARIABLES]
+[tool.pylint.variables]
     init-import = "yes"
 
-[tool.pylint.IMPORTS]
+[tool.pylint.imports]
     allow-wildcard-with-all = "yes"
 
-[tool.pylint.TYPECHECK]
+[tool.pylint.typecheck]
     generated-members = ["torch.*"]
-    ignored-modules = [
-        "datrie",
-        "dawg",
-    ]
-
-[tool.pylint]
-    init-hook = "import sys; sys.path.append('.')"
 
 [tool.pytest.ini_options]
     filterwarnings = [
         "error",
-        "ignore::DeprecationWarning",
-        "ignore::RuntimeWarning",
-        "ignore::ImportWarning",
-    ]
-    markers = [
-        "local: marks tests as local only (deselect with '-m \"not local\"')",
+        "error::pytest.PytestUnhandledThreadExceptionWarning",
+        "error::DeprecationWarning",
+        "error::RuntimeWarning",
+        "error::ImportWarning",
     ]
 
 [tool.coverage.run]
@@ -125,8 +124,30 @@
 [tool.coverage.report]
     exclude_lines = [
         "if TYPE_CHECKING:",
-        "raise NotImplementedError()",
+        "raise NotImplementedError\\(\\)",
+        "raise AssertionError\\(",
+        "\\.\\.\\.",
+        "pragma: no cover",
     ]
 
 [tool.coverage.html]
     directory = "coverage/html_report"
+
+[tool.mypy]
+    ignore_missing_imports = false
+    check_untyped_defs = true
+    disallow_incomplete_defs = true
+    disallow_untyped_defs = true
+    mypy_path = [
+        "src/",
+    ]
+    plugins = [
+        "numpy.typing.mypy_plugin",
+    ]
+    warn_no_return = true
+    warn_unused_ignores = true
+    follow_imports = "normal"
+    exclude = [
+        "userdata",
+        "venv",
+    ]
