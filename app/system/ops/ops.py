@@ -76,7 +76,7 @@ class Ops:
 
 def get_ops(name: Literal["db"], config: 'Config') -> Ops:
     if name == "db":
-        from app.system.ops.db import DbOps
+        from app.system.ops.db import DbOps  # pylint: disable=cyclic-import
 
         return DbOps(config)
     raise ValueError(f"invalid name: {name}")
