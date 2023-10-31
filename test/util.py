@@ -1,7 +1,6 @@
 import collections
 import os
 import re
-from collections.abc import Iterable
 from xml.etree import ElementTree as ET
 
 import pandas as pd
@@ -21,7 +20,7 @@ def check_equal(a: pd.DataFrame, b: pd.DataFrame) -> None:
     pd_test.assert_frame_equal(a[sorted(a.columns)], b[sorted(b.columns)])
 
 
-def find_tests(folder: str) -> Iterable[str]:
+def find_tests(folder: str) -> collections.abc.Iterable[str]:
     for item in listdir(folder):
         if not os.path.isdir(item) and TEST_FILE_PATTERN.match(item):
             yield os.path.join(folder, item)

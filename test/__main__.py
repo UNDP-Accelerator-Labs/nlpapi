@@ -14,7 +14,7 @@ def parse_args_split_tests(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--total-nodes",
         type=int,
-        help=("The total number of nodes/machines to allocate tests to."))
+        help="The total number of nodes/machines to allocate tests to.")
     parser.add_argument(
         "--node-id",
         type=int,
