@@ -1,5 +1,6 @@
 import time
-from typing import Callable, Generic, TypeVar
+from collections.abc import Callable
+from typing import Generic, TypeVar
 
 
 KT = TypeVar('KT')

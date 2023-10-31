@@ -62,7 +62,7 @@ class LocationCache(Base):  # pylint: disable=too-few-public-methods
     access_last = sa.Column(
         sa.DateTime(timezone=True),
         nullable=False,
-        server_default=sa.func.now())
+        server_default=sa.func.now())  # pylint: disable=not-callable
     access_count = sa.Column(
         sa.Integer,
         nullable=False,

@@ -1,5 +1,6 @@
 import contextlib
-from typing import Iterator, Literal
+from collections.abc import Iterator
+from typing import Literal
 
 import spacy
 from spacy.language import Language
@@ -24,8 +25,8 @@ def load_language(language: LanguageStr) -> Language:
 
 @contextlib.contextmanager
 def get_spacy(language: LanguageStr) -> Iterator[spacy.language.Language]:
-    global SPACY_NLP
-    global SPACY_LANG
+    global SPACY_NLP  # pylint: disable=global-statement
+    global SPACY_LANG  # pylint: disable=global-statement
 
     if language != SPACY_LANG or SPACY_NLP is None:
         SPACY_NLP = load_language(language)

@@ -1,4 +1,3 @@
-
 import subprocess
 
 from app.misc.io import open_read
@@ -17,8 +16,8 @@ def simple_call(cmd: list[str]) -> str | None:
 
 
 def get_version(return_hash: bool) -> str:
-    global VERSION_NAME
-    global VERSION_HASH
+    global VERSION_NAME  # pylint: disable=global-statement
+    global VERSION_HASH  # pylint: disable=global-statement
 
     if VERSION_NAME is None or VERSION_HASH is None:
         VERSION_NAME = simple_call(["make", "-s", "name"])

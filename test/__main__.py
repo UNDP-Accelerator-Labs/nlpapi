@@ -34,7 +34,7 @@ def parse_args_merge_results(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--out-fname",
         type=str,
-        help=("Name of combined xml file to be outputted."))
+        help="Name of combined xml file to be outputted.")
 
 
 def parse_args() -> argparse.Namespace:

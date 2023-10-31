@@ -3,7 +3,8 @@ import inspect
 import sys
 import threading
 import urllib
-from typing import Any, Iterator, Type, TYPE_CHECKING, TypedDict
+from collections.abc import Iterator
+from typing import Any, TYPE_CHECKING, TypedDict
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -81,11 +82,11 @@ class DBConnector:
         self._modules: dict[str, int] = {}
         self._schema = config["schema"]
 
-    def table_exists(self, table: Type['Base']) -> bool:
+    def table_exists(self, table: type['Base']) -> bool:
         return sa.inspect(self._engine).has_table(
             table.__table__.name, schema=self._schema)
 
-    def create_tables(self, tables: list[Type['Base']]) -> None:
+    def create_tables(self, tables: list[type['Base']]) -> None:
         from app.system.db.base import Base
 
         Base.metadata.create_all(
@@ -94,7 +95,7 @@ class DBConnector:
             checkfirst=True)
 
     @staticmethod
-    def all_tables() -> list[Type['Base']]:
+    def all_tables() -> list[type['Base']]:
         from app.system.db.base import Base
 
         return [
@@ -134,5 +135,5 @@ class DBConnector:
                     else:
                         session.rollback()
 
-    def upsert(self, table: Type['Base']) -> Any:
+    def upsert(self, table: type['Base']) -> Any:
         return pg_insert(table)

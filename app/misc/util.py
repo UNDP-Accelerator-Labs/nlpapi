@@ -7,7 +7,8 @@ import re
 import string
 import threading
 import uuid
-from typing import Any, Callable, IO, Iterable, Iterator, Type, TypeVar
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any, IO, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -241,10 +242,10 @@ def now_ts() -> pd.Timestamp:
     return pd.Timestamp("now", tz="UTC")
 
 
-def get_function_info(*, clazz: Type) -> tuple[str, int, str]:
+def get_function_info(*, clazz: type) -> tuple[str, int, str]:
     stack = inspect.stack()
 
-    def get_method(cur_clazz: Type) -> tuple[str, int, str] | None:
+    def get_method(cur_clazz: type) -> tuple[str, int, str] | None:
         class_filename = inspect.getfile(cur_clazz)
         for level in stack:
             if os.path.samefile(level.filename, class_filename):

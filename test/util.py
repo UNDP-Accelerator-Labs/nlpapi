@@ -1,7 +1,7 @@
 import collections
 import os
 import re
-from typing import Iterable
+from collections.abc import Iterable
 from xml.etree import ElementTree as ET
 
 import pandas as pd

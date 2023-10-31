@@ -6,16 +6,8 @@ import shutil
 import tempfile
 import threading
 import time
-from typing import (
-    Any,
-    Callable,
-    cast,
-    IO,
-    Iterable,
-    Iterator,
-    Literal,
-    overload,
-)
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any, cast, IO, Literal, overload
 
 
 MAIN_LOCK = threading.RLock()
