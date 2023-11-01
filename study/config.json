@@ -1,0 +1,59 @@
+{
+  "client_pool": {
+    "name": "redis",
+    "cfg": {
+      "host": "localhost",
+      "port": 6380,
+      "passwd": "",
+      "prefix": "nlpapi",
+      "path": "rmain"
+    }
+  },
+  "data_store": {
+    "name": "redis",
+    "cfg": {
+      "host": "localhost",
+      "port": 6381,
+      "passwd": "",
+      "prefix": "nlpapi",
+      "path": "rmain"
+    },
+    "mode": "size"
+  },
+  "executor_manager": {
+    "name": "nlpapi.executor",
+    "batch_size": 8,
+    "sleep_on_idle": 0.1
+  },
+  "queue_pool": {
+    "name": "redis",
+    "cfg": {
+      "host": "localhost",
+      "port": 6380,
+      "passwd": "",
+      "prefix": "nlpapi",
+      "path": "rmain"
+    },
+    "check_assertions": false
+  },
+  "strategy": {
+    "node": {
+      "name": "simple"
+    },
+    "queue": {
+      "name": "simple"
+    }
+  },
+  "readonly_access": {
+    "name": "ram"
+  },
+  "logger": {
+    "listeners": [
+      {
+        "name": "stdout",
+        "show_debug": true
+      }
+    ],
+    "disable_events": ["measure", "debug"]
+  }
+}

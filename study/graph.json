@@ -1,0 +1,51 @@
+{
+  "graphs": [
+    {
+      "name": "copchain",
+      "description": "hello world",
+      "input": "node_0",
+      "input_format": {
+        "value": ["float", [2, 2]]
+      },
+      "output_format": {
+        "value": ["float", [2, 2]]
+      },
+      "nodes": [
+        {
+          "name": "node_0",
+          "kind": "constant_op",
+          "args": {
+            "op": "mul",
+            "const": 2,
+            "input": ["float", [2, 2]]
+          },
+          "outs": {
+            "out": "node_1"
+          },
+          "vmap": {
+            "value": ":value"
+          }
+        },
+        {
+          "name": "node_1",
+          "kind": "constant_op",
+          "args": {
+            "op": "add",
+            "const": 1,
+            "input": ["float", [2, 2]]
+          },
+          "outs": {
+            "out": null
+          },
+          "vmap": {
+            "value": "node_0:value"
+          }
+        }
+      ],
+      "vmap": {
+        "value": "node_1:value"
+      }
+    }
+  ],
+  "entry": "copchain"
+}
