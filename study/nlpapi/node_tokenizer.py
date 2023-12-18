@@ -37,8 +37,8 @@ class TokenizerNode(Node):
     def get_output_format(self) -> dict[str, DataFormatJSON]:
         return {
             "out": {
-                "input_ids": ("int", [None]),
-                "attention_mask": ("bool", [None]),
+                "input_ids": ("int64", [None]),
+                "attention_mask": ("int64", [None]),
             },
         }
 
@@ -77,6 +77,7 @@ class TokenizerNode(Node):
             "out",
             inputs.get_current_tasks(),
             {
-                "input_ids": res["input_ids"].to(device),
-                "attention_mask": res["attention_mask"].to(device),
+                "input_ids": state.create_uniform(res["input_ids"].to(device)),
+                "attention_mask": state.create_uniform(
+                    res["attention_mask"].to(device)),
             })

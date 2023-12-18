@@ -14,6 +14,7 @@ from scattermind.system.queue.strategy.loader import (
     load_queue_strategy,
 )
 from scattermind.system.readonly.loader import load_readonly_access
+from scattermind.system.torch_util import str_to_tensor
 
 
 def load_config() -> Config:
@@ -44,10 +45,10 @@ def run() -> None:
     config.load_graph(graph_def_obj)
     real_start = time.monotonic()
     task_id = config.enqueue(TaskValueContainer({
-        "value": torch.tensor([[0, 1], [2, 3]]),
+        "text": torch.tensor(str_to_tensor("abc")),
     }))
     print(f"enqueued {task_id}")
-    for tid, resp in config.wait_for([task_id]):
+    for tid, resp in config.wait_for([task_id], timeout=60.0):
         status = resp["status"]
         duration = resp["duration"]
         real_time = time.monotonic() - real_start
@@ -61,7 +62,7 @@ def run() -> None:
             print("\n".join(error["traceback"]))
         result = resp["result"]
         if result is not None:
-            print(result["value"])
+            print(result["embed"])
 
 
 if __name__ == "__main__":

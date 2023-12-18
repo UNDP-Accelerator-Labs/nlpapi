@@ -1,51 +1,44 @@
 {
   "graphs": [
     {
-      "name": "copchain",
-      "description": "hello world",
+      "name": "embed_basic",
+      "description": "basic embedding model",
       "input": "node_0",
       "input_format": {
-        "value": ["float", [2, 2]]
+        "text": ["uint8", [null]]
       },
       "output_format": {
-        "value": ["float", [2, 2]]
+        "embed": ["float64", [512]]
       },
       "nodes": [
         {
           "name": "node_0",
-          "kind": "constant_op",
-          "args": {
-            "op": "mul",
-            "const": 2,
-            "input": ["float", [2, 2]]
-          },
+          "kind": "nlpapi.node_tokenizer",
+          "args": {},
           "outs": {
             "out": "node_1"
           },
           "vmap": {
-            "value": ":value"
+            "text": ":text"
           }
         },
         {
           "name": "node_1",
-          "kind": "constant_op",
-          "args": {
-            "op": "add",
-            "const": 1,
-            "input": ["float", [2, 2]]
-          },
+          "kind": "nlpapi.node_model",
+          "args": {},
           "outs": {
             "out": null
           },
           "vmap": {
-            "value": "node_0:value"
+            "input_ids": "node_0:input_ids",
+            "attention_mask": "node_0:attention_mask"
           }
         }
       ],
       "vmap": {
-        "value": "node_1:value"
+        "embed": "node_1:embed"
       }
     }
   ],
-  "entry": "copchain"
+  "entry": "embed_basic"
 }

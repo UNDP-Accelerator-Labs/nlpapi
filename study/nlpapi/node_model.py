@@ -120,15 +120,6 @@ class TrainingHarness(nn.Module):
         return preds, self._loss(probs, labels)
 
 
-def load_model(
-        harness: TrainingHarness,
-        model_fname: str,
-        device: torch.device) -> None:
-    print(f"loading {model_fname}")
-    with open(model_fname, "rb") as fin:
-        harness.load_state_dict(torch.load(fin, map_location=device))
-
-
 class ModelNode(Node):
     def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
         super().__init__(kind, graph, node_id)
@@ -139,8 +130,8 @@ class ModelNode(Node):
 
     def get_input_format(self) -> DataFormatJSON:
         return {
-            "input_ids": ("int", [None]),
-            "attention_mask": ("bool", [None]),
+            "input_ids": ("int64", [None]),
+            "attention_mask": ("int64", [None]),
         }
 
     def get_output_format(self) -> dict[str, DataFormatJSON]:
@@ -162,7 +153,11 @@ class ModelNode(Node):
             "use_cos": True,
         })
         harness = TrainingHarness(model, use_cos=True)
-        load_model(harness, "abc", get_system_device())
+        model_fname = "mdata/v2_model_9.pkl"
+        print(f"loading {model_fname}")
+        with open(model_fname, "rb") as fin:
+            harness.load_state_dict(
+                torch.load(fin, map_location=get_system_device()))
         self._harness = harness
 
     def do_unload(self) -> None:
@@ -188,5 +183,5 @@ class ModelNode(Node):
                 "out",
                 inputs.get_current_tasks(),
                 {
-                    "embed": embeds,
+                    "embed": state.create_uniform(embeds),
                 })
