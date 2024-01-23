@@ -8,7 +8,7 @@
         "text": ["uint8", [null]]
       },
       "output_format": {
-        "embed": ["float64", [512]]
+        "embed": ["float32", [768]]
       },
       "nodes": [
         {
@@ -30,8 +30,7 @@
             "out": null
           },
           "vmap": {
-            "input_ids": "node_0:input_ids",
-            "attention_mask": "node_0:attention_mask"
+            "input_ids": "node_0:input_ids"
           }
         }
       ],

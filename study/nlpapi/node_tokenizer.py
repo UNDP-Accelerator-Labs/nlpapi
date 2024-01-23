@@ -38,7 +38,6 @@ class TokenizerNode(Node):
         return {
             "out": {
                 "input_ids": ("int64", [None]),
-                "attention_mask": ("int64", [None]),
             },
         }
 
@@ -77,7 +76,7 @@ class TokenizerNode(Node):
             "out",
             inputs.get_current_tasks(),
             {
-                "input_ids": state.create_uniform(res["input_ids"].to(device)),
-                "attention_mask": state.create_uniform(
+                "input_ids": state.create_masked(
+                    res["input_ids"].to(device),
                     res["attention_mask"].to(device)),
             })

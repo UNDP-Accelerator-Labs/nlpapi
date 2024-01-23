@@ -131,13 +131,12 @@ class ModelNode(Node):
     def get_input_format(self) -> DataFormatJSON:
         return {
             "input_ids": ("int64", [None]),
-            "attention_mask": ("int64", [None]),
         }
 
     def get_output_format(self) -> dict[str, DataFormatJSON]:
         return {
             "out": {
-                "embed": ("float64", [512]),
+                "embed": ("float32", [768]),
             },
         }
 
@@ -148,6 +147,7 @@ class ModelNode(Node):
         return 1.0  # TODO
 
     def do_load(self, roa: ReadonlyAccess) -> None:
+        device = get_system_device()
         model = create_model({
             "agg": "cls",
             "use_cos": True,
@@ -157,8 +157,8 @@ class ModelNode(Node):
         print(f"loading {model_fname}")
         with open(model_fname, "rb") as fin:
             harness.load_state_dict(
-                torch.load(fin, map_location=get_system_device()))
-        self._harness = harness
+                torch.load(fin, map_location=device))
+        self._harness = harness.to(device)
 
     def do_unload(self) -> None:
         self._harness = None
@@ -176,8 +176,8 @@ class ModelNode(Node):
         model.eval()
         with torch.no_grad():
             inputs = state.get_values()
-            input_ids = inputs.get_data("input_ids").get_uniform()
-            attention_mask = inputs.get_data("attention_mask").get_uniform()
+            input_ids_data = inputs.get_data("input_ids")
+            input_ids, attention_mask = input_ids_data.get_masked()
             embeds = model(input_ids, attention_mask)
             state.push_results(
                 "out",

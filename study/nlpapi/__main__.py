@@ -1,7 +1,6 @@
 import json
 import time
 
-import torch
 from scattermind.system.client.loader import load_client_pool
 from scattermind.system.config.config import Config
 from scattermind.system.logger.loader import load_event_listener
@@ -44,11 +43,15 @@ def run() -> None:
         graph_def_obj = json.load(fin)
     config.load_graph(graph_def_obj)
     real_start = time.monotonic()
-    task_id = config.enqueue(TaskValueContainer({
-        "text": torch.tensor(str_to_tensor("abc")),
+    task_id_0 = config.enqueue(TaskValueContainer({
+        "text": str_to_tensor("abc").clone().detach(),
     }))
-    print(f"enqueued {task_id}")
-    for tid, resp in config.wait_for([task_id], timeout=60.0):
+    print(f"enqueued {task_id_0}")
+    task_id_1 = config.enqueue(TaskValueContainer({
+        "text": str_to_tensor("hallo").clone().detach(),
+    }))
+    print(f"enqueued {task_id_1}")
+    for tid, resp in config.wait_for([task_id_0, task_id_1], timeout=60.0):
         status = resp["status"]
         duration = resp["duration"]
         real_time = time.monotonic() - real_start
