@@ -21,8 +21,9 @@
     "mode": "size"
   },
   "executor_manager": {
-    "name": "nlpapi.executor",
+    "name": "thread",
     "batch_size": 8,
+    "parallelism": 2,
     "sleep_on_idle": 0.1
   },
   "queue_pool": {
