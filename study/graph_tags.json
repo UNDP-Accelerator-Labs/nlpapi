@@ -1,0 +1,34 @@
+{
+  "graphs": [
+    {
+      "name": "auto_tag",
+      "description": "tag input text",
+      "input": "node_0",
+      "input_format": {
+        "text": ["uint8", [null]]
+      },
+      "output_format": {
+        "tags": ["uint8", [null]]
+      },
+      "nodes": [
+        {
+          "name": "node_0",
+          "kind": "nlpapi.tag_model",
+          "args": {
+            "threshold": 0.25
+          },
+          "outs": {
+            "out": null
+          },
+          "vmap": {
+            "text": ":text"
+          }
+        }
+      ],
+      "vmap": {
+        "tags": "node_0:tags"
+      }
+    }
+  ],
+  "entry": "auto_tag"
+}

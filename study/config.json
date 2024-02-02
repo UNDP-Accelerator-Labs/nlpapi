@@ -39,7 +39,7 @@
   },
   "strategy": {
     "node": {
-      "name": "simple"
+      "name": "dedicated"
     },
     "queue": {
       "name": "simple"

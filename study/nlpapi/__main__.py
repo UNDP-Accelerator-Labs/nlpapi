@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import time
@@ -16,18 +17,59 @@ Pad = TypedDict('Pad', {
 })
 
 
-def load_config() -> ScattermindAPI:
-    with open("config.json", "rb") as fin:
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Run scattermind of a batch of data.")
+    parser.add_argument(
+        "--graph",
+        type=str,
+        help="The scattermind graph file.")
+    parser.add_argument(
+        "--input",
+        type=str,
+        help="The input file.")
+    parser.add_argument(
+        "--output",
+        type=str,
+        help="The output file.")
+    parser.add_argument(
+        "--config",
+        default="config.json",
+        type=str,
+        help="The configuration file.")
+    return parser.parse_args()
+
+
+def load_config(config_fname: str) -> ScattermindAPI:
+    with open(config_fname, "rb") as fin:
         config_obj = json.load(fin)
     return load_api(config_obj)
 
 
-def run() -> None:
-    smind = load_config()
-    with open("graph.json", "rb") as fin:
+def load_graph(
+        smind: ScattermindAPI,
+        graph_fname: str) -> tuple[str, str]:
+    with open(graph_fname, "rb") as fin:
         graph_def_obj = json.load(fin)
     smind.load_graph(graph_def_obj)
-    with open("sm_pads.json", "r", encoding="utf-8") as pin:
+    inputs = list(smind.main_inputs())
+    outputs = list(smind.main_outputs())
+    if len(inputs) != 1:
+        raise ValueError(f"invalid graph inputs: {inputs}")
+    if len(outputs) != 1:
+        raise ValueError(f"invalid graph outputs: {outputs}")
+    return inputs[0], outputs[0]
+
+
+def run() -> None:
+    args = parse_args()
+    graph_fname = args.graph
+    input_fname = args.input
+    output_fname = args.output
+    config_fname = args.config
+    smind = load_config(config_fname)
+    input_field, output_field = load_graph(smind, graph_fname)
+    with open(input_fname, "rb") as pin:
         pads = json.load(pin)
     real_start = time.monotonic()
     pad_lookup: dict[TaskId, Pad] = {}
@@ -36,7 +78,7 @@ def run() -> None:
         if not text.strip():
             return
         task_id = smind.enqueue_task({
-            "text": text,
+            input_field: text,
         })
         pad_lookup[task_id] = {
             "id": pad_id,
@@ -70,10 +112,9 @@ def run() -> None:
             else:
                 pos += len(cur)
 
-    out_file = "out.csv"
-    columns = ["id", "is_public", "text", "embed"]
-    if not os.path.exists(out_file):
-        pd.DataFrame([], columns=columns).to_csv(out_file, index=False)
+    columns = ["id", "is_public", input_field, output_field]
+    if not os.path.exists(output_fname):
+        pd.DataFrame([], columns=columns).to_csv(output_fname, index=False)
     count = 0
     for tid, resp in smind.wait_for(list(pad_lookup.keys()), timeout=None):
         count += 1
@@ -91,14 +132,14 @@ def run() -> None:
             print("\n".join(error["traceback"]))
         result = resp["result"]
         if result is not None:
-            embed = f"{list(result['embed'].cpu().tolist())}"
+            output = f"{list(result[output_field].cpu().tolist())}"
             pad = pad_lookup[tid]
             pd.DataFrame({
                 "id": [pad["id"]],
                 "is_public": [pad["is_public"]],
-                "text": [pad["text"]],
-                "embed": [embed],
-            }, columns=columns).to_csv(out_file, mode="a", index=False)
+                input_field: [pad["text"]],
+                output_field: [output],
+            }, columns=columns).to_csv(output_fname, mode="a", index=False)
 
 
 if __name__ == "__main__":

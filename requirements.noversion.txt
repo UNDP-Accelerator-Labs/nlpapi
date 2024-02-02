@@ -13,6 +13,7 @@ jupyter-console
 jupyter-server
 jupyterlab-widgets
 keras
+keybert
 langdetect
 matplotlib
 matplotlib-inline
