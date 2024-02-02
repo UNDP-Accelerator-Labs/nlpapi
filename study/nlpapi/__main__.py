@@ -46,7 +46,7 @@ def run() -> None:
         print(f"enqueued {pad_id}: {task_id}")
 
     chunk_size = 600
-    for pad in pads["pads"][:10]:
+    for pad in pads["pads"]:
         pad_id = int(pad["id"])
         pad_public = bool(pad["is_public"])
         title = f"{pad['title']}"

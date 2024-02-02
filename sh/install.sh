@@ -40,7 +40,7 @@ if ${PYTHON} -c 'import torch;assert torch.__version__.startswith("2.")' &>/dev/
     ${PYTHON} -c "${PY_TORCH_VERIFY}"
 else
     if [ ! $CI = "true" ] && command -v conda &>/dev/null 2>&1; then
-        conda install -y pytorch torchvision torchaudio -c pytorch-nightly
+        conda install -y pytorch torchvision torchaudio -c pytorch
     else
         ${PYTHON} -m pip install --progress-bar off --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cpu
     fi
