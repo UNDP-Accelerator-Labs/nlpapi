@@ -63,6 +63,7 @@ class TokenizerNode(Node):
 
     def execute_tasks(self, state: ComputeState) -> None:
         assert self._tokenizer is not None
+        print("execute tokenizer")
         inputs = state.get_values()
         text = inputs.get_data("text")
         texts = [

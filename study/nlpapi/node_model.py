@@ -172,6 +172,7 @@ class ModelNode(Node):
 
     def execute_tasks(self, state: ComputeState) -> None:
         assert self._harness is not None
+        print("execute model")
         model = self._harness.get_model()
         model.eval()
         with torch.no_grad():
