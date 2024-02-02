@@ -186,3 +186,4 @@ class ModelNode(Node):
                 {
                     "embed": state.create_uniform(embeds),
                 })
+        print("execute model done")

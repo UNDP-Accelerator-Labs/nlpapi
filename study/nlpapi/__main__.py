@@ -74,14 +74,17 @@ def run() -> None:
     columns = ["id", "is_public", "text", "embed"]
     if not os.path.exists(out_file):
         pd.DataFrame([], columns=columns).to_csv(out_file, index=False)
-    for tid, resp in smind.wait_for(list(pad_lookup.keys()), timeout=60.0):
+    count = 0
+    for tid, resp in smind.wait_for(list(pad_lookup.keys()), timeout=None):
+        count += 1
         status = resp["status"]
         duration = resp["duration"]
         real_time = time.monotonic() - real_start
         retries = resp["retries"]
         print(
             f"{tid} status: {status} "
-            f"time: {duration}s real: {real_time}s retries: {retries}")
+            f"time: {duration}s real: {real_time}s retries: {retries} "
+            f"task count: {count} avg real: {real_time / count}")
         if resp["error"] is not None:
             error = resp["error"]
             print(f"{error['code']} ({error['ctx']}): {error['message']}")

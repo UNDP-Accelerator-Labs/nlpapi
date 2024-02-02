@@ -81,3 +81,4 @@ class TokenizerNode(Node):
                     res["input_ids"].to(device),
                     res["attention_mask"].to(device)),
             })
+        print("execute tokenizer done")
