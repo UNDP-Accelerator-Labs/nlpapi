@@ -72,6 +72,11 @@ def load_graph(
 
 
 def run() -> None:
+    # python -m vecdb --input out.csv --name test:dot --db file://vec.db
+
+    # ./run_embed.sh
+    # python -m vecdb --name test:dot --db file://vec.db
+    # --config config.json --graph graph_embed.json --query 'circular economy'
     args = parse_args()
     input_file = args.input
     query = args.query
@@ -83,8 +88,10 @@ def run() -> None:
     config = args.config
     db: QdrantClient
     if db_str.startswith(FILE_PROTOCOL):
+        print(f"loading db file: {db_str.removeprefix(FILE_PROTOCOL)}")
         db = QdrantClient(path=db_str.removeprefix(FILE_PROTOCOL))
     else:
+        print(f"loading db: {db_str}")
         db = QdrantClient(db_str)
     if input_file is not None:
         if name.endswith(":dot"):
