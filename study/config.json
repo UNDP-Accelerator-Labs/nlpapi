@@ -24,7 +24,8 @@
     "name": "thread",
     "batch_size": 8,
     "parallelism": 2,
-    "sleep_on_idle": 0.1
+    "sleep_on_idle": 0.1,
+    "reclaim_sleep": 120.0
   },
   "queue_pool": {
     "name": "redis",
