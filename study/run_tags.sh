@@ -8,8 +8,8 @@ start_redis() {
     popd
 }
 
-start_redis rmain 6380 &
-start_redis rdata 6381 &
+start_redis rmain 6381 &
+start_redis rdata 6383 &
 start_redis rcache 6382 &
 
 python -m scattermind --config config.json worker --graph graph_tags.json
