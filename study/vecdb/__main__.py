@@ -12,6 +12,9 @@ from scattermind.api.loader import load_api
 FILE_PROTOCOL = "file://"
 
 
+EMBED_SIZE = 384  # 768
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Reads or writes from/to the vector db.")
@@ -106,7 +109,7 @@ def run() -> None:
             raise ValueError(f"invalid name: {name}")
         db.recreate_collection(
             collection_name=name,
-            vectors_config=VectorParams(size=768, distance=distance))
+            vectors_config=VectorParams(size=EMBED_SIZE, distance=distance))
         for chunk in pd.read_csv(input_file, chunksize=100):
             # id,is_public,text,embed
             db.upsert(

@@ -42,6 +42,7 @@ scattermind
 scikit-learn
 scipy
 seaborn
+sentence-transformers
 spacy
 SQLAlchemy
 SQLAlchemy[mypy]

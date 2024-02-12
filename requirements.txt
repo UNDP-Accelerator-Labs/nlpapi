@@ -42,6 +42,7 @@ scattermind==0.2.0
 scikit-learn==1.2.0
 scipy==1.10.0
 seaborn==0.12.2
+sentence-transformers~=2.3.0
 spacy==3.5.3
 SQLAlchemy==2.0.9
 SQLAlchemy[mypy]==2.0.9

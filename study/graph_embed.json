@@ -1,43 +1,32 @@
 {
   "graphs": [
     {
-      "name": "embed_basic",
-      "description": "basic embedding model",
+      "name": "embed_sbert",
+      "description": "sbert embedding model",
       "input": "node_0",
       "input_format": {
         "text": ["uint8", [null]]
       },
       "output_format": {
-        "embed": ["float32", [768]]
+        "embed": ["float32", [384]]
       },
       "nodes": [
         {
           "name": "node_0",
-          "kind": "nlpapi.node_tokenizer",
-          "args": {},
-          "outs": {
-            "out": "node_1"
-          },
-          "vmap": {
-            "text": ":text"
-          }
-        },
-        {
-          "name": "node_1",
-          "kind": "nlpapi.node_model",
+          "kind": "nlpapi.embed_model",
           "args": {},
           "outs": {
             "out": null
           },
           "vmap": {
-            "input_ids": "node_0:input_ids"
+            "text": ":text"
           }
         }
       ],
       "vmap": {
-        "embed": "node_1:embed"
+        "embed": "node_0:embed"
       }
     }
   ],
-  "entry": "embed_basic"
+  "entry": "embed_sbert"
 }

@@ -122,7 +122,7 @@ def run() -> None:
     columns = ["id", "is_public", input_field, output_field]
     if not os.path.exists(output_fname):
         pd.DataFrame([], columns=columns).to_csv(
-            output_fname, index=False, header=False)
+            output_fname, index=False, header=True)
     count = 0
     for tid, resp in smind.wait_for(list(pad_lookup.keys()), timeout=None):
         count += 1

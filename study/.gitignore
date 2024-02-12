@@ -5,3 +5,5 @@ sm_pads.json
 out.csv
 tags.csv
 vec.db
+_out.csv
+_vec.db
