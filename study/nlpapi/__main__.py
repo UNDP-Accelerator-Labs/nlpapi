@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
         "--config",
         default="config.json",
         type=str,
-        help="The configuration file.")
+        help="The scattermind configuration file.")
     return parser.parse_args()
 
 
@@ -114,7 +114,8 @@ def run() -> None:
 
     columns = ["id", "is_public", input_field, output_field]
     if not os.path.exists(output_fname):
-        pd.DataFrame([], columns=columns).to_csv(output_fname, index=False)
+        pd.DataFrame([], columns=columns).to_csv(
+            output_fname, index=False, header=False)
     count = 0
     for tid, resp in smind.wait_for(list(pad_lookup.keys()), timeout=None):
         count += 1
@@ -139,7 +140,8 @@ def run() -> None:
                 "is_public": [pad["is_public"]],
                 input_field: [pad["text"]],
                 output_field: [output],
-            }, columns=columns).to_csv(output_fname, mode="a", index=False)
+            }, columns=columns).to_csv(
+                output_fname, mode="a", index=False, header=False)
 
 
 if __name__ == "__main__":

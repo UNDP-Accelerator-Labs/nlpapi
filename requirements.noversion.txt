@@ -34,6 +34,7 @@ pytest
 pytest-cov
 python-dateutil
 pytz
+qdrant-client
 qtconsole
 quick-server
 requests
