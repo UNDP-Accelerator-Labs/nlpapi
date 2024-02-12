@@ -1,6 +1,8 @@
 import argparse
 import json
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import pandas as pd
 from qdrant_client import QdrantClient
@@ -74,6 +76,16 @@ def load_graph(
     return inputs[0], outputs[0]
 
 
+@contextmanager
+def timing(name: str) -> Iterator[None]:
+    start_time = time.monotonic()
+    try:
+        yield
+    finally:
+        duration = time.monotonic() - start_time
+        print(f"{name} took {duration}s")
+
+
 def run() -> None:
     # python -m vecdb --input out.csv --name test:dot --db file://vec.db
 
@@ -90,12 +102,13 @@ def run() -> None:
     graph = args.graph
     config = args.config
     db: QdrantClient
-    if db_str.startswith(FILE_PROTOCOL):
-        print(f"loading db file: {db_str.removeprefix(FILE_PROTOCOL)}")
-        db = QdrantClient(path=db_str.removeprefix(FILE_PROTOCOL))
-    else:
-        print(f"loading db: {db_str}")
-        db = QdrantClient(db_str)
+    with timing("loading db"):
+        if db_str.startswith(FILE_PROTOCOL):
+            print(f"loading db file: {db_str.removeprefix(FILE_PROTOCOL)}")
+            db = QdrantClient(path=db_str.removeprefix(FILE_PROTOCOL))
+        else:
+            print(f"loading db: {db_str}")
+            db = QdrantClient(db_str)
     if input_file is not None:
         if name.endswith(":dot"):
             distance: Distance = Distance.DOT
@@ -128,36 +141,41 @@ def run() -> None:
     elif query is not None:
         if config is None or graph is None:
             raise ValueError("config and graph must be set for query")
-        smind = load_config(config)
-        input_field, output_field = load_graph(smind, graph)
-        real_start = time.monotonic()
-        task_id = smind.enqueue_task({
-            input_field: query,
-        })
-        print(f"enqueued {task_id}: {query}")
+        with timing("load config and graph"):
+            smind = load_config(config)
+            input_field, output_field = load_graph(smind, graph)
+        with timing("query"):
+            real_start = time.monotonic()
+            task_id = smind.enqueue_task({
+                input_field: query,
+            })
+            print(f"enqueued {task_id}: {query}")
 
-        for tid, resp in smind.wait_for([task_id], timeout=None):
-            status = resp["status"]
-            duration = resp["duration"]
-            real_time = time.monotonic() - real_start
-            retries = resp["retries"]
-            print(
-                f"{tid} status: {status} "
-                f"time: {duration}s real: {real_time}s retries: {retries}")
-            if resp["error"] is not None:
-                error = resp["error"]
-                print(f"{error['code']} ({error['ctx']}): {error['message']}")
-                print("\n".join(error["traceback"]))
-            result = resp["result"]
-            if result is not None:
-                output = list(result[output_field].cpu().tolist())
-                hits = db.search(
-                    collection_name=name,
-                    query_vector=output,
-                    limit=10)
-                print("results:")
-                for ix, hit in enumerate(hits):
-                    print(f"hit {ix}: {hit}")
+            for tid, resp in smind.wait_for([task_id], timeout=None):
+                status = resp["status"]
+                duration = resp["duration"]
+                real_time = time.monotonic() - real_start
+                retries = resp["retries"]
+                print(
+                    f"{tid} status: {status} "
+                    f"time: {duration}s real: {real_time}s retries: {retries}")
+                if resp["error"] is not None:
+                    error = resp["error"]
+                    print(
+                        f"{error['code']} "
+                        f"({error['ctx']}): "
+                        f"{error['message']}")
+                    print("\n".join(error["traceback"]))
+                result = resp["result"]
+                if result is not None:
+                    output = list(result[output_field].cpu().tolist())
+                    hits = db.search(
+                        collection_name=name,
+                        query_vector=output,
+                        limit=10)
+                    print("results:")
+                    for ix, hit in enumerate(hits):
+                        print(f"hit {ix}: {hit}")
 
 
 if __name__ == "__main__":
