@@ -9,6 +9,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
+from scattermind.system.names import GNamespace
 
 
 FILE_PROTOCOL = "file://"
@@ -63,17 +64,17 @@ def load_config(config_fname: str) -> ScattermindAPI:
 
 def load_graph(
         smind: ScattermindAPI,
-        graph_fname: str) -> tuple[str, str]:
+        graph_fname: str) -> tuple[GNamespace, str, str]:
     with open(graph_fname, "rb") as fin:
         graph_def_obj = json.load(fin)
-    smind.load_graph(graph_def_obj)
-    inputs = list(smind.main_inputs())
-    outputs = list(smind.main_outputs())
+    ns = smind.load_graph(graph_def_obj)
+    inputs = list(smind.main_inputs(ns))
+    outputs = list(smind.main_outputs(ns))
     if len(inputs) != 1:
         raise ValueError(f"invalid graph inputs: {inputs}")
     if len(outputs) != 1:
         raise ValueError(f"invalid graph outputs: {outputs}")
-    return inputs[0], outputs[0]
+    return ns, inputs[0], outputs[0]
 
 
 @contextmanager
@@ -143,12 +144,14 @@ def run() -> None:
             raise ValueError("config and graph must be set for query")
         with timing("load config and graph"):
             smind = load_config(config)
-            input_field, output_field = load_graph(smind, graph)
+            ns, input_field, output_field = load_graph(smind, graph)
         with timing("query"):
             real_start = time.monotonic()
-            task_id = smind.enqueue_task({
-                input_field: query,
-            })
+            task_id = smind.enqueue_task(
+                ns,
+                {
+                    input_field: query,
+                })
             print(f"enqueued {task_id}: {query}")
 
             for tid, resp in smind.wait_for([task_id], timeout=None):

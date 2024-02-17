@@ -8,6 +8,7 @@ import pandas as pd
 from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
+from scattermind.system.names import GNamespace
 
 
 Pad = TypedDict('Pad', {
@@ -48,17 +49,17 @@ def load_config(config_fname: str) -> ScattermindAPI:
 
 def load_graph(
         smind: ScattermindAPI,
-        graph_fname: str) -> tuple[str, str]:
+        graph_fname: str) -> tuple[GNamespace, str, str]:
     with open(graph_fname, "rb") as fin:
         graph_def_obj = json.load(fin)
-    smind.load_graph(graph_def_obj)
-    inputs = list(smind.main_inputs())
-    outputs = list(smind.main_outputs())
+    ns = smind.load_graph(graph_def_obj)
+    inputs = list(smind.main_inputs(ns))
+    outputs = list(smind.main_outputs(ns))
     if len(inputs) != 1:
         raise ValueError(f"invalid graph inputs: {inputs}")
     if len(outputs) != 1:
         raise ValueError(f"invalid graph outputs: {outputs}")
-    return inputs[0], outputs[0]
+    return ns, inputs[0], outputs[0]
 
 
 def run() -> None:
@@ -75,7 +76,7 @@ def run() -> None:
     output_fname = args.output
     config_fname = args.config
     smind = load_config(config_fname)
-    input_field, output_field = load_graph(smind, graph_fname)
+    ns, input_field, output_field = load_graph(smind, graph_fname)
     with open(input_fname, "rb") as pin:
         pads = json.load(pin)
     real_start = time.monotonic()
@@ -84,9 +85,11 @@ def run() -> None:
     def add_snippet(pad_id: int, pad_public: bool, text: str) -> None:
         if not text.strip():
             return
-        task_id = smind.enqueue_task({
-            input_field: text,
-        })
+        task_id = smind.enqueue_task(
+            ns,
+            {
+                input_field: text,
+            })
         pad_lookup[task_id] = {
             "id": pad_id,
             "is_public": pad_public,
