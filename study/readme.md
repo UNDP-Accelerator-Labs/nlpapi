@@ -1,16 +1,18 @@
 run `./run_embed.sh` in a different terminal to start the ML backend.
 
+run below scripts from the root folder.
+
 Compute embeddings:
 ```
-python -m nlpapi --config config.json --graph graph_embed.json --input sm_pads.json --output out.csv
+python -m nlpapi --config study/config.json --graph study/graph_embed.json --input study/sm_pads.json --output study/out.csv
 ```
 
 Fill vector db with embeddings:
 ```
-python -m vecdb --input out.csv --name test:dot --db file://vec.db
+python -m vecdb --input study/out.csv --name test:dot --db file://study/vec.db
 ```
 
 Querying the db:
 ```
-python -m vecdb --name test:dot --db file://vec.db --config config.json --graph graph_embed.json --query 'food systems'
+python -m vecdb --name test:dot --db file://study/vec.db --config study/config.json --graph study/graph_embed.json --query 'food systems'
 ```

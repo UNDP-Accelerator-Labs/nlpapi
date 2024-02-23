@@ -12,4 +12,5 @@ start_redis rmain 6381 &
 start_redis rdata 6383 &
 start_redis rcache 6382 &
 
-python -m scattermind --config config.json worker --graph graph_embed.json
+cd ..
+python -m scattermind --config study/config.json worker --graph study/graph_embed.json
