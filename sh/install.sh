@@ -13,8 +13,8 @@ fi
 MAJOR=$(${PYTHON} -c 'import sys; print(sys.version_info.major)')
 MINOR=$(${PYTHON} -c 'import sys; print(sys.version_info.minor)')
 echo "${PYTHON} v${MAJOR}.${MINOR}"
-if [ ${MAJOR} -eq 3 ] && [ ${MINOR} -lt 10 ] || [ ${MAJOR} -lt 3 ]; then
-    echo "${PYTHON} version must at least be 3.10" >&2
+if [ ${MAJOR} -eq 3 ] && [ ${MINOR} -lt 11 ] || [ ${MAJOR} -lt 3 ]; then
+    echo "${PYTHON} version must at least be 3.11" >&2
     exit 1
 fi
 
@@ -40,7 +40,7 @@ if ${PYTHON} -c 'import torch;assert torch.__version__.startswith("2.")' &>/dev/
     ${PYTHON} -c "${PY_TORCH_VERIFY}"
 else
     if [ ! $CI = "true" ] && command -v conda &>/dev/null 2>&1; then
-        conda install -y pytorch torchvision torchaudio -c pytorch-nightly
+        conda install -y pytorch torchvision torchaudio -c pytorch
     else
         ${PYTHON} -m pip install --progress-bar off --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cpu
     fi

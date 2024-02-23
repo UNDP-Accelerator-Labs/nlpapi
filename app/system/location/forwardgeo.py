@@ -14,7 +14,7 @@ GEOCODER: OpenCageGeocode | None = None
 
 
 def get_geo() -> OpenCageGeocode:
-    global GEOCODER
+    global GEOCODER  # pylint: disable=global-statement
 
     if GEOCODER is None:
         config = get_config()

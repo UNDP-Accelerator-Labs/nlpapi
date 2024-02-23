@@ -62,7 +62,7 @@ class LocationCache(Base):  # pylint: disable=too-few-public-methods
     access_last = sa.Column(
         sa.DateTime(timezone=True),
         nullable=False,
-        server_default=sa.func.now())
+        server_default=sa.func.now())  # pylint: disable=not-callable
     access_count = sa.Column(
         sa.Integer,
         nullable=False,
@@ -82,21 +82,21 @@ class LocationEntries(Base):  # pylint: disable=too-few-public-methods
         nullable=False,
         primary_key=True)
     pos = sa.Column(sa.Integer, nullable=False, primary_key=True)
-    lat: sa.Column[float] = sa.Column(  # type: ignore
-        sa.Double, nullable=False)
-    lng: sa.Column[float] = sa.Column(  # type: ignore
-        sa.Double, nullable=False)
+    lat: sa.Column[float] = sa.Column(
+        sa.Double, nullable=False)  # type: ignore
+    lng: sa.Column[float] = sa.Column(
+        sa.Double, nullable=False)  # type: ignore
     formatted = sa.Column(sa.Text(), nullable=False)
     country = sa.Column(sa.String(COUNTRY_MAX_LEN), nullable=False)
-    confidence: sa.Column[float] = sa.Column(  # type: ignore
-        sa.Double, nullable=False)
+    confidence: sa.Column[float] = sa.Column(
+        sa.Double, nullable=False)  # type: ignore
 
 
 class LocationUsers(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "location_users"
 
-    userid: sa.Column[sa.Uuid] = sa.Column(  # type: ignore
-        sa.Uuid, nullable=False, unique=True, primary_key=True)
+    userid: sa.Column[sa.Uuid] = sa.Column(
+        sa.Uuid, nullable=False, unique=True, primary_key=True)  # type: ignore
     cache_miss = sa.Column(sa.Integer, nullable=False, default=0)
     cache_hit = sa.Column(sa.Integer, nullable=False, default=0)
     invalid = sa.Column(sa.Integer, nullable=False, default=0)

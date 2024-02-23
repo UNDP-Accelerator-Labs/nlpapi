@@ -13,6 +13,7 @@ jupyter-console
 jupyter-server
 jupyterlab-widgets
 keras
+keybert
 langdetect
 matplotlib
 matplotlib-inline
@@ -21,6 +22,7 @@ mypy-extensions
 numpy
 opencage
 pandas
+pandas-stubs
 Pillow
 pre-commit
 psycopg2-binary
@@ -32,13 +34,15 @@ pytest
 pytest-cov
 python-dateutil
 pytz
+qdrant-client
 qtconsole
 quick-server
-redis
 requests
+scattermind
 scikit-learn
 scipy
 seaborn
+sentence-transformers
 spacy
 SQLAlchemy
 SQLAlchemy[mypy]

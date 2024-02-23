@@ -2,11 +2,15 @@
 import sys
 import threading
 import uuid
+from typing import Any
 
 from quick_server import create_server, QuickServer
 from quick_server import QuickServerRequestHandler as QSRH
 from quick_server import ReqArgs, ReqNext, Response
 
+from app.api.mod import Module
+from app.api.mods.lang import LanguageModule
+from app.api.mods.loc import LocationModule
 from app.api.response_types import (
     SourceListResponse,
     SourceResponse,
@@ -150,6 +154,33 @@ def setup(
         user: uuid.UUID = meta["user"]
         return extract_language(db, input_str, user)
 
+    # *** generic ***
+
+    mods: dict[str, Module] = {}
+
+    def add_mod(mod: Module) -> None:
+        mods[mod.name()] = mod
+
+    add_mod(LocationModule(db))
+    add_mod(LanguageModule(db))
+
+    @server.json_post(f"{prefix}/extract")
+    @server.middleware(verify_input)
+    @server.middleware(verify_token)
+    def _post_extract(_req: QSRH, rargs: ReqArgs) -> dict[str, Any]:
+        args = rargs["post"]
+        meta = rargs["meta"]
+        input_str: str = meta["input"]
+        user: uuid.UUID = meta["user"]
+        res: dict[str, Any] = {}
+        for module in args.get("modules", []):
+            name = module["name"]
+            mod = mods.get(name)
+            if mod is None:
+                raise ValueError(f"unknown module {module}")
+            res[name] = mod.execute(input_str, user, module.get("args", {}))
+        return res
+
     return server, prefix
 
 
@@ -166,6 +197,8 @@ def setup_server(
 
 def start(server: QuickServer, prefix: str) -> None:
     addr, port = server.server_address
+    if not isinstance(addr, str):
+        addr = addr.decode("utf-8")
     print(
         f"starting API at http://{addr}:{port}{prefix}/")
     try:

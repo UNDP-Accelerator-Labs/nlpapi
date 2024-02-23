@@ -1,8 +1,11 @@
-from typing import Callable, Literal
+from collections.abc import Callable
+from typing import Literal, TYPE_CHECKING
 
 import torch
 
-from app.system.config import Config
+
+if TYPE_CHECKING:
+    from app.system.config import Config
 
 
 FeedbackAction = Literal["approve", "dislike", "neutral"]
@@ -12,10 +15,10 @@ FB_NEUTRAL: FeedbackAction = "neutral"
 
 
 class Ops:
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: 'Config') -> None:
         self._config = config
 
-    def get_config(self) -> Config:
+    def get_config(self) -> 'Config':
         return self._config
 
     def init(self) -> None:
@@ -71,9 +74,9 @@ class Ops:
         raise NotImplementedError()
 
 
-def get_ops(name: Literal["db"], config: Config) -> Ops:
+def get_ops(name: Literal["db"], config: 'Config') -> Ops:
     if name == "db":
-        from app.system.ops.db import DbOps
+        from app.system.ops.db import DbOps  # pylint: disable=cyclic-import
 
         return DbOps(config)
     raise ValueError(f"invalid name: {name}")

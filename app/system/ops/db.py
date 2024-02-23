@@ -1,6 +1,6 @@
 import gzip
 import io
-from typing import Callable, Sequence
+from collections.abc import Callable, Sequence
 
 import numpy as np
 import sqlalchemy as sa
@@ -103,8 +103,7 @@ class DbOps(Ops):
 
     def set_corpus_active(self, corpus: str, active: bool) -> None:
         with self._db.get_session() as session:
-            # FIXME: mypy plugin bug?
-            stmt = sa.update(CorpusTable).where(  # type: ignore
+            stmt = sa.update(CorpusTable).where(
                 CorpusTable.name == corpus).values(active=active)
             session.execute(stmt)
             astmt = sa.select(CorpusTable.active)
@@ -132,7 +131,7 @@ class DbOps(Ops):
             source_ids = sa.select(SourceTable.id).where(
                 SourceTable.name.in_(sorted(set(sources))))
             stmt = self._db.upsert(CorpusSourcesTable).values(
-                [  # type: ignore
+                [
                     {
                         "corpus_id": corpus_id,
                         "source_id": source.id,
@@ -157,7 +156,7 @@ class DbOps(Ops):
         if source_id is None:
             raise ValueError(f"unknown source: {source}")
         with self._db.get_session() as session:
-            stmt = sa.insert(DocsTable).values(  # type: ignore
+            stmt = sa.insert(DocsTable).values(
                 source_id=source_id,
                 searchable=searchable,
                 reference=reference).returning(DocsTable.id)

@@ -38,7 +38,7 @@ docker buildx build \
     --build-arg "CONFIG_PATH=${CONFIG_PATH}" \
     --build-arg "PORT=${PORT}" \
     -t "${IMAGE_NAME}" \
-    -f deploy/Dockerfile \
+    -f deploy/api.Dockerfile \
     .
 
 echo "built ${IMAGE_NAME}"

@@ -21,7 +21,7 @@ def read_geo_cache(db: DBConnector, queries: set[str]) -> dict[str, GeoResult]:
         stmt = stmt.returning(
             LocationCache.query, LocationCache.id, LocationCache.no_cache)
         stmt = stmt.values(
-            access_last=sa.func.now(),
+            access_last=sa.func.now(),  # pylint: disable=not-callable
             access_count=LocationCache.access_count + 1)
         for row in session.execute(stmt):
             row_id = int(row.id)

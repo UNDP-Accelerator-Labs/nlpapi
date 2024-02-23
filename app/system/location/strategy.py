@@ -1,5 +1,6 @@
 import collections
-from typing import Callable, get_args, Literal, TYPE_CHECKING
+from collections.abc import Callable
+from typing import get_args, Literal, TYPE_CHECKING
 
 
 if TYPE_CHECKING:

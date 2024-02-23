@@ -1,5 +1,6 @@
 import time
-from typing import Callable, Generic, TypeVar
+from collections.abc import Callable
+from typing import Generic, TypeVar
 
 
 KT = TypeVar('KT')
@@ -36,8 +37,7 @@ class LRU(Generic[KT, VT]):
     def clear_keys(self, prefix_match: Callable[[KT], bool]) -> None:
         for key in list(self._values.keys()):
             if prefix_match(key):
-                # FIXME: mypy bug?
-                self._values.pop(key, None)  # type: ignore
+                self._values.pop(key, None)
                 self._times.pop(key, None)
 
     def gc(self) -> None:
@@ -49,8 +49,7 @@ class LRU(Generic[KT, VT]):
                     key=lambda item: item[1])[:-self._soft_limit]
                 for rm_item in to_remove:
                     key = rm_item[0]
-                    # FIXME: mypy bug?
-                    self._values.pop(key, None)  # type: ignore
+                    self._values.pop(key, None)
                     self._times.pop(key, None)
             except RuntimeError:
                 # dictionary changed size during iteration: try again

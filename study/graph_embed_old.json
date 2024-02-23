@@ -1,0 +1,43 @@
+{
+  "graphs": [
+    {
+      "name": "embed_basic",
+      "description": "basic embedding model",
+      "input": "node_0",
+      "input_format": {
+        "text": ["uint8", [null]]
+      },
+      "output_format": {
+        "embed": ["float32", [768]]
+      },
+      "nodes": [
+        {
+          "name": "node_0",
+          "kind": "nlpapi.node_tokenizer",
+          "args": {},
+          "outs": {
+            "out": "node_1"
+          },
+          "vmap": {
+            "text": ":text"
+          }
+        },
+        {
+          "name": "node_1",
+          "kind": "nlpapi.node_model",
+          "args": {},
+          "outs": {
+            "out": null
+          },
+          "vmap": {
+            "input_ids": "node_0:input_ids"
+          }
+        }
+      ],
+      "vmap": {
+        "embed": "node_1:embed"
+      }
+    }
+  ],
+  "entry": "embed_basic"
+}

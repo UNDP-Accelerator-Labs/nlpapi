@@ -5,7 +5,7 @@ This repo contains a python based API server that provides various NLP APIs.
 
 ## Setup Python
 
-In order to setup python install `python >= 3.10` and `conda`.
+In order to setup python install `python >= 3.11` and `conda`.
 Create a new environment and activate it.
 Then run:
 ```

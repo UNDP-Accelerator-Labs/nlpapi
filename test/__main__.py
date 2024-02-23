@@ -14,7 +14,7 @@ def parse_args_split_tests(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--total-nodes",
         type=int,
-        help=("The total number of nodes/machines to allocate tests to."))
+        help="The total number of nodes/machines to allocate tests to.")
     parser.add_argument(
         "--node-id",
         type=int,
@@ -34,7 +34,7 @@ def parse_args_merge_results(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--out-fname",
         type=str,
-        help=("Name of combined xml file to be outputted."))
+        help="Name of combined xml file to be outputted.")
 
 
 def parse_args() -> argparse.Namespace:

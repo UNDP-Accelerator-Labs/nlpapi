@@ -22,7 +22,7 @@ CONFIG_PATH: str | None = None
 
 
 def get_config_path() -> str:
-    global CONFIG_PATH
+    global CONFIG_PATH  # pylint: disable=global-statement
 
     if CONFIG_PATH is None:
         CONFIG_PATH = envload_path("CONFIG_PATH", default="config.json")
@@ -58,7 +58,7 @@ def create_config_and_err(config_path: str) -> None:
 
 
 def get_config() -> Config:
-    global CONFIG
+    global CONFIG  # pylint: disable=global-statement
 
     if CONFIG is not None:
         return CONFIG

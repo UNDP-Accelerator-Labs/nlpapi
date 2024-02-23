@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Callable, cast, Literal, TypedDict
+from collections.abc import Callable
+from typing import Any, cast, Literal, TypedDict
 
 import numpy as np
 import torch

@@ -1,8 +1,7 @@
-
-
 import collections
 import random
-from typing import Iterable, TypedDict
+from collections.abc import Iterable
+from typing import TypedDict
 
 from langdetect import detect_langs  # type: ignore
 
