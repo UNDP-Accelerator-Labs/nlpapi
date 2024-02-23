@@ -28,7 +28,6 @@ from app.system.location.response import GeoOutput, GeoQuery
 from app.system.ops.ops import get_ops
 
 
-MAX_RESPONSE = 100 * 1024  # 100KiB  # rough size
 MAX_INPUT_LENGTH = 100 * 1024  # 100KiB
 MAX_LINKS = 20
 
