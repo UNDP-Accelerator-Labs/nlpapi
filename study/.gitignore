@@ -7,3 +7,5 @@ tags.csv
 vec.db
 _out.csv
 _vec.db
+*.model
+*.ckpt
