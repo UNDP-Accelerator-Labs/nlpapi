@@ -3,7 +3,8 @@ import random
 from collections.abc import Iterable
 from typing import TypedDict
 
-from langdetect import detect_langs  # type: ignore
+import langdetect  # type: ignore
+from langdetect import detect_langs
 
 from app.system.stats import LengthCounter
 
@@ -30,8 +31,11 @@ LangResponse = TypedDict('LangResponse', {
 def get_raw_lang(text: str, lnc: LengthCounter) -> Iterable[LangTuple]:
     if len(text) > MAX_PROCESSING_SIZE:
         raise ValueError(f"text too long {len(text)} > {MAX_PROCESSING_SIZE}")
-    for res in detect_langs(lnc(text)):
-        yield (f"{res.lang}", float(res.prob))
+    try:
+        for res in detect_langs(lnc(text)):
+            yield (f"{res.lang}", float(res.prob))
+    except langdetect.lang_detect_exception.LangDetectException:
+        pass
 
 
 def probe(
