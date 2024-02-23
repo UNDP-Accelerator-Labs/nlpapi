@@ -57,16 +57,18 @@ def get_lang(text: str, lnc: LengthCounter) -> LangResponse:
     res: collections.defaultdict[str, float] = \
         collections.defaultdict(lambda: 0.0)
     counts: collections.Counter[str] = collections.Counter()
+    total = 0
     for _ in range(NUM_PROBES):
         for lang, score in probe(text, rng, lnc):
             res[lang] += score
             counts[lang] += 1
+            total += 1
     return {
         "languages": sorted(
             (
                 {
                     "lang": lang,
-                    "score": score / NUM_PROBES,
+                    "score": score / total,
                     "count": counts[lang],
                 }
                 for lang, score in res.items()
