@@ -28,7 +28,7 @@ from app.system.location.response import GeoOutput, GeoQuery
 from app.system.ops.ops import get_ops
 
 
-MAX_INPUT_LENGTH = 100 * 1024  # 100KiB
+MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
 MAX_LINKS = 20
 
 
@@ -53,7 +53,7 @@ def setup(
             method_str: str, path: str, duration: float) -> None:
         print(f"slow request {method_str} {path} ({duration}s)")
 
-    max_upload = 120 * 1024  # 120KiB
+    max_upload = 120 * 1024 * 1024  # 120MiB
     server_timeout = 10 * 60
     server.report_slow_requests = report_slow_requests
     server.max_file_size = max_upload
