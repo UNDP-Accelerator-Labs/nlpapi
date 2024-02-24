@@ -39,7 +39,7 @@ qdrant-client~=1.7.0
 qtconsole==5.4.0
 quick-server~=0.8.0
 requests==2.31.0
-scattermind==0.3.0
+scattermind~=0.3.0
 scikit-learn==1.2.0
 scipy==1.10.0
 seaborn==0.12.2
