@@ -73,15 +73,15 @@ def load_graph(
 
 def run() -> None:
     # ./run.sh
-    # python -m nlpapi --config config.json --graph
+    # python -m nlpapi --config study/config.json --graph
     # study/graphs/graph_tags.json --input @sm_pads.json --output tags.csv
 
     # ./run.sh
-    # python -m nlpapi --config config.json --graph
+    # python -m nlpapi --config study/config.json --graph
     # study/graphs/graph_embed.json --input @sm_pads.json --output out.csv
 
     # ./run.sh
-    # python -m nlpapi --config config.json --graph
+    # python -m nlpapi --config study/config.json --graph
     # study/graphs/graph_gemma.json --input 'how are you?' --output -
     args = parse_args()
     graph_fname = args.graph

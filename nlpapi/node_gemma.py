@@ -103,7 +103,7 @@ class EmbedModelNode(Node):
 
     def execute_tasks(self, state: ComputeState) -> None:
         assert self._model is not None
-        print("execute model")
+        print("execute gemma")
         maxlen = self.get_arg("maxlen").get("int")
         inputs = state.get_values()
         model = self._model
@@ -123,4 +123,4 @@ class EmbedModelNode(Node):
                 {
                     "text": state.create_single(str_to_tensor(f"{keywords}")),
                 })
-        print("execute model done")
+        print("execute gemma done")

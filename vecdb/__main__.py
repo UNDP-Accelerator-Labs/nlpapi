@@ -92,7 +92,7 @@ def run() -> None:
 
     # ./run.sh
     # python -m vecdb --name test:dot --db file://vec.db
-    # --config config.json --graph study/graphs/graph_embed.json
+    # --config study/config.json --graph study/graphs/graph_embed.json
     # --query 'circular economy'
     args = parse_args()
     input_file = args.input
