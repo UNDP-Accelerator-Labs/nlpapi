@@ -14,6 +14,58 @@ T[c9f9aaee30d3444fa20979ff9dad4416] status: ready time: 265.498369s real: 265.75
 
 Cold start (4 documents):
 
-
+(smartsearch) ➜  nlpapi git:(main) ✗ python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input @study/prompts/extract/ --output -
+enqueued 0: T[c8ad883023484a1582125dbe40288438]
+enqueued 1: T[aa44840c35314bde9a9736807d891b9b]
+enqueued 2: T[64f2454a27e7443180caa1e3b96eed25]
+enqueued 3: T[f5cbd56f5ed2426bad01fc87e360e2df]
+T[64f2454a27e7443180caa1e3b96eed25] status: ready time: 10250.803623s real: 10251.505041040946s retries: 0 task count: 1 avg real: 10251.505041040946
+{
+  "id": [
+    2
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    "## JSON\n\n{\n  \"date\": \"DECEMBER 30, 2021\",\n  \"people\": [\n    {\n      \"name\": \"Shoko Noda\",\n      \"role\": \"Principal Secretary\"\n    },\n    {\n      \"name\": \"Jayesh Ranjan\",\n      \"role\": \"Lead Specialist\"\n    },\n    {\n      \"name\": \"Deepali Khanna\",\n      \"role\": \"Project Manager\"\n    }\n  ],\n  \"locations\": [\n    {\n      \"name\": \"India\"\n    }\n  ],\n  \"organizations\": [\n    {\n      \"name\": \"The Rockefeller Foundation\"\n    }\n  ],\n  \"themes\": [\n    \"Data-driven approaches\",\n    \"Resilience\",\n    \"Climate change\",\n    \"Food systems\",\n    \"Technology\",\n    \"Collaboration\",\n    \"Sustainability\"\n  ]\n}"
+  ]
+}
+T[f5cbd56f5ed2426bad01fc87e360e2df] status: ready time: 10250.794805s real: 10251.510425582994s retries: 0 task count: 2 avg real: 5125.755212791497
+{
+  "id": [
+    3
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    "Unit\u00e9 Evironnement & changement climatique"
+  ]
+}
+T[c8ad883023484a1582125dbe40288438] status: ready time: 10250.811554s real: 10251.511828790884s retries: 0 task count: 3 avg real: 3417.1706095969616
+{
+  "id": [
+    0
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    "The JSON response will be:\n\n```json\n{\n  \"date\": null,\n  \"people\": [\n    {\n      \"type\": \"person\",\n      \"name\": \"Nadia Rasheed\"\n    }\n  ],\n  \"locations\": [\n    {\n      \"type\": \"place\",\n      \"name\": \"India\"\n    }\n  ],\n  \"organizations\": [\n    {\n      \"type\": \"organization\",\n      \"name\": \"UNDP\"\n    }\n  ],\n  \"themes\": [\n    {\n      \"type\": \"theme\",\n      \"name\": \"One Health\"\n    },\n    {\n      \"type\": \"theme\",\n      \"name\": \"Biodiversity conservation\"\n    },\n    {\n      \"type\": \"theme\",\n      \"name\": \"Climate change\"\n    }\n  ]\n}\n```"
+  ]
+}
+T[aa44840c35314bde9a9736807d891b9b] status: ready time: 10250.804211s real: 10251.512922208058s retries: 0 task count: 4 avg real: 2562.8782305520144
+{
+  "id": [
+    1
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    "## JSON Object\n\n```json\n{\n  \"date\": \"APRIL 7, 2022\",\n  \"people\": [\n    {\n      \"name\": \"Parth Joshi\",\n      \"job\": \"Energy, Environment and Resilience Team at UNDP\"\n    },\n    {\n      \"name\": \"Dr. Geeta Pipaliya\",\n      \"job\": \"Veterinary Doctor working in Uttarkashi district of Uttarakhand\"\n    }\n  ],\n  \"locations\": [\n    {\n      \"name\": \"Uttarkashi\",\n      \"type\": \"District\"\n    }\n  ],\n  \"organizations\": [\n    {\n      \"name\": \"UNDP\"\n    }\n  ],\n  \"themes\": [\n    \"One Health approach\",\n    \"Human and environmental health\",\n    \"Pandemics\",\n    \"Disease prevention\",\n    \"Early warning and response\",\n    \"Animal health\",\n    \"Sustainable development\"\n  ]\n}\n```"
+  ]
+}
 
 Warm start (4 documents):
