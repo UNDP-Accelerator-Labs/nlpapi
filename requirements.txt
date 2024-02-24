@@ -19,7 +19,7 @@ langdetect==1.0.9
 matplotlib-inline==0.1.6
 matplotlib==3.6.3
 mypy-extensions~=1.0.0
-mypy~=1.6.0
+mypy~=1.8.0
 numpy~=1.26.0
 opencage==2.2.0
 pandas-stubs>=2.1

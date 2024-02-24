@@ -9,6 +9,7 @@ from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
 from scattermind.system.names import GNamespace
+from scattermind.system.torch_util import tensor_to_str
 
 
 Pad = TypedDict('Pad', {
@@ -37,7 +38,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input",
         type=str,
-        help="The input or input file if it starts with @.")
+        help=(
+            "The input or input file if it starts with @. If @ is a folder "
+            "all files ending in '.txt' are passed as individual prompts."))
     parser.add_argument(
         "--output",
         type=str,
@@ -88,7 +91,7 @@ def run() -> None:
     graph_fname = args.graph
     input_str = args.input
     if input_str.startswith("@"):
-        input_fname = input_str[1:]
+        input_fname: str | None = input_str[1:]
     else:
         input_fname = None
     output_fname = args.output
@@ -96,20 +99,41 @@ def run() -> None:
     config_fname = args.config
     smind = load_config(config_fname)
     ns, input_field, output_field = load_graph(smind, graph_fname)
+
+    def from_str(ix: int, text: str) -> JSONPad:
+        return {
+            "id": ix,
+            "is_public": True,
+            "title": text,
+            "content": "",
+        }
+
     if input_fname is None:
         pads: JSONPads = {
-            "pads": [
-                {
-                    "id": -1,
-                    "is_public": True,
-                    "title": input_str,
-                    "content": "",
-                },
-            ],
+            "pads": [from_str(-1, input_str)],
         }
     else:
-        with open(input_fname, "rb") as pin:
-            pads = json.load(pin)
+        if os.path.isdir(input_fname):
+            pad_list: list[JSONPad] = []
+            for fix, fname in enumerate(os.listdir(input_fname)):
+                if not fname.endswith(".txt"):
+                    continue
+                read_fname = os.path.join(input_fname, fname)
+                if not os.path.isfile(read_fname):
+                    continue
+                with open(read_fname, "r", encoding="utf-8") as fin:
+                    pad_list.append(from_str(fix, fin.read()))
+            pads = {
+                "pads": pad_list,
+            }
+        elif input_fname.endswith(".json"):
+            with open(input_fname, "rb") as pin:
+                pads = json.load(pin)
+        else:
+            with open(input_fname, "r", encoding="utf-8") as fin:
+                pads = {
+                    "pads": [from_str(-1, fin.read())],
+                }
     real_start = time.monotonic()
     pad_lookup: dict[TaskId, Pad] = {}
 
@@ -174,7 +198,10 @@ def run() -> None:
             print("\n".join(error["traceback"]))
         result = resp["result"]
         if result is not None:
-            output = f"{list(result[output_field].cpu().tolist())}"
+            if output_field in ("text", "tags"):
+                output = tensor_to_str(result[output_field])
+            else:
+                output = f"{list(result[output_field].cpu().tolist())}"
             curpad = pad_lookup[tid]
             res = {
                 "id": [curpad["id"]],

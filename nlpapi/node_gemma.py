@@ -23,8 +23,8 @@ from scattermind.system.torch_util import (
 
 # prompt helpers
 USER_CHAT_TEMPLATE = r"<start_of_turn>user\n{prompt}<end_of_turn>\n"
-MODEL_CHAT_TEMPLATE = "<start_of_turn>model\n{prompt}<end_of_turn>\n"
-MODEL_START = "<start_of_turn>model\n"
+MODEL_CHAT_TEMPLATE = r"<start_of_turn>model\n{prompt}<end_of_turn>\n"
+MODEL_START = r"<start_of_turn>model\n"
 
 
 @contextlib.contextmanager
@@ -119,6 +119,6 @@ class EmbedModelNode(Node):
                 "out",
                 [task],
                 {
-                    "text": state.create_single(str_to_tensor(f"{out}")),
+                    "text": state.create_single(str_to_tensor(out)),
                 })
         print("execute gemma done")

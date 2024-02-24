@@ -1,0 +1,60 @@
+You are an entity extractor that extracts the publication date (date) and all people, locations, organizations, and themes from a text.
+Use English words when describing themes you detect in the text.
+You only return a JSON object with lower case entity types mapping to the English extracted entities and themes in lists inside a code block.
+The date field is a simple string that contains the date in the ISO format.
+Translate everything to English.
+The text follows:
+Accelerator Lab: Immersion dans la problématique des inondations au Sénégal
+20 MAI 2021
+Ce blog est une première d’une série de réflexions sur les défis prioritaires (Inondations & Secteur Informel) du PNUD Sénégal que Accelerator Lab souhaite partager avec les Partenaires.
+Une immersion dans la problématique des inondations qui cherche tout d’abord à analyser la situation et s’oriente plus particulièrement sur la question climatique, les impacts socio-économiques, le cadre de gestion et sur les solutions qui incluent la valorisation du potentiel de l’eau.
+Il s’agit également d’un appel pour un engagement collectif autour de ce challenge.
+Le Sénégal, pays côtier, géographiquement exposé aux risques et catastrophes ainsi qu’aux effets du changement climatique, fait face de façon récurrente aux inondations. Durant les quinze dernières années, le pays a connu plusieurs inondations (2005 - 2009 -2011- 2012 -2016–2019-2020) touchant principalement la capitale Dakar, sa banlieue (Guédiéwaye, Pikine, Keur Massar…) et la plupart des régions (Saint-Louis, Kaolack, Kédougou…).
+Elles sont la cause de dommages considérables sur tous les secteurs de l’économie impactant plus particulièrement les zones péri-urbaines et les groupes vulnérables dont les conditions économiques et sociales déjà très précaires sont généralement les plus affectés par ces catastrophes.
+Principalement liées aux insuffisances dans la planification, dans l’aménagement urbain, dans le système de drainage ou encore une autre cause telle que l’occupation des zones non aedificandi, les inondations entrainent une série de conséquences avec des éléments aggravants liés au risque sanitaire avec des maladies à forte comorbidité telles que le paludisme, la diarrhée ou des dermatoses…
+Déclarées aléa majeur au Sénégal, les inondations, dont les dernières enregistrées entre le 04 et le 05 septembre 2020 sur l'ensemble du territoire, ont engendré beaucoup de dommages et de pertes selon les données de la Croix Rouge, avec 12.475 ménages inondés soit 77.260 de personnes affectées et 3.285 individus déplacés.
+A cela s’ajoutent d’autres effets néfastes tels que les pertes en vies humaines, la perte du bétail et des terres arables, les destructions d'habitats et d’infrastructures, la perturbation du calendrier scolaire, l’accroissement de la pauvreté et des inégalités, la perte en investissement qui se chiffrent à coût de milliards (+ 100 milliards CFA)…
+Avec une projection indiquant que 80% des sénégalais habiteraient en ville en 2030, Les inondations constituent un enjeu majeur de développement avec des effets catalytiques et amplificateurs de la pauvreté.
+Outre leurs effets directement visibles, les inondations dans un contexte de covid19, plongent les populations sinistrées dans un cercle vicieux. L’enquête socio-économique commanditée par le Bureau PNUD Sénégal, conduite sur la quasi-totalité du territoire sur un échantillon de 12.475 ménages a mis en lumière des captures glaçantes de la réalité immergée.
+Engloutis dans les eaux, plusieurs sinistrés ont perdu leur emploi, pour cause de retards répétitifs puisqu’il leur faut quotidiennement passer des heures depuis l’aube à évacuer une partie de l’eau de leur maison avant de pouvoir se rendre au travail.
+Durant l’enquête, des entretiens avec certains ménages ont montré que des mères de famille, ont tout simplement été répudiées parce que leurs maris sans travail, ne pouvaient plus assurer les charges familiales.
+Madame A.F, habitant à Médina Gounass, mère de 3 filles a perdu son époux, seul pourvoyeur de ressources avec sa pension de 50.000 Fcfa, qui cherchait à déplacer les 15kg de riz qui leur restaient de la cuisine vers la chambre en tombant sous la pluie dans la fosse septique de leur domicile.
+Les établissements scolaires ainsi que leurs pensionnaires cèdent les lieux, jadis réservés au savoir et à l’épanouissement intellectuel, à des familles relogées bien plus préoccupées par leurs nouvelles conditions de vies partageant quelques sanitaires et la cour de récréation avec d’autres familles voisines.
+En plus des lieux de cultes, les marchés, les services publics, les populations, qui ont pour la plupart tout perdu, maisons, meubles, vêtements, documents scolaires, papiers administratifs ou encore quelques maigres économies rangées dans les armoires savent que l’avenir est incertain puisque le socle de résilience des ménages s'affaisse d'année en année.
+Face à la situation, dix (10) milliards de FCFA ont été mobilisé par le Gouvernement dont 3 milliards en appui direct aux sinistrés mais la question de la résilience des ménages reste un défi.  Qu’elles soient chez elles emprisonnées dans les eaux ou relogées dans les écoles ou autres sites eux-mêmes aujourd'hui inondés, toutes ces familles semblent être dépassées par les mécanismes de gestion de cette crise.
+Avec le cadre de Sendai (2015 – 2030), le Sénégal à travers ses partenaires au développement dont le PNUD, est résolument engagé à mettre en œuvre une Stratégie nationale de Protection civile (SNPC) et à investir dans la gestion des risques et désastres (GRD).
+Outre le Programme Décennal de gestion des inondations (PDGCI 2012 - 2022) pour un coût estimé à plus de 760 milliards de FCFA et le mandat de la Direction de la protection Civile pour l’opérationnalisation du Centre de Gestion des Risques de Catastrophe (COGIC), plusieurs initiatives ont été engagées parmi lesquelles : i) l’élaboration d’un diagnostic détaillé ii)  l’intégration de la dimension prévention des inondations dans l’élaboration des plans d’urbanisme et d’assainissement, iii) élaboration des plans nationaux d’Adaptation (PNA) aux changements climatiques au niveau national et local pour éradiquer durablement les inondations. Ces efforts sont accompagnés par la mise en œuvre d’un plan de renforcement de capacités des partenaires clés engagés dans ces domaines.
+Néanmoins, les fortes pluies enregistrées entre le 04 et le 05 septembre 2020 ont été le baromètre des insuffisances notées dans plusieurs domaines mais principalement dans le cadre de gestion des inondations.
+En effet, des populations et des sites sont encore dans les eaux malgré les secours déployés par  la Brigade Nationale des Sapeurs Pompiers (BNSP @Atelier RETEX 2020) sur un nombre initial de 94 sites inondés au 15 juillet 2020 notamment à Touba, Kaolack, Kaffrine, Saint-Louis et la banlieue profonde de Dakar qui est passé à 433 sites avec 11.995.826 m3 d’eau pompées,
+L’étude de l’écosystème des acteurs dans la gestion des inondations révèlent une multitude d’acteurs dont les rôles ne sont pas toujours bien définis et des actions parfois redondantes. S’y ajoutent l’insuffisance de l’implication des acteurs locaux dans le processus de gestion.
+Si l’on peut noter une organisation des secours assez opérationnelle à travers le Plan ORSEC, qui est l’un des plans les plus aboutis dans la phase de crise au Sénégal, les phases de prévention et de relèvement souffrent de l’insuffisance de beaucoup d’outils et de mécanismes dans leur mise en œuvre pour prévenir et mitiger le risque.
+Plusieurs acteurs opérant prioritairement dans la phase de crise, disposent de données pertinentes sur la situation. Une synergie avec tous les acteurs et une centralisation des données pourraient aider à la conception d’un outil performant d’aide à la décision du niveau central au niveau local afin que même les populations à travers leurs organisations communautaires contribuent de façon dynamique dans le processus.
+Accelerator Lab Sénégal: Un appui pour un modèle de gestion intégrée des inondations.
+Ainsi, l'un des besoins majeurs identifiés par Accelerator Lab est la mise en place d’un cadre des gestion intégrée pour une meilleure cohérence des interventions et la mutualisation des efforts dans la politique nationale de prévention des risques.
+Bien souvent, inondations riment avec secours, système d’évacuation, de drainage, des mécanismes de pompage, relogement des sinistrés, des infrastructures lourdes et coûteuses... Oui, elles sont toutes nécessaires et indispensables tout autant que le système d’alerte précoce. Néanmoins d’autres orientations peuvent et doivent être considérées.
+Même si certaines nappes phréatiques ne sont plus en mesures d’absorber de grandes quantités d’eau, l’excès d’eau de pluies peut être une source de richesses et d’opportunités. La demande dans divers secteurs est très forte et la valorisation du potentiel de l’eau nous interpelle au-delà de effets négatifs.
+L’aménagement du paysage urbain pour le maintien de la biodiversité, l’irrigation des terres agricoles, le potentiel de réservoir d’eau pour l’élevage, la réutilisation dans les zones peu assainies et assez régulièrement souffrant de pénuries pour satisfaire au besoin d’hygiène et de salubrité, les sources d’emplois pouvant être générées pour les jeunes dans les zones sinistrées… Cette liste pourrait être plus exhaustive et techniquement détaillée pour révéler toutes les utilisations positives et opportunités pour le futur.
+Au-delà de ces aspects, les phénomènes d’inondations, nous interpellent dans la nécessité de mettre en place des mécanismes fonctionnelles et souples pour l’identification en temps réel des zones non aedificandi et une cartographie de leur potentiel en matière d’aménagement et de création de richesses en tenant compte des enjeux des changements climatiques, mais aussi des savoirs endogènes.
+La lutte contre les inondations nécessite une vision claire, concertée et durable. Accelerator Lab Sénégal, à travers ce défi sur les inondations a orienté sa réflexion sur trois axes prioritaires:
+le cadre de gestion à travers le mapping des acteurs,
+les impacts socio-économiques avec un intérêt particulier sur le genre et enfin
+les solutions aussi bien techniques, technologiques que celles mise en œuvre par les populations elles-mêmes.
+L’intelligence collective et la cartographie de solutions sont deux méthodes par lesquelles le AccLab du Sénégal a entamé ses consultations et compte accompagner les actions déjà engagées en impliquant tous les acteurs existants mais également d’autres acteurs inhabituels tels que les universités, les entrepreneurs, les groupements de femmes et de jeunes, les élus locaux, la presse, le secteur privé, les ONGs, les agences soeurs du Système des Nations Unies ainsi que toutes les bonnes volontés souhaitant contribuer à relever ce challenge qui nous interpelle tous.
+Suivez notre série de réflexions sur les défis prioritaires de Accelerator Lab et rejoignez-nous pour co-créer ensemble le futur du Sénégal que nous voulons!
+@PNUDSenegal: @Accelerator Lab & @Unité Evironnement & changement climatique
+Tags
+Senegal
+Inondations
+GRC
+Collective Intelligence
+Cartographie de Solutions
+Co-création
+COVID-19
+Groupes vulnérables
+Cadre de Sendai
+ODD 6
+ODD 11
+ODD 13
+Blog post
+Français
+Accelerator Labs

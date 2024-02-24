@@ -13,5 +13,6 @@ start_redis rdata 6383 &
 start_redis rcache 6382 &
 
 cd ..
-# mps if gemma is unused
+# use if no gemma
+# python -m scattermind --config study/config.json worker --graph study/graphs/
 python -m scattermind --config study/config.json --device cpu worker --graph study/graphs/
