@@ -105,19 +105,20 @@ class EmbedModelNode(Node):
         inputs = state.get_values()
         model = self._model
         texts = [
-            # tensor_to_str(val)
-            USER_CHAT_TEMPLATE.format(tensor_to_str(val)) + MODEL_START
+            tensor_to_str(val)
+            # USER_CHAT_TEMPLATE.format(
+            # prompt=tensor_to_str(val)) + MODEL_START
             for val in inputs.get_data("text").iter_values()
         ]
         outs = model.generate(
             texts,
             device=get_system_device(),
             output_len=maxlen)
-        for task, keywords in zip(inputs.get_current_tasks(), outs):
+        for task, out in zip(inputs.get_current_tasks(), outs):
             state.push_results(
                 "out",
                 [task],
                 {
-                    "text": state.create_single(str_to_tensor(f"{keywords}")),
+                    "text": state.create_single(str_to_tensor(f"{out}")),
                 })
         print("execute gemma done")

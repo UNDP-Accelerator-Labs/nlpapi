@@ -82,7 +82,8 @@ def run() -> None:
 
     # ./run.sh
     # python -m nlpapi --config study/config.json --graph
-    # study/graphs/graph_gemma.json --input 'how are you?' --output -
+    # study/graphs/graph_gemma.json --input 'tell me about the highest
+    # mountain in the world' --output -
     args = parse_args()
     graph_fname = args.graph
     input_str = args.input
@@ -175,15 +176,16 @@ def run() -> None:
         if result is not None:
             output = f"{list(result[output_field].cpu().tolist())}"
             curpad = pad_lookup[tid]
+            res = {
+                "id": [curpad["id"]],
+                "is_public": [curpad["is_public"]],
+                input_field: [curpad["text"]],
+                output_field: [output],
+            }
             if is_stdout:
-                print(json.dumps(curpad, indent=2, sort_keys=True))
+                print(json.dumps(res, indent=2, sort_keys=True))
             else:
-                pd.DataFrame({
-                    "id": [curpad["id"]],
-                    "is_public": [curpad["is_public"]],
-                    input_field: [curpad["text"]],
-                    output_field: [output],
-                }, columns=columns).to_csv(
+                pd.DataFrame(res, columns=columns).to_csv(
                     output_fname, mode="a", index=False, header=False)
 
 

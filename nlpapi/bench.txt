@@ -10,3 +10,12 @@ T[04950f7f3be14cb9bc3aa9d63dc690c8] status: ready time: 5226.470698s real: 5227.
 }
 
 Gemma 2b -- CPU
+
+(smartsearch) ➜  nlpapi git:(main) python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input 'tell me about the highest mountain in the world' --output -
+enqueued -1: T[c9f9aaee30d3444fa20979ff9dad4416]
+T[c9f9aaee30d3444fa20979ff9dad4416] status: ready time: 265.498369s real: 265.7579092080705s retries: 0 task count: 1 avg real: 265.7579092080705
+{
+  "id": -1,
+  "is_public": true,
+  "text": "tell me about the highest mountain in the world"
+}
