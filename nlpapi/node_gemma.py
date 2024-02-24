@@ -43,7 +43,7 @@ def set_default_tensor_type(dtype: torch.dtype | None) -> Iterator[None]:
 LOCK = threading.RLock()
 
 
-class EmbedModelNode(Node):
+class GemmaModelNode(Node):
     def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
         super().__init__(kind, graph, node_id)
         self._model: GemmaForCausalLM | None = None
