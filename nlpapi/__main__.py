@@ -16,6 +16,15 @@ Pad = TypedDict('Pad', {
     "text": str,
     "is_public": bool,
 })
+JSONPad = TypedDict('JSONPad', {
+    "id": int,
+    "is_public": bool,
+    "title": str,
+    "content": str,
+})
+JSONPads = TypedDict('JSONPads', {
+    "pads": list[JSONPad],
+})
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,11 +37,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input",
         type=str,
-        help="The input file.")
+        help="The input or input file if it starts with @.")
     parser.add_argument(
         "--output",
         type=str,
-        help="The output file.")
+        help="The output file or '-' for stdout.")
     parser.add_argument(
         "--config",
         default="config.json",
@@ -64,21 +73,42 @@ def load_graph(
 
 def run() -> None:
     # ./run.sh
-    # python -m nlpapi --config config.json --graph graph_tags.json --input
-    # sm_pads.json --output tags.csv
+    # python -m nlpapi --config config.json --graph
+    # study/graphs/graph_tags.json --input @sm_pads.json --output tags.csv
 
     # ./run.sh
-    # python -m nlpapi --config config.json --graph graph_embed.json --input
-    # sm_pads.json --output out.csv
+    # python -m nlpapi --config config.json --graph
+    # study/graphs/graph_embed.json --input @sm_pads.json --output out.csv
+
+    # ./run.sh
+    # python -m nlpapi --config config.json --graph
+    # study/graphs/graph_gemma.json --input 'how are you?' --output -
     args = parse_args()
     graph_fname = args.graph
-    input_fname = args.input
+    input_str = args.input
+    if input_str.startswith("@"):
+        input_fname = input_str[1:]
+    else:
+        input_fname = None
     output_fname = args.output
+    is_stdout = output_fname == "-"
     config_fname = args.config
     smind = load_config(config_fname)
     ns, input_field, output_field = load_graph(smind, graph_fname)
-    with open(input_fname, "rb") as pin:
-        pads = json.load(pin)
+    if input_fname is None:
+        pads: JSONPads = {
+            "pads": [
+                {
+                    "id": -1,
+                    "is_public": True,
+                    "title": input_str,
+                    "content": "",
+                },
+            ],
+        }
+    else:
+        with open(input_fname, "rb") as pin:
+            pads = json.load(pin)
     real_start = time.monotonic()
     pad_lookup: dict[TaskId, Pad] = {}
 
@@ -123,7 +153,7 @@ def run() -> None:
                 pos += len(cur)
 
     columns = ["id", "is_public", input_field, output_field]
-    if not os.path.exists(output_fname):
+    if not is_stdout and not os.path.exists(output_fname):
         pd.DataFrame([], columns=columns).to_csv(
             output_fname, index=False, header=True)
     count = 0
@@ -144,14 +174,17 @@ def run() -> None:
         result = resp["result"]
         if result is not None:
             output = f"{list(result[output_field].cpu().tolist())}"
-            pad = pad_lookup[tid]
-            pd.DataFrame({
-                "id": [pad["id"]],
-                "is_public": [pad["is_public"]],
-                input_field: [pad["text"]],
-                output_field: [output],
-            }, columns=columns).to_csv(
-                output_fname, mode="a", index=False, header=False)
+            curpad = pad_lookup[tid]
+            if is_stdout:
+                print(json.dumps(curpad, indent=2, sort_keys=True))
+            else:
+                pd.DataFrame({
+                    "id": [curpad["id"]],
+                    "is_public": [curpad["is_public"]],
+                    input_field: [curpad["text"]],
+                    output_field: [output],
+                }, columns=columns).to_csv(
+                    output_fname, mode="a", index=False, header=False)
 
 
 if __name__ == "__main__":

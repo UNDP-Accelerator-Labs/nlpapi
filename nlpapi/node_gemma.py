@@ -33,7 +33,7 @@ MODEL_DIR = "study/mdata/gemma/"
 
 
 @contextlib.contextmanager
-def _set_default_tensor_type(dtype: torch.dtype) -> Iterator[None]:
+def set_default_tensor_type(dtype: torch.dtype | None) -> Iterator[None]:
     """
     Sets the default torch dtype to the given dtype.
 
@@ -51,7 +51,7 @@ LOCK = threading.RLock()
 class EmbedModelNode(Node):
     def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
         super().__init__(kind, graph, node_id)
-        self._model: None = None
+        self._model: GemmaForCausalLM | None = None
 
     def do_is_pure(self, graph: Graph, queue_pool: QueuePool) -> bool:
         return True
@@ -85,7 +85,7 @@ class EmbedModelNode(Node):
 
             # Model.
             device = get_system_device()
-            with _set_default_tensor_type(model_config.get_dtype()):
+            with set_default_tensor_type(model_config.get_dtype()):
                 model = GemmaForCausalLM(model_config)
                 ckpt_path = os.path.join(MODEL_DIR, f"gemma-{VARIANT}.ckpt")
                 model.load_weights(ckpt_path)
