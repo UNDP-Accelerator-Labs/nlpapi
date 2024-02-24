@@ -19,5 +19,5 @@ python -m vecdb --name test:dot --db file://study/vec.db --config study/config.j
 
 Gemma:
 ```
-python -m nlpapi --config config.json --graph study/graphs/graph_gemma.json --input 'how are you?' --output -
+python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input 'how are you?' --output -
 ```
