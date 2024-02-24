@@ -1,0 +1,34 @@
+{
+  "graphs": [
+    {
+      "name": "gemma",
+      "description": "google's gemma conversational model",
+      "input": "node_0",
+      "input_format": {
+        "text": ["uint8", [null]]
+      },
+      "output_format": {
+        "text": ["uint8", [null]]
+      },
+      "nodes": [
+        {
+          "name": "node_0",
+          "kind": "nlpapi.node_gemma",
+          "args": {
+            "maxlen": 400
+          },
+          "outs": {
+            "out": null
+          },
+          "vmap": {
+            "text": ":text"
+          }
+        }
+      ],
+      "vmap": {
+        "text": "node_0:text"
+      }
+    }
+  ],
+  "entry": "gemma"
+}
