@@ -18,6 +18,18 @@ python -m vecdb --name test:dot --db file://study/vec.db --config study/config.j
 ```
 
 Gemma:
+
+short benchmark
 ```
-python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input 'how are you?' --output -
+python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input 'tell me about the tallest mountain in the world' --output -
+```
+
+long benchmark
+```
+python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input @study/prompts/extract/test0.txt --output -
+```
+
+very long benchmark
+```
+python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input @study/prompts/extract/ --output -
 ```

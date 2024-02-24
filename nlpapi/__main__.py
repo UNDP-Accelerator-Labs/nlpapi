@@ -5,6 +5,7 @@ import time
 from typing import TypedDict
 
 import pandas as pd
+from gemma import tokenizer
 from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
@@ -74,6 +75,20 @@ def load_graph(
     return ns, inputs[0], outputs[0]
 
 
+GEMMA_FOLDER = "study/mdata/gemma2b/"
+
+
+def get_token_count(prompts: list[str]) -> list[int]:
+    start_time = time.monotonic()
+    token_fn = tokenizer.Tokenizer(
+        os.path.join(GEMMA_FOLDER, "tokenizer.model"))
+    prompt_tokens = [token_fn.encode(prompt) for prompt in prompts]
+    res = [len(p) for p in prompt_tokens]
+    duration = time.monotonic() - start_time
+    print(f"tokenization time: {duration}s")
+    return res
+
+
 def run() -> None:
     # ./run.sh
     # python -m nlpapi --config study/config.json --graph
@@ -108,10 +123,12 @@ def run() -> None:
             "content": "",
         }
 
+    direct_in: bool
     if input_fname is None:
         pads: JSONPads = {
             "pads": [from_str(-1, input_str)],
         }
+        direct_in = True
     else:
         if os.path.isdir(input_fname):
             pad_list: list[JSONPad] = []
@@ -126,14 +143,21 @@ def run() -> None:
             pads = {
                 "pads": pad_list,
             }
+            direct_in = True
         elif input_fname.endswith(".json"):
             with open(input_fname, "rb") as pin:
                 pads = json.load(pin)
+            direct_in = False
         else:
             with open(input_fname, "r", encoding="utf-8") as fin:
                 pads = {
                     "pads": [from_str(-1, fin.read())],
                 }
+            direct_in = True
+
+    if direct_in:
+        counts = get_token_count([cp["title"] for cp in pads["pads"]])
+        print(f"input token counts: {counts}")
     real_start = time.monotonic()
     pad_lookup: dict[TaskId, Pad] = {}
 
@@ -182,6 +206,7 @@ def run() -> None:
         pd.DataFrame([], columns=columns).to_csv(
             output_fname, index=False, header=True)
     count = 0
+    out_strs = []
     for tid, resp in smind.wait_for(list(pad_lookup.keys()), timeout=None):
         count += 1
         status = resp["status"]
@@ -211,9 +236,13 @@ def run() -> None:
             }
             if is_stdout:
                 print(json.dumps(res, indent=2, sort_keys=True))
+                out_strs.append(output)
             else:
                 pd.DataFrame(res, columns=columns).to_csv(
                     output_fname, mode="a", index=False, header=False)
+    if out_strs:
+        tc_out = get_token_count(out_strs)
+        print(f"output token count: {tc_out}")
 
 
 if __name__ == "__main__":
