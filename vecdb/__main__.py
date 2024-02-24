@@ -90,7 +90,7 @@ def timing(name: str) -> Iterator[None]:
 def run() -> None:
     # python -m vecdb --input out.csv --name test:dot --db file://vec.db
 
-    # ./run_embed.sh
+    # ./run.sh
     # python -m vecdb --name test:dot --db file://vec.db
     # --config config.json --graph graph_embed.json --query 'circular economy'
     args = parse_args()

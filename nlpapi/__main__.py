@@ -63,11 +63,11 @@ def load_graph(
 
 
 def run() -> None:
-    # ./run_tags.sh
+    # ./run.sh
     # python -m nlpapi --config config.json --graph graph_tags.json --input
     # sm_pads.json --output tags.csv
 
-    # ./run_embed.sh
+    # ./run.sh
     # python -m nlpapi --config config.json --graph graph_embed.json --input
     # sm_pads.json --output out.csv
     args = parse_args()

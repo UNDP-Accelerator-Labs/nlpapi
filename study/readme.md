@@ -1,4 +1,4 @@
-run `./run_embed.sh` in a different terminal to start the ML backend.
+run `./run.sh` in a different terminal to start the ML backend.
 
 run below scripts from the root folder.
 
