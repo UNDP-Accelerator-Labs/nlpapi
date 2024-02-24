@@ -69,3 +69,85 @@ T[aa44840c35314bde9a9736807d891b9b] status: ready time: 10250.804211s real: 1025
 }
 
 Warm start (4 documents):
+
+(smartsearch) ➜  nlpapi git:(main) python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input @study/prompts/extract/ --output -
+tokenization time: 0.060430833138525486s
+input token counts: [803, 849, 1003, 2627]
+enqueued 0: T[297d21a2a19d42ad8240cfeaa9a7168f]
+enqueued 1: T[6fcdbcd8c5b64e9a9220cd87c453ee34]
+enqueued 2: T[2dd50b2b8e9b46088ea325f8aacab716]
+enqueued 3: T[0c473aa1fe6c4005b35eb73c509c60e9]
+T[297d21a2a19d42ad8240cfeaa9a7168f] status: ready time: 10167.465236s real: 10168.195277875056s retries: 0 task count: 1 avg real: 10168.195277875056
+{
+  "id": [
+    0
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    "# Sustainability # COVID19 # One Health # India\n\n**JSON object:**\n```json\n{\n  \"date\": \"February 15, 2022\",\n  \"themes\": [\n    {\n      \"english_name\": \"One Health\",\n      \"type\": \"organization\"\n    },\n    {\n      \"english_name\": \"Environment\",\n      \"type\": \"organization\"\n    },\n    {\n      \"english_name\": \"Human health\",\n      \"type\": \"organization\"\n    },\n    {\n      \"english_name\": \"Zoonotic diseases\",\n      \"type\": \"threat\"\n    },\n    {\n      \"english_name\": \"Ecosystems\",\n      \"type\": \"threat\"\n    },\n    {\n      \"english_name\": \"Climate change\",\n      \"type\": \"threat\"\n    },\n    {\n      \"english_name\": \"Biodiversity\",\n      \"type\": \"theme\"\n    },\n    {\n      \"english_name\": \"Prevention\",\n      \"type\": \"action\"\n    },\n    {\n      \"english_name\": \"Recovery\",\n      \"type\": \"action\"\n    }\n  ]\n}\n```"
+  ]
+}
+T[6fcdbcd8c5b64e9a9220cd87c453ee34] status: ready time: 10167.450874s real: 10168.201650500065s retries: 0 task count: 2 avg real: 5084.100825250032
+{
+  "id": [
+    1
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    "#OneHealth #Pandemics #Wildlife #EnvironmentalHealth #UNDP"
+  ]
+}
+T[2dd50b2b8e9b46088ea325f8aacab716] status: ready time: 10167.449834s real: 10168.203628208023s retries: 0 task count: 3 avg real: 3389.4012094026743
+{
+  "id": [
+    2
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    "**JSON Object:**\n\n```json\n{\n  \"date\": \"2021-12-30\",\n  \"entities\": [\n    {\n      \"type\": \"person\",\n      \"name\": \"Shoko Noda\"\n    },\n    {\n      \"type\": \"person\",\n      \"name\": \"Jayesh Ranjan\"\n    },\n    {\n      \"type\": \"person\",\n      \"name\": \"Deepali Khanna\"\n    },\n    {\n      \"type\": \"location\",\n      \"name\": \"India\"\n    },\n    {\n      \"type\": \"organization\",\n      \"name\": \"The Rockefeller Foundation\"\n    },\n    {\n      \"type\": \"theme\",\n      \"name\": \"Data-driven approaches\"\n    },\n    {\n      \"type\": \"theme\",\n      \"name\": \"Resilience\"\n    },\n    {\n      \"type\": \"theme\",\n      \"name\": \"Climate change\"\n    },\n    {\n      \"type\": \"theme\",\n      \"name\": \"Agriculture\"\n    },\n    {\n      \"type\": \"theme\",\n      \"name\": \"Food systems\"\n    }\n  ]\n}\n```"
+  ]
+}
+T[0c473aa1fe6c4005b35eb73c509c60e9] status: ready time: 10167.448974s real: 10168.205058833119s retries: 0 task count: 4 avg real: 2542.0512647082796
+{
+  "id": [
+    3
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    "Unit\u00e9 environnement\nChangement climatique"
+  ]
+}
+tokenization time: 0.058832583017647266s
+output token count: [275, 14, 276, 8]
+
+Large Benchmark:
+
+(smartsearch) ➜  nlpapi git:(main) ✗ python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input @study/prompts/extract/test0.txt --output -
+tokenization time: 0.1340157079976052s
+input token counts: [849]
+enqueued -1: T[cbc0b1e519a04cf0a8a37b78016cf432]
+T[cbc0b1e519a04cf0a8a37b78016cf432] status: ready time: 734.465456s real: 735.448661084054s retries: 0 task count: 1 avg real: 735.448661084054
+{
+  "id": [
+    -1
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    "The text is about the One Health approach to tackling diseases in human, animal and environmental health. The approach, described by Dr. Geeta, combines prevention and early detection, information sharing and collaboration among stakeholders, and the use of modern technology for diagnostics and control.\n\n```json\n{\n  \"date\": \"APRIL 7, 2022\",\n  \"entities\": [\n    {\n      \"type\": \"Person\",\n      \"name\": \"Parth Joshi\",\n      \"title\": \"Energy, Environment and Resilience team lead at UNDP\"\n    },\n    {\n      \"type\": \"Location\",\n      \"name\": \"Uttarkashi district\",\n      \"region\": \"Uttarakhand, India\"\n    },\n    {\n      \"type\": \"Organization\",\n      \"name\": \"UNDP\",\n      \"acronym\": \"UNDP\"\n    },\n    {\n      \"type\": \"Theme\",\n      \"name\": \"One Health Approach\"\n    },\n    {\n      \"type\": \"Theme\",\n      \"name\": \"Climate Change\"\n    },\n    {\n      \"type\": \"Theme\",\n      \"name\": \"Pandemics\"\n    },\n    {\n      \"type\": \"Location\",\n      \"name\": \"Sukhi village\",\n      \"region\": \"Uttarakhand, India\"\n    },\n    {\n      \"type\": \"Person\",\n      \"name\": \"Bhagirathi Devi\",\n      \"title\": \"Livestock owner\"\n    },\n    {\n      \"type\": \"Place\",\n      \"name\": \"Uttarkashi district\",\n      \"region\": \"Uttarakhand, India\"\n    },\n    {\n      \"type\": \"Disease\",\n      \"name\": \"Brucellosis\"\n    },\n    {\n      \"type"
+  ]
+}
+tokenization time: 0.13318033306859434s
+output token count: [401]
+
+Small Benchmark
+

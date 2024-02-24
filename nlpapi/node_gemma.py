@@ -1,12 +1,10 @@
 import contextlib
 import os
-import threading
 from collections.abc import Iterator
 
 import torch
 from gemma.config import get_config_for_2b, get_config_for_7b
 from gemma.model import GemmaForCausalLM
-from scattermind.system.base import NodeId
 from scattermind.system.client.client import ComputeTask
 from scattermind.system.graph.graph import Graph
 from scattermind.system.graph.node import Node
@@ -40,14 +38,7 @@ def set_default_tensor_type(dtype: torch.dtype | None) -> Iterator[None]:
     torch.set_default_dtype(torch.float)
 
 
-LOCK = threading.RLock()
-
-
 class GemmaModelNode(Node):
-    def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
-        super().__init__(kind, graph, node_id)
-        self._model: GemmaForCausalLM | None = None
-
     def do_is_pure(self, graph: Graph, queue_pool: QueuePool) -> bool:
         return True
 
@@ -69,27 +60,31 @@ class GemmaModelNode(Node):
     def get_load_cost(self) -> float:
         return 1.0  # TODO
 
-    def do_load(self, roa: ReadonlyAccess) -> None:
-        with LOCK:
-            model_folder = self.get_arg("folder").get("str")
-            variant = self.get_arg("variant").get("str")
-            # Model Config.
-            model_config = \
-                get_config_for_2b() if "2b" in variant else get_config_for_7b()
-            model_config.tokenizer = os.path.join(
-                model_folder, "tokenizer.model")
-            model_config.quant = "quant" in variant
+    def _load_model(self) -> GemmaForCausalLM:
+        model_folder = self.get_arg("folder").get("str")
+        variant = self.get_arg("variant").get("str")
+        # Model Config.
+        model_config = \
+            get_config_for_2b() if "2b" in variant else get_config_for_7b()
+        model_config.tokenizer = os.path.join(
+            model_folder, "tokenizer.model")
+        model_config.quant = "quant" in variant
 
-            # Model.
-            device = get_system_device()
-            with set_default_tensor_type(model_config.get_dtype()):
-                model = GemmaForCausalLM(model_config)
-                ckpt_path = os.path.join(model_folder, f"gemma-{variant}.ckpt")
-                model.load_weights(ckpt_path)
-                self._model = model.to(device).eval()
+        # Model.
+        device = get_system_device()
+        with set_default_tensor_type(model_config.get_dtype()):
+            model = GemmaForCausalLM(model_config)
+            ckpt_path = os.path.join(model_folder, f"gemma-{variant}.ckpt")
+            model.load_weights(ckpt_path)
+            return model.to(device).eval()
+
+    def do_load(self, roa: ReadonlyAccess) -> None:
+        # NOTE we load a fresh model before each inference...
+        # FIXME pickle/checkpoint model for conversation?
+        pass
 
     def do_unload(self) -> None:
-        self._model = None
+        pass
 
     def expected_output_meta(
             self, state: ComputeState) -> dict[str, tuple[float, int]]:
@@ -99,11 +94,11 @@ class GemmaModelNode(Node):
         }
 
     def execute_tasks(self, state: ComputeState) -> None:
-        assert self._model is not None
+        print("load gemma")
+        model = self._load_model()
         print("execute gemma")
         maxlen = self.get_arg("maxlen").get("int")
         inputs = state.get_values()
-        model = self._model
         texts = [
             tensor_to_str(val)
             # USER_CHAT_TEMPLATE.format(
