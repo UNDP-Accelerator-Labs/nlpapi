@@ -13,4 +13,4 @@ start_redis rdata 6383 &
 start_redis rcache 6382 &
 
 cd ..
-python -m scattermind --config study/config.json worker --graph study/graphs/
+python -m scattermind --config study/config.json --device mps worker --graph study/graphs/
