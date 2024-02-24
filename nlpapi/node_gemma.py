@@ -87,7 +87,7 @@ class EmbedModelNode(Node):
             device = get_system_device()
             with _set_default_tensor_type(model_config.get_dtype()):
                 model = GemmaForCausalLM(model_config)
-                ckpt_path = os.path.join(MODEL_DIR, f'gemma-{VARIANT}.ckpt')
+                ckpt_path = os.path.join(MODEL_DIR, f"gemma-{VARIANT}.ckpt")
                 model.load_weights(ckpt_path)
                 self._model = model.to(device).eval()
 
