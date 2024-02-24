@@ -1,4 +1,4 @@
-Gemma 8 quant -- CPU
+Gemma 7b quant -- CPU
 
 (smartsearch) ➜  nlpapi git:(main) python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input 'how are you?' --output -
 enqueued -1: T[04950f7f3be14cb9bc3aa9d63dc690c8]
@@ -8,3 +8,5 @@ T[04950f7f3be14cb9bc3aa9d63dc690c8] status: ready time: 5226.470698s real: 5227.
   "is_public": true,
   "text": "how are you?"
 }
+
+Gemma 2b -- CPU

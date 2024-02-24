@@ -21,15 +21,10 @@ from scattermind.system.torch_util import (
 )
 
 
-# model config
-VARIANT = "7b-it-quant"
-MODEL_DIR = "study/mdata/gemma/"
-
-
 # prompt helpers
-# USER_CHAT_TEMPLATE = r"<start_of_turn>user\n{prompt}<end_of_turn>\n"
-# MODEL_CHAT_TEMPLATE = "<start_of_turn>model\n{prompt}<end_of_turn>\n"
-# MODEL_START = "<start_of_turn>model\n"
+USER_CHAT_TEMPLATE = r"<start_of_turn>user\n{prompt}<end_of_turn>\n"
+MODEL_CHAT_TEMPLATE = "<start_of_turn>model\n{prompt}<end_of_turn>\n"
+MODEL_START = "<start_of_turn>model\n"
 
 
 @contextlib.contextmanager
@@ -76,18 +71,20 @@ class EmbedModelNode(Node):
 
     def do_load(self, roa: ReadonlyAccess) -> None:
         with LOCK:
+            model_folder = self.get_arg("folder").get("str")
+            variant = self.get_arg("variant").get("str")
             # Model Config.
             model_config = \
-                get_config_for_2b() if "2b" in VARIANT else get_config_for_7b()
+                get_config_for_2b() if "2b" in variant else get_config_for_7b()
             model_config.tokenizer = os.path.join(
-                MODEL_DIR, "tokenizer.model")
-            model_config.quant = "quant" in VARIANT
+                model_folder, "tokenizer.model")
+            model_config.quant = "quant" in variant
 
             # Model.
             device = get_system_device()
             with set_default_tensor_type(model_config.get_dtype()):
                 model = GemmaForCausalLM(model_config)
-                ckpt_path = os.path.join(MODEL_DIR, f"gemma-{VARIANT}.ckpt")
+                ckpt_path = os.path.join(model_folder, f"gemma-{variant}.ckpt")
                 model.load_weights(ckpt_path)
                 self._model = model.to(device).eval()
 
@@ -108,8 +105,8 @@ class EmbedModelNode(Node):
         inputs = state.get_values()
         model = self._model
         texts = [
-            tensor_to_str(val)
-            # USER_CHAT_TEMPLATE.format(tensor_to_str(val)) + MODEL_START
+            # tensor_to_str(val)
+            USER_CHAT_TEMPLATE.format(tensor_to_str(val)) + MODEL_START
             for val in inputs.get_data("text").iter_values()
         ]
         outs = model.generate(

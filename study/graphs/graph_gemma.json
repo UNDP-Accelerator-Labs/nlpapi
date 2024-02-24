@@ -15,7 +15,9 @@
           "name": "node_0",
           "kind": "nlpapi.node_gemma",
           "args": {
-            "maxlen": 400
+            "maxlen": 400,
+            "variant": "2b-it",
+            "folder": "study/mdata/gemma2b/"
           },
           "outs": {
             "out": null
