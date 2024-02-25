@@ -100,12 +100,19 @@ class GemmaModelNode(Node):
         model = self._load_model()
         print(f"load gemma took {time.monotonic() - start_load}s")
         print("execute gemma")
+        # FIXME create bool in scattermind
+        use_template = self.get_arg("use_template").get("int") > 0
         maxlen = self.get_arg("maxlen").get("int")
         inputs = state.get_values()
+
+        def convert(val: torch.Tensor) -> str:
+            text = tensor_to_str(val)
+            if use_template:
+                return f"{USER_CHAT_TEMPLATE.format(prompt=text)}{MODEL_START}"
+            return text
+
         texts = [
-            tensor_to_str(val)
-            # USER_CHAT_TEMPLATE.format(
-            # prompt=tensor_to_str(val)) + MODEL_START
+            convert(val)
             for val in inputs.get_data("text").iter_values()
         ]
         start_exec = time.monotonic()
