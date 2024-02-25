@@ -151,3 +151,21 @@ output token count: [401]
 
 Small Benchmark
 
+(smartsearch) ➜  nlpapi git:(main) python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input 'tell me about the tallest mountain in the world' --output -
+tokenization time: 0.05167554202489555s
+input token counts: [10]
+enqueued -1: T[b1238e32123249759f949fc3487ad226]
+T[b1238e32123249759f949fc3487ad226] status: ready time: 266.329322s real: 266.92005733400583s retries: 0 task count: 1 avg real: 266.92005733400583
+{
+  "id": [
+    -1
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    " and the largest glacier in the world.\n\n**The tallest mountain in the world is Mount Everest, with an elevation of 8,848.86 meters (29,031.7 ft)**.\n\nMount Everest is a mountain in the Himalayas, Nepal and China. It is the highest mountain on Earth for climbers and it offers some of the best skiing and mountaineering in the world.\n\n**The largest glacier in the world is Lake Vostok, located in the high-latitude region of Antarctica.**\n\nLake Vostok is currently the largest glacier system on Earth, with an area of approximately 18,680 square kilometers (7,212 square miles). It is surrounded by mountains and ice caps."
+  ]
+}
+tokenization time: 0.0743651669472456s
+output token count: [153]

@@ -207,6 +207,11 @@ def run() -> None:
             output_fname, index=False, header=True)
     count = 0
     out_strs = []
+    first_ready = None
+    last_ready = None
+    min_real_time = None
+    max_real_time = None
+    avg_real_time = None
     for tid, resp in smind.wait_for(list(pad_lookup.keys()), timeout=None):
         count += 1
         status = resp["status"]
@@ -216,7 +221,17 @@ def run() -> None:
         print(
             f"{tid} status: {status} "
             f"time: {duration}s real: {real_time}s retries: {retries} "
-            f"task count: {count} avg real: {real_time / count}")
+            f"task count: {count} avg real: {real_time / count}s/task")
+        if first_ready is None or first_ready > duration:
+            first_ready = duration
+        if last_ready is None or last_ready < duration:
+            last_ready = duration
+        if min_real_time is None or min_real_time > real_time:
+            min_real_time = real_time
+        if max_real_time is None or max_real_time < real_time:
+            max_real_time = real_time
+        if avg_real_time is None or avg_real_time < real_time / count:
+            avg_real_time = real_time / count
         if resp["error"] is not None:
             error = resp["error"]
             print(f"{error['code']} ({error['ctx']}): {error['message']}")
@@ -243,6 +258,11 @@ def run() -> None:
     if out_strs:
         tc_out = get_token_count(out_strs)
         print(f"output token count: {tc_out}")
+        print(f"last ready: {last_ready}s")
+        print(f"max real: {max_real_time}s")
+        print(f"avg: {avg_real_time}s/task")
+        print(f"first ready: {first_ready}s")
+        print(f"min real: {min_real_time}s")
 
 
 if __name__ == "__main__":

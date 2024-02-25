@@ -1,5 +1,6 @@
 import contextlib
 import os
+import time
 from collections.abc import Iterator
 
 import torch
@@ -95,7 +96,9 @@ class GemmaModelNode(Node):
 
     def execute_tasks(self, state: ComputeState) -> None:
         print("load gemma")
+        start_load = time.monotonic()
         model = self._load_model()
+        print(f"load gemma took {time.monotonic() - start_load}s")
         print("execute gemma")
         maxlen = self.get_arg("maxlen").get("int")
         inputs = state.get_values()
@@ -105,10 +108,12 @@ class GemmaModelNode(Node):
             # prompt=tensor_to_str(val)) + MODEL_START
             for val in inputs.get_data("text").iter_values()
         ]
+        start_exec = time.monotonic()
         outs = model.generate(
             texts,
             device=get_system_device(),
             output_len=maxlen)
+        print(f"execute gemma took {time.monotonic() - start_exec}s")
         for task, out in zip(inputs.get_current_tasks(), outs):
             state.push_results(
                 "out",
