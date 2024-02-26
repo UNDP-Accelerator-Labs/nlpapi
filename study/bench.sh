@@ -20,5 +20,7 @@ python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.jso
 python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input @study/prompts/extract/ --output -
 
 if [ ! -z "${GPU}" ]; then
-    python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma7b.json --input @study/prompts/extract/test0.txt --output -
+    python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma_7bq.json --input @study/prompts/extract/test0.txt --output -
+
+    python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma_7bq.json --input @study/prompts/extract/ --output -
 fi
