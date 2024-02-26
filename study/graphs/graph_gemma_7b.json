@@ -1,8 +1,8 @@
 {
   "graphs": [
     {
-      "name": "gemma",
-      "description": "google's gemma conversational model",
+      "name": "gemma7b",
+      "description": "google's gemma conversational model (7b)",
       "input": "node_0",
       "input_format": {
         "text": ["uint8", [null]]
@@ -16,8 +16,8 @@
           "kind": "nlpapi.node_gemma",
           "args": {
             "maxlen": 400,
-            "variant": "2b-it",
-            "folder": "study/mdata/gemma2b/",
+            "variant": "7b-it-quant",
+            "folder": "study/mdata/gemma7bq/",
             "use_template": 0
           },
           "outs": {
@@ -33,5 +33,5 @@
       }
     }
   ],
-  "entry": "gemma"
+  "entry": "gemma7b"
 }

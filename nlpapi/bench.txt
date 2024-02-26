@@ -169,3 +169,29 @@ T[b1238e32123249759f949fc3487ad226] status: ready time: 266.329322s real: 266.92
 }
 tokenization time: 0.0743651669472456s
 output token count: [153]
+
+Large Benchmark (Template)
+
+(smartsearch) ➜  nlpapi git:(main) python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input @study/prompts/extract/test0.txt --output -
+tokenization time: 0.05757124978117645s
+input token counts: [849]
+enqueued -1: T[93ce07b61fba4d65966aefb10bdd632f]
+T[93ce07b61fba4d65966aefb10bdd632f] status: ready time: 728.603985s real: 729.0292092920281s retries: 0 task count: 1 avg real: 729.0292092920281s/task
+{
+  "id": [
+    -1
+  ],
+  "is_public": [
+    true
+  ],
+  "text": [
+    "{\n  \"date\": \"APRIL 7, 2022\",\n  \"people\": [\n    {\n      \"name\": \"Dr. Geeta Pipaliya\",\n      \"title\": \"Veterinary Doctor\",\n      \"location\": \"Uttarkashi, Uttarakhand\"\n    }\n  ],\n  \"locations\": [\n    \"Uttarkashi, Uttarakhand\"\n  ],\n  \"organizations\": [],\n  \"themes\": [\n    \"One Health approach\",\n    \"Human, animal and environmental health\",\n    \"Pandemics\",\n    \"Rapid Zoonotic Disease Diagnosis Vehicle\",\n    \"Clean energy\",\n    \"Solarization\"\n  ]\n}"
+  ]
+}
+tokenization time: 0.07254704204387963s
+output token count: [151]
+last ready: 728.603985s
+max real: 729.0292092920281s
+avg: 729.0292092920281s/task
+first ready: 728.603985s
+min real: 729.0292092920281s

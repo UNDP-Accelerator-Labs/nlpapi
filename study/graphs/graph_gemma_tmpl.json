@@ -1,8 +1,8 @@
 {
   "graphs": [
     {
-      "name": "gemma",
-      "description": "google's gemma conversational model",
+      "name": "gemma_tmpl",
+      "description": "google's gemma conversational model (template mode)",
       "input": "node_0",
       "input_format": {
         "text": ["uint8", [null]]
@@ -18,7 +18,7 @@
             "maxlen": 400,
             "variant": "2b-it",
             "folder": "study/mdata/gemma2b/",
-            "use_template": 0
+            "use_template": 1
           },
           "outs": {
             "out": null
@@ -33,5 +33,5 @@
       }
     }
   ],
-  "entry": "gemma"
+  "entry": "gemma_tmpl"
 }
