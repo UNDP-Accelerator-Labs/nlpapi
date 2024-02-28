@@ -100,8 +100,7 @@ class GemmaModelNode(Node):
         model = self._load_model()
         print(f"load gemma took {time.monotonic() - start_load}s")
         print("execute gemma")
-        # FIXME create bool in scattermind
-        use_template = self.get_arg("use_template").get("int") > 0
+        use_template = self.get_arg("use_template").get("bool")
         maxlen = self.get_arg("maxlen").get("int")
         inputs = state.get_values()
 

@@ -1,7 +1,7 @@
 {
   "graphs": [
     {
-      "name": "gemma7b",
+      "name": "gemma7bq",
       "description": "google's gemma conversational model (7b)",
       "input": "node_0",
       "input_format": {
@@ -33,5 +33,5 @@
       }
     }
   ],
-  "entry": "gemma7b"
+  "entry": "gemma7bq"
 }
