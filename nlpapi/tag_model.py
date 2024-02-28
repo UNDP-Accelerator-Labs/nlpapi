@@ -12,6 +12,8 @@ from scattermind.system.queue.queue import QueuePool
 from scattermind.system.readonly.access import ReadonlyAccess
 from scattermind.system.torch_util import str_to_tensor, tensor_to_str
 
+from nlpapi.util import get_sentence_transformer
+
 
 LOCK = threading.RLock()
 
@@ -44,7 +46,11 @@ class TagModelNode(Node):
 
     def do_load(self, roa: ReadonlyAccess) -> None:
         with LOCK:
-            self._model = KeyBERT(model="all-distilroberta-v1")
+            model_name = self.get_arg("model").get(
+                "str", "all-distilroberta-v1")
+            cache_dir = roa.get_scratchspace(self)
+            model = get_sentence_transformer(model_name, cache_dir)
+            self._model = KeyBERT(model)
 
     def do_unload(self) -> None:
         self._model = None

@@ -133,7 +133,7 @@ def open_read(filename: str, *, text: bool) -> IO[Any]:
     res = None
     while True:
         try:
-            # FIXME yield instead of return
+            # FIXME: yield instead of return
             res = actual_read()
             if is_empty_file(res):
                 if ix >= len(STALE_FILE_RETRIES):

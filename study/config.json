@@ -47,7 +47,8 @@
     }
   },
   "readonly_access": {
-    "name": "ram"
+    "name": "ram",
+    "scratch": "study/mdata/model_cache"
   },
   "logger": {
     "listeners": [

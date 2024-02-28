@@ -1,4 +1,3 @@
-# FIXME: the types are there, though...
 import threading
 
 from scattermind.system.base import NodeId
@@ -10,7 +9,9 @@ from scattermind.system.payload.values import ComputeState
 from scattermind.system.queue.queue import QueuePool
 from scattermind.system.readonly.access import ReadonlyAccess
 from scattermind.system.torch_util import create_tensor, tensor_to_str
-from sentence_transformers import SentenceTransformer  # type: ignore
+from sentence_transformers import SentenceTransformer
+
+from nlpapi.util import get_sentence_transformer  # type: ignore
 
 
 LOCK = threading.RLock()
@@ -19,7 +20,7 @@ LOCK = threading.RLock()
 class EmbedModelNode(Node):
     def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
         super().__init__(kind, graph, node_id)
-        self._model: None = None
+        self._model: SentenceTransformer | None = None
 
     def do_is_pure(self, graph: Graph, queue_pool: QueuePool) -> bool:
         return True
@@ -44,7 +45,10 @@ class EmbedModelNode(Node):
 
     def do_load(self, roa: ReadonlyAccess) -> None:
         with LOCK:
-            self._model = SentenceTransformer("multi-qa-MiniLM-L6-cos-v1")
+            model_name = self.get_arg("model").get(
+                "str", "multi-qa-MiniLM-L6-cos-v1")
+            cache_dir = roa.get_scratchspace(self)
+            self._model = get_sentence_transformer(model_name, cache_dir)
 
     def do_unload(self) -> None:
         self._model = None

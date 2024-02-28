@@ -18,7 +18,7 @@
             "maxlen": 400,
             "variant": "7b-it-quant",
             "folder": "study/mdata/gemma7bq/",
-            "use_template": 0
+            "batch_size": 1
           },
           "outs": {
             "out": null
