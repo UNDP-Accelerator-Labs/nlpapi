@@ -13,6 +13,12 @@ if [ ! -z "${GPU}" ]; then
     nvidia-smi
 fi
 
+echo "warmup"
+
+python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input 'tell me about the tallest mountain in the world' --output -
+
+echo "bench"
+
 python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input 'tell me about the tallest mountain in the world' --output -
 
 python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input @study/prompts/extract/test0.txt --output -
