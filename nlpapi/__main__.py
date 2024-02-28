@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import sys
 import time
 from typing import TypedDict
 
@@ -102,6 +103,7 @@ def run() -> None:
     # python -m nlpapi --config study/config.json --graph
     # study/graphs/graph_gemma.json --input 'tell me about the highest
     # mountain in the world' --output -
+    print(sys.argv)
     args = parse_args()
     graph_fname = args.graph
     input_str = args.input
