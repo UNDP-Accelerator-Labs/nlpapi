@@ -38,3 +38,9 @@ very long benchmark
 ```
 python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input @study/prompts/extract/ --output -
 ```
+
+run all benchmarks:
+```
+./run.sh 2>&1 > "bench.cpu.$(date +%Y%m%d).log"
+./bench.sh 2>&1 > "run.cpu.$(date +%Y%m%d).log"
+```
