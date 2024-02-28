@@ -41,6 +41,6 @@ python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.jso
 
 run all benchmarks:
 ```
-./run.sh 2>&1 > "bench.cpu.$(date +%Y%m%d).log"
-./bench.sh 2>&1 > "run.cpu.$(date +%Y%m%d).log"
+./run.sh 2>&1 > "run.cpu.$(date +%Y%m%d).log"
+./bench.sh 2>&1 > "bench.cpu.$(date +%Y%m%d).log"
 ```
