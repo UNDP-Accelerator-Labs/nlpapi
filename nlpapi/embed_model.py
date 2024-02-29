@@ -9,9 +9,9 @@ from scattermind.system.payload.values import ComputeState
 from scattermind.system.queue.queue import QueuePool
 from scattermind.system.readonly.access import ReadonlyAccess
 from scattermind.system.torch_util import create_tensor, tensor_to_str
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer  # type: ignore
 
-from nlpapi.util import get_sentence_transformer  # type: ignore
+from nlpapi.util import get_sentence_transformer
 
 
 LOCK = threading.RLock()
