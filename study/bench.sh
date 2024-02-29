@@ -26,6 +26,14 @@ python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.jso
 python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma.json --input @study/prompts/extract/ --output -
 
 if [ ! -z "${GPU}" ]; then
+    echo "warmup 7B"
+
+    python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma_7bq.json --input 'tell me about the tallest mountain in the world' --output -
+
+    echo "bench 7B"
+
+    python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma_7bq.json --input 'tell me about the tallest mountain in the world' --output -
+
     python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma_7bq.json --input @study/prompts/extract/test0.txt --output -
 
     python -m nlpapi --config study/config.json --graph study/graphs/graph_gemma_7bq.json --input @study/prompts/extract/ --output -
