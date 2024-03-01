@@ -3,33 +3,30 @@ services:
   qdrant:
     image: qdrant/qdrant
     restart: always
-    ports:
-      - '6333:6333'
-      - '6334:6334'
+    expose:
+      - '6333'
+      - '6334'
     volumes:
       - qdrant:/qdrant/storage:z
   rmain:
-    image: redis:6.2-alpine
+    image: $DOCKER_RMAIN
     restart: always
-    ports:
-      - '6381:6381'
-    command: redis-server
+    expose:
+      - '6381'
     volumes:
       - rmain:/data
   rdata:
-    image: redis:6.2-alpine
+    image: $DOCKER_RDATA
     restart: always
-    ports:
-      - '6382:6382'
-    command: redis-server
+    expose:
+      - '6382'
     volumes:
       - rdata:/data
   rcache:
-    image: redis:6.2-alpine
+    image: $DOCKER_RCACHE
     restart: always
-    ports:
-      - '6383:6383'
-    command: redis-server
+    expose:
+      - '6383'
     volumes:
       - rcache:/data
   worker:
@@ -53,7 +50,7 @@ services:
       - worker
       - rmain
     ports:
-      - 8080:8080
+      - '8080:8080'
     environment:
       QDRANT_HOST: qdrant
       QDRANT_REST_PORT: 6333

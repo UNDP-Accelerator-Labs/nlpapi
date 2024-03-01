@@ -12,6 +12,9 @@ SMIND_CONFIG="${SMIND_CONFIG:-deploy/smind-config.json}"
 SMIND_GRAPHS="${SMIND_GRAPHS:-study/graphs/}"
 
 SMIND_CFG="buildtmp/smind-config.json"
+RMAIN_CFG="study/rmain/redis.conf"
+RDATA_CFG="study/rdata/redis.conf"
+RCACHE_CFG="study/rcache/redis.conf"
 
 cp "${SMIND_CONFIG}" "${SMIND_CFG}"
 
@@ -60,6 +63,27 @@ if [ ! -z "${DEV}" ]; then
         -t "${IMAGE_NAME}-worker" \
         -f deploy/worker.Dockerfile \
         .
+
+    docker build \
+        --build-arg "PORT=6381" \
+        --build-arg "CFG_FILE=${RMAIN_CFG}" \
+        -t "${IMAGE_NAME}-rmain" \
+        -f deploy/redis.Dockerfile \
+        .
+
+    docker build \
+        --build-arg "PORT=6382" \
+        --build-arg "CFG_FILE=${RDATA_CFG}" \
+        -t "${IMAGE_NAME}-rdata" \
+        -f deploy/redis.Dockerfile \
+        .
+
+    docker build \
+        --build-arg "PORT=6383" \
+        --build-arg "CFG_FILE=${RCACHE_CFG}" \
+        -t "${IMAGE_NAME}-rcache" \
+        -f deploy/redis.Dockerfile \
+        .
 else
     docker buildx build \
         --platform linux/amd64 \
@@ -78,11 +102,41 @@ else
         -t "${IMAGE_NAME}-worker" \
         -f deploy/worker.Dockerfile \
         .
+
+    docker buildx build \
+        --platform linux/amd64 \
+        --build-arg "PORT=6381" \
+        --build-arg "CFG_FILE=${RMAIN_CFG}" \
+        -t "${IMAGE_NAME}-rmain" \
+        -f deploy/redis.Dockerfile \
+        .
+
+    docker buildx build \
+        --platform linux/amd64 \
+        --build-arg "PORT=6382" \
+        --build-arg "CFG_FILE=${RDATA_CFG}" \
+        -t "${IMAGE_NAME}-rdata" \
+        -f deploy/redis.Dockerfile \
+        .
+
+    docker buildx build \
+        --platform linux/amd64 \
+        --build-arg "PORT=6383" \
+        --build-arg "CFG_FILE=${RCACHE_CFG}" \
+        -t "${IMAGE_NAME}-rcache" \
+        -f deploy/redis.Dockerfile \
+        .
 fi
 
 echo "# created by sh/build.sh" > deploy/default.env
 echo "DOCKER_WORKER=${IMAGE_NAME}-worker" >> deploy/default.env
 echo "DOCKER_API=${IMAGE_NAME}-api" >> deploy/default.env
+echo "DOCKER_RMAIN=${IMAGE_NAME}-rmain" >> deploy/default.env
+echo "DOCKER_RDATA=${IMAGE_NAME}-rdata" >> deploy/default.env
+echo "DOCKER_RCACHE=${IMAGE_NAME}-rcache" >> deploy/default.env
 
 echo "built ${IMAGE_NAME}-api"
 echo "built ${IMAGE_NAME}-worker"
+echo "built ${IMAGE_NAME}-rmain"
+echo "built ${IMAGE_NAME}-rdata"
+echo "built ${IMAGE_NAME}-rcache"
