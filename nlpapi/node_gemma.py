@@ -1,11 +1,13 @@
 import contextlib
 import os
+import threading
 import time
 from collections.abc import Iterator
 
 import torch
 from gemma.config import get_config_for_2b, get_config_for_7b
 from gemma.model import GemmaForCausalLM
+from scattermind.system.base import NodeId
 from scattermind.system.client.client import ComputeTask
 from scattermind.system.graph.graph import Graph
 from scattermind.system.graph.node import Node
@@ -39,7 +41,14 @@ def set_default_tensor_type(dtype: torch.dtype | None) -> Iterator[None]:
     torch.set_default_dtype(torch.float)
 
 
+LOCK = threading.RLock()
+
+
 class GemmaModelNode(Node):
+    def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
+        super().__init__(kind, graph, node_id)
+        self._model: GemmaForCausalLM | None = None
+
     def do_is_pure(self, graph: Graph, queue_pool: QueuePool) -> bool:
         return True
 
@@ -80,12 +89,15 @@ class GemmaModelNode(Node):
             return model.to(device).eval()
 
     def do_load(self, roa: ReadonlyAccess) -> None:
-        # NOTE we load a fresh model before each inference...
-        # FIXME pickle/checkpoint model for conversation?
-        pass
+        with LOCK:
+            print("load gemma")
+            start_load = time.monotonic()
+            self._model = self._load_model()
+            print(f"load gemma took {time.monotonic() - start_load}s")
 
     def do_unload(self) -> None:
-        pass
+        with LOCK:
+            self._model = None
 
     def expected_output_meta(
             self, state: ComputeState) -> dict[str, tuple[float, int]]:
@@ -95,13 +107,10 @@ class GemmaModelNode(Node):
         }
 
     def execute_tasks(self, state: ComputeState) -> None:
-        print("load gemma")
-        start_load = time.monotonic()
-        model = self._load_model()
-        print(f"load gemma took {time.monotonic() - start_load}s")
+        assert self._model is not None
+        model = self._model
         print("execute gemma")
-        # FIXME create bool in scattermind
-        use_template = self.get_arg("use_template").get("int") > 0
+        use_template = self.get_arg("use_template").get("bool", False)
         maxlen = self.get_arg("maxlen").get("int")
         inputs = state.get_values()
 
@@ -115,12 +124,18 @@ class GemmaModelNode(Node):
             convert(val)
             for val in inputs.get_data("text").iter_values()
         ]
-        start_exec = time.monotonic()
-        outs = model.generate(
-            texts,
-            device=get_system_device(),
-            output_len=maxlen)
-        print(f"execute gemma took {time.monotonic() - start_exec}s")
+
+        batch_size = self.get_arg("batch_size").get("int", len(texts))
+
+        outs: list[str] = []
+        with LOCK:
+            start_exec = time.monotonic()
+            for pos in range(0, len(texts), batch_size):
+                outs.extend(model.generate(
+                    texts[pos:pos + batch_size],
+                    device=get_system_device(),
+                    output_len=maxlen))
+            print(f"execute gemma took {time.monotonic() - start_exec}s")
         for task, out in zip(inputs.get_current_tasks(), outs):
             state.push_results(
                 "out",

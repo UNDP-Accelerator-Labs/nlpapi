@@ -16,10 +16,14 @@ RUN make install
 COPY . .
 ARG PORT=8080
 ARG CONFIG_PATH
+ARG SMIND_GRAPHS
+ARG SMIND_CONFIG
+COPY "${SMIND_CONFIG}" smind-config.json
+COPY "${SMIND_GRAPHS}" graphs/
 COPY "${CONFIG_PATH}" config.json
 ENV API_SERVER_NAMESPACE=default
 ENV HOST=0.0.0.0
 ENV PORT=${PORT}
 EXPOSE ${PORT}
-ENTRYPOINT [ "/bin/bash", "-l", "-c" ]
+ENTRYPOINT ["/bin/bash", "-l", "-c"]
 CMD ["python -u -m app --dedicated"]

@@ -1,56 +1,78 @@
 version: '3.8'
 services:
   qdrant:
+    container_name: qdrant
     image: qdrant/qdrant
     restart: always
-    ports:
-      - '6333:6333'
-      - '6334:6334'
+    expose:
+      - '6333'
+      - '6334'
     volumes:
-      - /qdrant_storage:/qdrant/storage:z
-  cache:
-    image: redis:6.2-alpine
+      - qdrant:/qdrant/storage:z
+  rmain:
+    container_name: rmain
+    image: $DOCKER_RMAIN
     restart: always
-    ports:
-      - '6379:6379'
-    command: redis-server --save 20 1 --loglevel warning --requirepass eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
+    expose:
+      - '6381'
     volumes:
-      - cache:/data
+      - rmain:/data
+  rdata:
+    container_name: rdata
+    image: $DOCKER_RDATA
+    restart: always
+    expose:
+      - '6382'
+    volumes:
+      - rdata:/data
+  rcache:
+    container_name: rcache
+    image: $DOCKER_RCACHE
+    restart: always
+    expose:
+      - '6383'
+    volumes:
+      - rcache:/data
+  worker:
+    deploy:
+      mode: replicated
+      replicas: 2
+    image: $DOCKER_WORKER
+    depends_on:
+      - rmain
+      - rdata
+      - rcache
+    links:
+      - rmain
+      - rdata
+      - rcache
+    volumes:
+      - smind_cache:/smind_cache
   api:
-    container_name: quotes-api
-    build:
-      context: ./
-      target: production
-    image: quotes-api
+    container_name: api
+    image: $DOCKER_API
     depends_on:
       - qdrant
-      - cache
+      - rmain
     ports:
-      - 8080:8080
+      - '8080:8080'
     environment:
       QDRANT_HOST: qdrant
       QDRANT_REST_PORT: 6333
       QDRANT_GRPC_PORT: 6334
-      REDIS_HOST: cache
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
     links:
       - qdrant
-      - cache
+      - rmain
     volumes:
-      - ./:/src
+      - smind_cache:/smind_cache
 volumes:
   qdrant:
     driver: local
-  cache:
+  rmain:
     driver: local
-
-# start_redis() {
-#     pushd "$1"
-#     redis-server "redis.conf" --port "$2" >> "redis.log" 2>&1 &
-#     popd
-# }
-
-# start_redis rmain 6381 &
-# start_redis rdata 6383 &
-# start_redis rcache 6382 &
+  rdata:
+    driver: local
+  rcache:
+    driver: local
+  smind_cache:
+    driver: local

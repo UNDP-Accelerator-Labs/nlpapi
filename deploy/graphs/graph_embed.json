@@ -1,24 +1,20 @@
 {
   "graphs": [
     {
-      "name": "gemma",
-      "description": "google's gemma conversational model",
+      "name": "embed_sbert",
+      "description": "sbert embedding model",
       "input": "node_0",
       "input_format": {
         "text": ["uint8", [null]]
       },
       "output_format": {
-        "text": ["uint8", [null]]
+        "embed": ["float32", [384]]
       },
       "nodes": [
         {
           "name": "node_0",
-          "kind": "nlpapi.node_gemma",
-          "args": {
-            "maxlen": 400,
-            "variant": "2b-it",
-            "folder": "study/mdata/gemma2b/"
-          },
+          "kind": "nlpapi.embed_model",
+          "args": {},
           "outs": {
             "out": null
           },
@@ -28,9 +24,9 @@
         }
       ],
       "vmap": {
-        "text": "node_0:text"
+        "embed": "node_0:embed"
       }
     }
   ],
-  "entry": "gemma"
+  "entry": "embed_sbert"
 }

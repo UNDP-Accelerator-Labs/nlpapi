@@ -102,6 +102,12 @@ lint-all: \
 build:
 	./sh/build.sh
 
+build-dev:
+	DEV=1 ./sh/build.sh
+
+compose:
+	./sh/compose.sh
+
 publish:
 	./sh/deploy.sh
 

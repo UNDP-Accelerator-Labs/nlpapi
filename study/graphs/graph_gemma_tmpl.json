@@ -18,7 +18,7 @@
             "maxlen": 400,
             "variant": "2b-it",
             "folder": "study/mdata/gemma2b/",
-            "use_template": 1
+            "use_template": true
           },
           "outs": {
             "out": null

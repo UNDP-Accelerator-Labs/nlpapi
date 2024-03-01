@@ -2,7 +2,7 @@
   "client_pool": {
     "name": "redis",
     "cfg": {
-      "host": "localhost",
+      "host": "rmain",
       "port": 6381,
       "passwd": "",
       "prefix": "nlpapi",
@@ -12,8 +12,8 @@
   "data_store": {
     "name": "redis",
     "cfg": {
-      "host": "localhost",
-      "port": 6382,
+      "host": "rcache",
+      "port": 6383,
       "passwd": "",
       "prefix": "nlpapi",
       "path": "rcache"
@@ -23,15 +23,15 @@
   "executor_manager": {
     "name": "thread",
     "batch_size": 8,
-    "parallelism": 2,
+    "parallelism": 1,
     "sleep_on_idle": 0.1,
-    "reclaim_sleep": 300.0
+    "reclaim_sleep": 600.0
   },
   "queue_pool": {
     "name": "redis",
     "cfg": {
-      "host": "localhost",
-      "port": 6383,
+      "host": "rdata",
+      "port": 6382,
       "passwd": "",
       "prefix": "nlpapi",
       "path": "rdata"

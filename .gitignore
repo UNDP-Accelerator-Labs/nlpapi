@@ -24,6 +24,12 @@
 .vscode
 .cmd_history
 !init.sql
+buildtmp
+
+!deploy/*.json
+!deploy/graphs/*.json
+deploy/default.env
 
 **/.ipynb_checkpoints
 __pycache__
+/docker-compose.yml
