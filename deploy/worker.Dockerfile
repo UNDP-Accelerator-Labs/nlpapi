@@ -18,5 +18,5 @@ ARG SMIND_GRAPHS
 ARG SMIND_CONFIG
 COPY "${SMIND_CONFIG}" smind-config.json
 COPY "${SMIND_GRAPHS}" graphs/
-ENTRYPOINT [ "/bin/bash", "-l", "-c" ]
+ENTRYPOINT ["/bin/bash", "-l", "-c"]
 CMD ["python -m scattermind --config smind-config.json --graph graphs/ worker"]

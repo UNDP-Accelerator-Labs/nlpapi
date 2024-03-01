@@ -25,5 +25,5 @@ ENV API_SERVER_NAMESPACE=default
 ENV HOST=0.0.0.0
 ENV PORT=${PORT}
 EXPOSE ${PORT}
-ENTRYPOINT [ "/bin/bash", "-l", "-c" ]
+ENTRYPOINT ["/bin/bash", "-l", "-c"]
 CMD ["python -u -m app --dedicated"]
