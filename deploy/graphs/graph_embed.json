@@ -1,0 +1,32 @@
+{
+  "graphs": [
+    {
+      "name": "embed_sbert",
+      "description": "sbert embedding model",
+      "input": "node_0",
+      "input_format": {
+        "text": ["uint8", [null]]
+      },
+      "output_format": {
+        "embed": ["float32", [384]]
+      },
+      "nodes": [
+        {
+          "name": "node_0",
+          "kind": "nlpapi.embed_model",
+          "args": {},
+          "outs": {
+            "out": null
+          },
+          "vmap": {
+            "text": ":text"
+          }
+        }
+      ],
+      "vmap": {
+        "embed": "node_0:embed"
+      }
+    }
+  ],
+  "entry": "embed_sbert"
+}

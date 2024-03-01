@@ -9,14 +9,16 @@ DOCKER_CONFIG=docker.config.json
 LOCAL_CONFIG=config.json
 NO_CONFIG=noconfig.json
 SMIND_CONFIG="${SMIND_CONFIG:-deploy/smind-config.json}"
-SMIND_GRAPHS="${SMIND_GRAPHS:-study/graphs/}"
+SMIND_GRAPHS="${SMIND_GRAPHS:-deploy/graphs/}"
 
 SMIND_CFG="buildtmp/smind-config.json"
+SMIND_GRS="buildtmp/graphs/"
 RMAIN_CFG="study/rmain/redis.conf"
 RDATA_CFG="study/rdata/redis.conf"
 RCACHE_CFG="study/rcache/redis.conf"
 
 cp "${SMIND_CONFIG}" "${SMIND_CFG}"
+cp -R "${SMIND_GRAPHS}" "${SMIND_GRS}"
 
 IMAGE_TAG="${IMAGE_TAG:-$(make -s name)}"
 IMAGE_NAME="nlpapi:${IMAGE_TAG}"
@@ -51,7 +53,7 @@ if [ ! -z "${DEV}" ]; then
     docker build \
         --build-arg "CONFIG_PATH=${CONFIG_PATH}" \
         --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
-        --build-arg "SMIND_GRAPHS=${SMIND_GRAPHS}" \
+        --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
         --build-arg "PORT=${PORT}" \
         -t "${IMAGE_NAME}-api" \
         -f deploy/api.Dockerfile \
@@ -59,7 +61,7 @@ if [ ! -z "${DEV}" ]; then
 
     docker build \
         --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
-        --build-arg "SMIND_GRAPHS=${SMIND_GRAPHS}" \
+        --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
         -t "${IMAGE_NAME}-worker" \
         -f deploy/worker.Dockerfile \
         .
@@ -89,7 +91,7 @@ else
         --platform linux/amd64 \
         --build-arg "CONFIG_PATH=${CONFIG_PATH}" \
         --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
-        --build-arg "SMIND_GRAPHS=${SMIND_GRAPHS}" \
+        --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
         --build-arg "PORT=${PORT}" \
         -t "${IMAGE_NAME}-api" \
         -f deploy/api.Dockerfile \
@@ -98,7 +100,7 @@ else
     docker buildx build \
         --platform linux/amd64 \
         --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
-        --build-arg "SMIND_GRAPHS=${SMIND_GRAPHS}" \
+        --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
         -t "${IMAGE_NAME}-worker" \
         -f deploy/worker.Dockerfile \
         .

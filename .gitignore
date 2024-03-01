@@ -27,6 +27,7 @@
 buildtmp
 
 !deploy/*.json
+!deploy/graphs/*.json
 deploy/default.env
 
 **/.ipynb_checkpoints
