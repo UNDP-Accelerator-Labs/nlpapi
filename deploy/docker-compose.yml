@@ -1,6 +1,7 @@
 version: '3.8'
 services:
   qdrant:
+    container_name: qdrant
     image: qdrant/qdrant
     restart: always
     expose:
@@ -9,6 +10,7 @@ services:
     volumes:
       - qdrant:/qdrant/storage:z
   rmain:
+    container_name: rmain
     image: $DOCKER_RMAIN
     restart: always
     expose:
@@ -16,6 +18,7 @@ services:
     volumes:
       - rmain:/data
   rdata:
+    container_name: rdata
     image: $DOCKER_RDATA
     restart: always
     expose:
@@ -23,6 +26,7 @@ services:
     volumes:
       - rdata:/data
   rcache:
+    container_name: rcache
     image: $DOCKER_RCACHE
     restart: always
     expose:
