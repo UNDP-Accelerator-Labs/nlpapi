@@ -24,6 +24,10 @@
 .vscode
 .cmd_history
 !init.sql
+buildtmp
+
+!deploy/*.json
+deploy/default.env
 
 **/.ipynb_checkpoints
 __pycache__

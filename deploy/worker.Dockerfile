@@ -14,12 +14,9 @@ RUN mkdir sh
 COPY sh/install.sh sh
 RUN make install
 COPY . .
-ARG PORT=8080
-ARG CONFIG_PATH
-COPY "${CONFIG_PATH}" config.json
-ENV API_SERVER_NAMESPACE=default
-ENV HOST=0.0.0.0
-ENV PORT=${PORT}
-EXPOSE ${PORT}
+ARG SMIND_GRAPHS
+ARG SMIND_CONFIG
+COPY "${SMIND_CONFIG}" smind-config.json
+COPY "${SMIND_GRAPHS}" graphs/
 ENTRYPOINT [ "/bin/bash", "-l", "-c" ]
-CMD ["python -m scattermind --config config.json worker --graph graph_tags.json"]
+CMD ["python -m scattermind --config smind-config.json --graph graphs/"]
