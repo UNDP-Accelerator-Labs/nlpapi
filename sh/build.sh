@@ -24,7 +24,7 @@ CONFIG_PATH="${CONFIG_PATH:-${DOCKER_CONFIG}}"
 PORT="${PORT:-8080}"
 
 if [ ! -z "${DEV}" ]; then
-    IMAGE_TAG="${IMAGE_TAG}-dev"
+    IMAGE_NAME="${IMAGE_NAME}-dev"
 fi
 
 echo "using config: ${CONFIG_PATH}"
