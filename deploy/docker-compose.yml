@@ -30,7 +30,9 @@ services:
     volumes:
       - rcache:/data
   worker:
-    container_name: worker
+    deploy:
+      mode: replicated
+      replicas: 2
     image: $DOCKER_WORKER
     depends_on:
       - rmain
@@ -47,7 +49,6 @@ services:
     image: $DOCKER_API
     depends_on:
       - qdrant
-      - worker
       - rmain
     ports:
       - '8080:8080'
