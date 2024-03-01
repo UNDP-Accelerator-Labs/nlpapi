@@ -16,7 +16,7 @@ SMIND_CFG="buildtmp/smind-config.json"
 cp "${SMIND_CONFIG}" "${SMIND_CFG}"
 
 IMAGE_TAG="${IMAGE_TAG:-$(make -s name)}"
-IMAGE_NAME="smartsearch:${IMAGE_TAG}"
+IMAGE_NAME="nlpapi:${IMAGE_TAG}"
 CONFIG_PATH="${CONFIG_PATH:-${DOCKER_CONFIG}}"
 PORT="${PORT:-8080}"
 

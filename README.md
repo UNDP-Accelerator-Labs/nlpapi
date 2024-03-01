@@ -1,5 +1,5 @@
-smartsearch
-===========
+NLPAPI
+======
 
 This repo contains a python based API server that provides various NLP APIs.
 
@@ -53,7 +53,7 @@ Prepare a config file for the image to use named `docker.config.json`
 
 Run
 ```
-make -s build
+make -s build-dev
 ```
 to build the docker image
 (note that the config file will be baked into the image).
@@ -62,7 +62,7 @@ that no unwanted (or uncommit) files will be included in the image.
 
 If you just want to run the API locally start the container via:
 ```
-docker run -d -p 8080:8080 -t "smartsearch:$(make -s name)"
+make compose
 ```
 
 Test the connection via:

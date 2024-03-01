@@ -7,7 +7,7 @@ services:
       - '6333:6333'
       - '6334:6334'
     volumes:
-      - /qdrant:/qdrant/storage:z
+      - qdrant:/qdrant/storage:z
   rmain:
     image: redis:6.2-alpine
     restart: always
@@ -15,7 +15,7 @@ services:
       - '6381:6381'
     command: redis-server
     volumes:
-      - /rmain:/data
+      - rmain:/data
   rdata:
     image: redis:6.2-alpine
     restart: always
@@ -23,7 +23,7 @@ services:
       - '6382:6382'
     command: redis-server
     volumes:
-      - /rdata:/data
+      - rdata:/data
   rcache:
     image: redis:6.2-alpine
     restart: always
@@ -31,7 +31,7 @@ services:
       - '6383:6383'
     command: redis-server
     volumes:
-      - /rcache:/data
+      - rcache:/data
   worker:
     container_name: worker
     image: $DOCKER_WORKER
@@ -44,7 +44,7 @@ services:
       - rdata
       - rcache
     volumes:
-      - /smind_cache:/smind_cache
+      - smind_cache:/smind_cache
   api:
     container_name: api
     image: $DOCKER_API
@@ -62,7 +62,7 @@ services:
       - qdrant
       - rmain
     volumes:
-      - /smind_cache:/smind_cache
+      - smind_cache:/smind_cache
 volumes:
   qdrant:
     driver: local
