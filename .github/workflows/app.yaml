@@ -91,6 +91,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Login via Azure CLI
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
     - name: Docker login
       uses: azure/docker-login@v1
       with:
@@ -111,8 +116,9 @@ jobs:
       run: |
         make -s dockerpush
 
-    # - uses: azure/webapps-deploy@v2
-    #   with:
-    #     app-name: 'nlpapi'
-    #     publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-    #     images: 'acclabdocker.azurecr.io/nlpapi:${{ env.IMAGE_TAG }}'
+    - name: Azure CLI script
+      uses: azure/CLI@v1
+      with:
+        azcliversion: 2.30.0
+        inlineScript: |
+          az webapp create --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} --plan ${{ secrets.AZURE_SERVICE_PLAN }} --name 'acclabs-nlpapi' --multicontainer-config-type compose --multicontainer-config-file $GITHUB_WORKSPACE/docker-compose.yml
