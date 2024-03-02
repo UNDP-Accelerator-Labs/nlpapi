@@ -27,9 +27,10 @@ dpush "rcache"
 import os
 import sys
 
-dcompose = sys.argv[1]
-denv = sys.argv[2]
-dout = sys.argv[3]
+prefix = sys.argv[1]
+dcompose = sys.argv[2]
+denv = sys.argv[3]
+dout = sys.argv[4]
 substitute = {}
 with open(denv, "r", encoding="utf-8") as fin:
     for line in fin:
@@ -37,7 +38,7 @@ with open(denv, "r", encoding="utf-8") as fin:
         if not line:
             continue
         variable, value = line.split("=", 1)
-        substitute[f"${variable}".strip()] = value.strip()
+        substitute[f"${variable}".strip()] = f"{prefix}/{value.strip()}"
 with open(dcompose, "r", encoding="utf-8") as din:
     content = din.read()
 for variable, value in sorted(
@@ -47,4 +48,4 @@ with open(dout, "w", encoding="utf-8") as fout:
     fout.write(content)
 EOF
 
-${PYTHON} -c "${PY_COMPOSE}" "deploy/docker-compose.yml" "deploy/default.env" "docker-compose.yml"
+${PYTHON} -c "${PY_COMPOSE}" "${DOCKER_LOGIN_SERVER}" "deploy/docker-compose.yml" "deploy/default.env" "docker-compose.yml"
