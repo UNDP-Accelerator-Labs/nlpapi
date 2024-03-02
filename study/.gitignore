@@ -9,3 +9,5 @@ _out.csv
 _vec.db
 *.model
 *.ckpt
+mdata/model_cache/*
+!mdata/model_cache/.*

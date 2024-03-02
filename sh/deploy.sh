@@ -9,8 +9,8 @@ fi
 
 BRANCH_MAIN=main
 
-if [ $(make -s branch) != "${BRANCH_MAIN}" ]; then
-    echo "must be on ${BRANCH_MAIN} to deploy"
+if [[ $(make -s branch) != "${BRANCH_MAIN}" && $(make -s branch) != v* ]]; then
+    echo "must be on ${BRANCH_MAIN} or v* to deploy"
     exit 2
 fi
 
