@@ -26,6 +26,7 @@ def extract_locations(
         db: DBConnector, geo_query: GeoQuery, user: UUID) -> GeoOutput:
     strategy = get_strategy(geo_query["strategy"])
     rt_context = geo_query["return_context"]
+    max_requests = geo_query["max_requests"]
     rt_input = geo_query["return_input"]
     input_text = geo_query["input"]
     lnc, lnr = create_length_counter()
@@ -41,10 +42,15 @@ def extract_locations(
     queries = set(query_list)
     cache_res = read_geo_cache(db, queries)
     compute_res: dict[str, GeoResult] = {}
+    requests = 0
     for query, cres in cache_res.items():
         if cres[0] is not None:
             continue
-        compute_res[query] = geo_result(query)
+        if max_requests is None or requests < max_requests:
+            requests += 1
+            compute_res[query] = geo_result(query)
+        else:
+            compute_res[query] = (None, "requestlimit")
     write_geo_cache(db, compute_res)
     get_resp = strategy.get_callback(query_list, {
         query: compute_res.get(query, cache_res[query])
@@ -69,7 +75,8 @@ def extract_locations(
         info = entity_map.get(query, None)
         if info is None:
             loc, status = get_resp(query)
-            status_count[STATUS_MAP[status]] += 1
+            if status not in ("requestlimit",):
+                status_count[STATUS_MAP[status]] += 1
             status_ix = STATUS_ORDER.index(status)
             if status_ix < worst_ix:
                 worst_ix = status_ix

@@ -140,6 +140,7 @@ def setup(
             "return_context": args.get("return_context", True),
             "strategy": args.get("strategy", "top"),
             "language": args.get("language", "en"),
+            "max_requests": args.get("max_requests", 5),
         }
         return extract_locations(db, obj, user)
 
