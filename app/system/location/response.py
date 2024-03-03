@@ -11,6 +11,7 @@ GeoStatus = Literal[
     "invalid",
     "ok",
     "ratelimit",
+    "requestlimit",
 ]
 
 
@@ -21,6 +22,7 @@ STATUS_ORDER: list[GeoStatus] = [
     "cache_miss",
     "cache_never",
     "cache_hit",
+    "requestlimit",
 ]
 
 
@@ -87,4 +89,5 @@ GeoQuery = TypedDict('GeoQuery', {
     "return_context": bool,
     "strategy": Strategy,
     "language": LanguageStr,
+    "max_requests": int | None,
 })
