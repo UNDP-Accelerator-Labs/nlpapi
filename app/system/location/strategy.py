@@ -48,9 +48,8 @@ class FreqStrategy(LocationStrategy):  # pylint: disable=too-few-public-methods
                 res, _ = results.get(query, (None, "invalid"))
                 if res is None:
                     continue
-                for (pos, geo) in enumerate(res):
-                    cur_confidence = geo["confidence"] / (pos + 1.0)
-                    country_count[geo["country"]] += cur_confidence
+                for geo in res:
+                    country_count[geo["country"]] += geo["relevance"]
             return country_count
 
         country_order = get_order()
@@ -61,11 +60,10 @@ class FreqStrategy(LocationStrategy):  # pylint: disable=too-few-public-methods
                 return (None, status)
             max_confidence_ratio = None
             best_resp = None
-            for (pos, resp) in enumerate(resps):
+            for resp in resps:
                 country_confidence = country_order.get(resp["country"], 0.0)
                 confidence_ratio = (
-                    resp["confidence"]
-                    / (pos + 1.0)
+                    resp["relevance"]
                     / (1.0 + country_confidence))
                 if (max_confidence_ratio is None
                         or confidence_ratio > max_confidence_ratio):

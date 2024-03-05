@@ -23,7 +23,8 @@ from app.system.db.db import DBConnector
 from app.system.jwt import is_valid_token
 from app.system.language.langdetect import LangResponse
 from app.system.language.pipeline import extract_language
-from app.system.location.pipeline import extract_locations
+from app.system.location.forwardgeo import OpenCageFormat
+from app.system.location.pipeline import extract_locations, extract_opencage
 from app.system.location.response import GeoOutput, GeoQuery
 from app.system.ops.ops import get_ops
 
@@ -80,7 +81,9 @@ def setup(
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
-        args = rargs["post"]
+        args = rargs.get("post", {})
+        if "token" not in args:
+            args = rargs["query"]
         user = is_valid_token(config, args["token"])
         if user is None:
             return Response("invalid token provided", 401)
@@ -89,8 +92,11 @@ def setup(
 
     def verify_input(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
-        args = rargs["post"]
-        text = args["input"]
+        args = rargs.get("post", {})
+        if "input" in args:
+            text = args["input"]
+        else:
+            text = rargs["query"]["q"]
         if len(text) > MAX_INPUT_LENGTH:
             return Response(
                 f"input length exceeds {MAX_INPUT_LENGTH} bytes", 413)
@@ -126,6 +132,15 @@ def setup(
 
     # *** location ***
 
+    @server.json_get(f"{prefix}/geoforward")
+    @server.middleware(verify_input)
+    @server.middleware(verify_token)
+    def _get_geoforward(_req: QSRH, rargs: ReqArgs) -> OpenCageFormat:
+        meta = rargs["meta"]
+        input_str: str = meta["input"]
+        user: uuid.UUID = meta["user"]
+        return extract_opencage(db, input_str, user)
+
     @server.json_post(f"{prefix}/locations")
     @server.middleware(verify_input)
     @server.middleware(verify_token)
@@ -140,7 +155,7 @@ def setup(
             "return_context": args.get("return_context", True),
             "strategy": args.get("strategy", "top"),
             "language": args.get("language", "en"),
-            "max_requests": args.get("max_requests", 5),
+            "max_requests": args.get("max_requests", 10),
         }
         return extract_locations(db, obj, user)
 

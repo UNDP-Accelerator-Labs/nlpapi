@@ -5,7 +5,12 @@ from app.misc.context import get_context
 from app.system.db.base import LocationCache, LocationEntries, LocationUsers
 from app.system.db.db import DBConnector
 from app.system.location.cache import read_geo_cache, write_geo_cache
-from app.system.location.forwardgeo import geo_result
+from app.system.location.forwardgeo import (
+    as_opencage_format,
+    geo_result,
+    OpenCageFormat,
+    OpenCageResult,
+)
 from app.system.location.response import (
     EntityInfo,
     GeoOutput,
@@ -20,6 +25,66 @@ from app.system.location.spacy import get_locations
 from app.system.location.strategy import get_strategy
 from app.system.spacy import get_spacy
 from app.system.stats import create_length_counter
+
+
+NO_COUNT_REQUESTS: set[GeoStatus] = {"requestlimit"}
+
+
+def extract_opencage(db: DBConnector, text: str, user: UUID) -> OpenCageFormat:
+    query = text.strip()
+    cache_res = read_geo_cache(db, {query})
+    results: list[OpenCageResult] = []
+    status_count: StatusCount = {
+        "cache_hit": 0,
+        "cache_miss": 0,
+        "invalid": 0,
+        "ratelimit": 0,
+    }
+    for key, cres in cache_res.items():
+        resp, status = cres
+        if resp is not None:
+            results.extend(as_opencage_format(resp)["results"])
+            if status not in NO_COUNT_REQUESTS:
+                status_count[STATUS_MAP[status]] += 1
+            continue
+        geo_res = geo_result(key)
+        write_geo_cache(db, {key: geo_res})
+        geo_response, geo_status = geo_res
+        if geo_status not in NO_COUNT_REQUESTS:
+            status_count[STATUS_MAP[geo_status]] += 1
+        if geo_response is not None:
+            results.extend(as_opencage_format(geo_response)["results"])
+    with db.get_session() as session:
+        total_length = len(query)
+        stmt = db.upsert(LocationUsers).values(
+            userid=user,
+            cache_miss=status_count["cache_miss"],
+            cache_hit=status_count["cache_hit"],
+            invalid=status_count["invalid"],
+            ratelimit=status_count["ratelimit"],
+            location_count=1,
+            location_length=total_length,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[LocationUsers.userid],
+            set_={
+                LocationUsers.cache_miss:
+                    LocationUsers.cache_miss + status_count["cache_miss"],
+                LocationUsers.cache_hit:
+                    LocationUsers.cache_hit + status_count["cache_hit"],
+                LocationUsers.invalid:
+                    LocationUsers.invalid + status_count["invalid"],
+                LocationUsers.ratelimit:
+                    LocationUsers.ratelimit + status_count["ratelimit"],
+                LocationUsers.location_count:
+                    LocationUsers.location_count + 1,
+                LocationUsers.location_length:
+                    LocationUsers.location_length + total_length,
+            })
+        session.execute(stmt)
+    return {
+        "results": results,
+    }
 
 
 def extract_locations(
@@ -75,7 +140,7 @@ def extract_locations(
         info = entity_map.get(query, None)
         if info is None:
             loc, status = get_resp(query)
-            if status not in ("requestlimit",):
+            if status not in NO_COUNT_REQUESTS:
                 status_count[STATUS_MAP[status]] += 1
             status_ix = STATUS_ORDER.index(status)
             if status_ix < worst_ix:
