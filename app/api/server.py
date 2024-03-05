@@ -73,6 +73,8 @@ def setup(
     print(f"app version: {version_name}")
     print(f"app commit: {version_hash}")
 
+    server.update_version_string(f"nlpapi/{version_name[1:]}")
+
     server.set_default_token_expiration(48 * 60 * 60)  # 2 days
 
     config = get_config()
@@ -81,10 +83,12 @@ def setup(
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
-        args = rargs.get("post", {})
-        if "token" not in args:
-            args = rargs["query"]
-        user = is_valid_token(config, args["token"])
+        token = rargs.get("post", {}).get("token")
+        if token is None:
+            token = rargs.get("query", {}).get("token")
+        if token is None:
+            raise KeyError("'token' not set")
+        user = is_valid_token(config, f"{token}")
         if user is None:
             return Response("invalid token provided", 401)
         rargs["meta"]["user"] = user
@@ -93,10 +97,12 @@ def setup(
     def verify_input(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
         args = rargs.get("post", {})
-        if "input" in args:
-            text = args["input"]
-        else:
-            text = rargs["query"]["q"]
+        text = args.get("input")
+        if text is None:
+            text = rargs.get("query", {}).get("q")
+        if text is None:
+            raise KeyError("POST 'input' or GET 'q' not set")
+        text = f"{text}"
         if len(text) > MAX_INPUT_LENGTH:
             return Response(
                 f"input length exceeds {MAX_INPUT_LENGTH} bytes", 413)
@@ -155,7 +161,7 @@ def setup(
             "return_context": args.get("return_context", True),
             "strategy": args.get("strategy", "top"),
             "language": args.get("language", "en"),
-            "max_requests": args.get("max_requests", 10),
+            "max_requests": args.get("max_requests", 5),
         }
         return extract_locations(db, obj, user)
 
