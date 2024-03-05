@@ -73,6 +73,8 @@ def setup(
     print(f"app version: {version_name}")
     print(f"app commit: {version_hash}")
 
+    server.update_version_string(version_name)
+
     server.set_default_token_expiration(48 * 60 * 60)  # 2 days
 
     config = get_config()
