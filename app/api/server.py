@@ -73,7 +73,7 @@ def setup(
     print(f"app version: {version_name}")
     print(f"app commit: {version_hash}")
 
-    server.update_version_string(version_name)
+    server.update_version_string(f"nlpapi/{version_name[1:]}")
 
     server.set_default_token_expiration(48 * 60 * 60)  # 2 days
 
