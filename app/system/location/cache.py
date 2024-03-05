@@ -48,7 +48,7 @@ def read_geo_cache(db: DBConnector, queries: set[str]) -> dict[str, GeoResult]:
                 "lng": float(row.lng),
                 "formatted": f"{row.formatted}",
                 "country": f"{row.country}",
-                "confidence": float(row.confidence),
+                "relevance": 1.0 / (float(row.pos) + 1.0),
             }
     for skip_id in skip:
         res[id_map[skip_id]] = (None, "cache_never")
@@ -93,6 +93,6 @@ def write_geo_cache(db: DBConnector, results: dict[str, GeoResult]) -> None:
                     lng=res["lng"],
                     formatted=res["formatted"],
                     country=country,
-                    confidence=res["confidence"])
+                    confidence=res["relevance"])  # NOTE: not really needed
                 stmt = stmt.on_conflict_do_nothing()
                 session.execute(stmt)
