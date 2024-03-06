@@ -9,7 +9,7 @@ RUN apt-get update && apt-get -y upgrade \
     make
 WORKDIR /usr/src/app
 COPY Makefile .
-COPY requirements.txt .
+COPY requirements.slim.txt .
 RUN mkdir sh
 COPY sh/install.sh sh
 RUN make install-no-spacy
