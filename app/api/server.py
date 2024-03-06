@@ -48,6 +48,8 @@ def setup(
 
     prefix = "/api"
 
+    server.bind_proxy("qdrant", "localhost:6663")
+
     server.suppress_noise = True
 
     def report_slow_requests(
