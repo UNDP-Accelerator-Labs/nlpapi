@@ -8,6 +8,7 @@ RUN apt-get update && apt-get -y upgrade \
     libc6-dev \
     make
 WORKDIR /usr/src/app
+RUN pip install --progress-bar off --no-cache-dir torch~=2.2.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 COPY Makefile .
 COPY requirements.api.txt .
 RUN mkdir sh

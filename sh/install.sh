@@ -22,9 +22,9 @@ ${PYTHON} -m pip install --progress-bar off --upgrade pip
 if [ -z "${MODE}" ]; then
     ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.txt
 elif [ "${MODE}" = "api" ]; then
-    ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.api.txt
+    ${PYTHON} -m pip install --progress-bar off --no-cache-dir --upgrade -r requirements.api.txt
 elif [ "${MODE}" = "worker" ]; then
-    ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.worker.txt
+    ${PYTHON} -m pip install --progress-bar off --no-cache-dir --upgrade -r requirements.worker.txt
 else
     echo "invalid mode ${MODE}" >&2
     exit 2
@@ -48,6 +48,10 @@ if ${PYTHON} -c 'import torch;assert torch.__version__.startswith("2.")' &>/dev/
     echo "pytorch available: ${PYTORCH}"
     ${PYTHON} -c "${PY_TORCH_VERIFY}"
 else
+    if [ "${MODE}" = "api" ] || [ "${MODE}" = "worker" ]; then
+        echo "should have torch already" >&2
+        exit 3
+    fi
     if [ ! $CI = "true" ] && command -v conda &>/dev/null 2>&1; then
         conda install -y pytorch torchvision torchaudio -c pytorch
     else
