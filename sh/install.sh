@@ -21,9 +21,9 @@ fi
 ${PYTHON} -m pip install --progress-bar off --upgrade pip
 if [ -z "${MODE}" ]; then
     ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.txt
-elif [ "${MODE}" = "api" ];
+elif [ "${MODE}" = "api" ]; then
     ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.api.txt
-elif [ "${MODE}" = "worker" ];
+elif [ "${MODE}" = "worker" ]; then
     ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.worker.txt
 else
     echo "invalid mode ${MODE}" >&2
