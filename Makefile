@@ -120,6 +120,9 @@ dockerpush:
 install:
 	PYTHON=$(PYTHON) ./sh/install.sh
 
+install-no-spacy:
+	PYTHON=$(PYTHON) NO_SPACY=1 ./sh/install.sh
+
 requirements-check:
 	PYTHON=$(PYTHON) ./sh/requirements_check.sh $(FILE)
 

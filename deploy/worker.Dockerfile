@@ -12,7 +12,7 @@ COPY Makefile .
 COPY requirements.txt .
 RUN mkdir sh
 COPY sh/install.sh sh
-RUN make install
+RUN make install-no-spacy
 COPY . .
 ARG SMIND_GRAPHS
 ARG SMIND_CONFIG

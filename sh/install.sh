@@ -48,5 +48,7 @@ else
     echo "for MacOS follow these instructions: https://developer.apple.com/metal/pytorch/"
 fi
 
-echo "initializing spacy"
-${PYTHON} -m spacy download en_core_web_sm
+if [ -z "${NO_SPACY}" ]; then
+    echo "initializing spacy"
+    ${PYTHON} -m spacy download en_core_web_sm
+fi
