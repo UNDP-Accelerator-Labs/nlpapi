@@ -19,7 +19,11 @@ if [ ${MAJOR} -eq 3 ] && [ ${MINOR} -lt 11 ] || [ ${MAJOR} -lt 3 ]; then
 fi
 
 ${PYTHON} -m pip install --progress-bar off --upgrade pip
-${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.txt
+if [ -z "${NO_SPACY}" ]; then
+    ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.txt
+else
+    ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.slim.txt
+then
 
 ! read -r -d '' PY_TORCH_VERIFY <<'EOF'
 import torch
