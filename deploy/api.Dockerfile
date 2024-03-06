@@ -9,10 +9,10 @@ RUN apt-get update && apt-get -y upgrade \
     make
 WORKDIR /usr/src/app
 COPY Makefile .
-COPY requirements.txt .
+COPY requirements.api.txt .
 RUN mkdir sh
 COPY sh/install.sh sh
-RUN make install
+RUN make install-api
 COPY . .
 ARG PORT=8080
 ARG CONFIG_PATH

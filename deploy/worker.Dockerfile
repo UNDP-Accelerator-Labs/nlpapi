@@ -9,10 +9,10 @@ RUN apt-get update && apt-get -y upgrade \
     make
 WORKDIR /usr/src/app
 COPY Makefile .
-COPY requirements.slim.txt .
+COPY requirements.worker.txt .
 RUN mkdir sh
 COPY sh/install.sh sh
-RUN make install-no-spacy
+RUN make install-worker
 COPY . .
 ARG SMIND_GRAPHS
 ARG SMIND_CONFIG

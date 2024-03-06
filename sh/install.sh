@@ -19,10 +19,15 @@ if [ ${MAJOR} -eq 3 ] && [ ${MINOR} -lt 11 ] || [ ${MAJOR} -lt 3 ]; then
 fi
 
 ${PYTHON} -m pip install --progress-bar off --upgrade pip
-if [ -z "${NO_SPACY}" ]; then
+if [ -z "${MODE}" ]; then
     ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.txt
+elif [ "${MODE}" = "api" ];
+    ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.api.txt
+elif [ "${MODE}" = "worker" ];
+    ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.worker.txt
 else
-    ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.slim.txt
+    echo "invalid mode ${MODE}" >&2
+    exit 2
 fi
 
 ! read -r -d '' PY_TORCH_VERIFY <<'EOF'
@@ -52,7 +57,7 @@ else
     echo "for MacOS follow these instructions: https://developer.apple.com/metal/pytorch/"
 fi
 
-if [ -z "${NO_SPACY}" ]; then
+if [ -z "${MODE}" ] || [ "${MODE}" = "api" ]; then
     echo "initializing spacy"
     ${PYTHON} -m spacy download en_core_web_sm
 fi
