@@ -23,6 +23,17 @@ dpush "rmain"
 dpush "rdata"
 dpush "rcache"
 
+QDRANT_BASE="qdrant/qdrant:v1.8.0"
+docker pull --platform linux/amd64 "${QDRANT_BASE}"
+
+IMAGE_QDRANT="${IMAGE_NAME}-$1"
+URL="${DOCKER_LOGIN_SERVER}/${IMAGE_QDRANT}"
+echo "pushing ${QDRANT_BASE} to ${URL}"
+
+docker tag "${QDRANT_BASE}" "${URL}"
+docker push "${URL}"
+docker rmi "${URL}"
+
 ! read -r -d '' PY_COMPOSE <<'EOF'
 import os
 import sys

@@ -136,6 +136,7 @@ echo "DOCKER_API=${IMAGE_NAME}-api" >> deploy/default.env
 echo "DOCKER_RMAIN=${IMAGE_NAME}-rmain" >> deploy/default.env
 echo "DOCKER_RDATA=${IMAGE_NAME}-rdata" >> deploy/default.env
 echo "DOCKER_RCACHE=${IMAGE_NAME}-rcache" >> deploy/default.env
+echo "DOCKER_QDRANT=${IMAGE_NAME}-qdrant" >> deploy/default.env
 
 echo "built ${IMAGE_NAME}-api"
 echo "built ${IMAGE_NAME}-worker"
