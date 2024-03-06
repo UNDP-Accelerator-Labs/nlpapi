@@ -25,12 +25,12 @@ cp "${SMIND_CONFIG}" "${SMIND_CFG}"
 cp -R "${SMIND_GRAPHS}" "${SMIND_GRS}"
 
 IMAGE_TAG="${IMAGE_TAG:-$(make -s name)}"
-IMAGE_NAME="nlpapi:${IMAGE_TAG}"
+IMAGE_BASE="nlpapi"
 CONFIG_PATH="${CONFIG_PATH:-${DOCKER_CONFIG}}"
 PORT="${PORT:-8080}"
 
 if [ ! -z "${DEV}" ]; then
-    IMAGE_NAME="${IMAGE_NAME}-dev"
+    IMAGE_BASE="${IMAGE_BASE}-dev"
 fi
 
 echo "using config: ${CONFIG_PATH}"
@@ -51,7 +51,7 @@ fi
 make -s version-file
 trap 'rm -- version.txt' EXIT
 
-echo "building ${IMAGE_NAME}"
+echo "building ${IMAGE_BASE}"
 
 if [ ! -z "${DEV}" ]; then
     docker build \
@@ -59,35 +59,35 @@ if [ ! -z "${DEV}" ]; then
         --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
         --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
         --build-arg "PORT=${PORT}" \
-        -t "${IMAGE_NAME}-api" \
+        -t "${IMAGE_BASE}-api:${IMAGE_TAG}" \
         -f deploy/api.Dockerfile \
         .
 
     docker build \
         --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
         --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
-        -t "${IMAGE_NAME}-worker" \
+        -t "${IMAGE_BASE}-worker:${IMAGE_TAG}" \
         -f deploy/worker.Dockerfile \
         .
 
     docker build \
         --build-arg "PORT=6381" \
         --build-arg "CFG_FILE=${RMAIN_CFG}" \
-        -t "${IMAGE_NAME}-rmain" \
+        -t "${IMAGE_BASE}-rmain:${IMAGE_TAG}" \
         -f deploy/redis.Dockerfile \
         .
 
     docker build \
         --build-arg "PORT=6382" \
         --build-arg "CFG_FILE=${RDATA_CFG}" \
-        -t "${IMAGE_NAME}-rdata" \
+        -t "${IMAGE_BASE}-rdata:${IMAGE_TAG}" \
         -f deploy/redis.Dockerfile \
         .
 
     docker build \
         --build-arg "PORT=6383" \
         --build-arg "CFG_FILE=${RCACHE_CFG}" \
-        -t "${IMAGE_NAME}-rcache" \
+        -t "${IMAGE_BASE}-rcache:${IMAGE_TAG}" \
         -f deploy/redis.Dockerfile \
         .
 
@@ -99,7 +99,7 @@ else
         --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
         --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
         --build-arg "PORT=${PORT}" \
-        -t "${IMAGE_NAME}-api" \
+        -t "${IMAGE_BASE}-api:${IMAGE_TAG}" \
         -f deploy/api.Dockerfile \
         .
 
@@ -107,7 +107,7 @@ else
         --platform linux/amd64 \
         --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
         --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
-        -t "${IMAGE_NAME}-worker" \
+        -t "${IMAGE_BASE}-worker:${IMAGE_TAG}" \
         -f deploy/worker.Dockerfile \
         .
 
@@ -115,7 +115,7 @@ else
         --platform linux/amd64 \
         --build-arg "PORT=6381" \
         --build-arg "CFG_FILE=${RMAIN_CFG}" \
-        -t "${IMAGE_NAME}-rmain" \
+        -t "${IMAGE_BASE}-rmain:${IMAGE_TAG}" \
         -f deploy/redis.Dockerfile \
         .
 
@@ -123,7 +123,7 @@ else
         --platform linux/amd64 \
         --build-arg "PORT=6382" \
         --build-arg "CFG_FILE=${RDATA_CFG}" \
-        -t "${IMAGE_NAME}-rdata" \
+        -t "${IMAGE_BASE}-rdata:${IMAGE_TAG}" \
         -f deploy/redis.Dockerfile \
         .
 
@@ -131,7 +131,7 @@ else
         --platform linux/amd64 \
         --build-arg "PORT=6383" \
         --build-arg "CFG_FILE=${RCACHE_CFG}" \
-        -t "${IMAGE_NAME}-rcache" \
+        -t "${IMAGE_BASE}-rcache:${IMAGE_TAG}" \
         -f deploy/redis.Dockerfile \
         .
 
@@ -139,18 +139,19 @@ else
 fi
 
 echo "# created by sh/build.sh" > deploy/default.env
-echo "DOCKER_WORKER=${IMAGE_NAME}-worker" >> deploy/default.env
-echo "DOCKER_API=${IMAGE_NAME}-api" >> deploy/default.env
-echo "DOCKER_RMAIN=${IMAGE_NAME}-rmain" >> deploy/default.env
-echo "DOCKER_RDATA=${IMAGE_NAME}-rdata" >> deploy/default.env
-echo "DOCKER_RCACHE=${IMAGE_NAME}-rcache" >> deploy/default.env
-echo "DOCKER_QDRANT=${IMAGE_NAME}-qdrant" >> deploy/default.env
+echo "DOCKER_WORKER=${IMAGE_BASE}-worker:${IMAGE_TAG}" >> deploy/default.env
+echo "DOCKER_API=${IMAGE_BASE}-api:${IMAGE_TAG}" >> deploy/default.env
+echo "DOCKER_RMAIN=${IMAGE_BASE}-rmain:${IMAGE_TAG}" >> deploy/default.env
+echo "DOCKER_RDATA=${IMAGE_BASE}-rdata:${IMAGE_TAG}" >> deploy/default.env
+echo "DOCKER_RCACHE=${IMAGE_BASE}-rcache:${IMAGE_TAG}" >> deploy/default.env
+echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${IMAGE_TAG}" >> deploy/default.env
 
-echo "built ${IMAGE_NAME}-api"
-echo "built ${IMAGE_NAME}-worker"
-echo "built ${IMAGE_NAME}-rmain"
-echo "built ${IMAGE_NAME}-rdata"
-echo "built ${IMAGE_NAME}-rcache"
+echo "built ${IMAGE_BASE}-api:${IMAGE_TAG}"
+echo "built ${IMAGE_BASE}-worker:${IMAGE_TAG}"
+echo "built ${IMAGE_BASE}-rmain:${IMAGE_TAG}"
+echo "built ${IMAGE_BASE}-rdata:${IMAGE_TAG}"
+echo "built ${IMAGE_BASE}-rcache:${IMAGE_TAG}"
+echo "built ${IMAGE_BASE}-qdrant:${IMAGE_TAG}"
 
 ! read -r -d '' PY_COMPOSE <<'EOF'
 import os
