@@ -112,17 +112,17 @@ jobs:
       run: |
         make -s dockerpush
 
-    - name: Login via Azure CLI
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    # - name: Login via Azure CLI
+    #   uses: azure/login@v1
+    #   with:
+    #     creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Azure CLI script
-      uses: azure/CLI@v1
-      with:
-        azcliversion: 2.30.0
-        inlineScript: |
-          az webapp create --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} --plan ${{ secrets.AZURE_SERVICE_PLAN }} --name 'acclabs-nlpapi' --multicontainer-config-type compose --multicontainer-config-file $GITHUB_WORKSPACE/docker-compose.yml
+    # - name: Azure CLI script
+    #   uses: azure/CLI@v1
+    #   with:
+    #     azcliversion: 2.30.0
+    #     inlineScript: |
+    #       az webapp create --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} --plan ${{ secrets.AZURE_SERVICE_PLAN }} --name 'acclabs-nlpapi' --multicontainer-config-type compose --multicontainer-config-file $GITHUB_WORKSPACE/docker-compose.yml
 
 
   deploy_pipeline:
