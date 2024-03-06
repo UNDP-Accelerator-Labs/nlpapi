@@ -23,7 +23,7 @@ if [ -z "${NO_SPACY}" ]; then
     ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.txt
 else
     ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.slim.txt
-then
+fi
 
 ! read -r -d '' PY_TORCH_VERIFY <<'EOF'
 import torch
