@@ -48,7 +48,7 @@ spacy==3.5.3
 SQLAlchemy==2.0.9
 SQLAlchemy[mypy]==2.0.9
 tokenizers<0.19
-tqdm~=4.65.0
+tqdm==4.65.0
 transformers~=4.36.0
 types-Pillow==9.2.1
 types-psycopg2==2.9.21.10
