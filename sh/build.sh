@@ -6,6 +6,8 @@ cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
 mkdir -p buildtmp
 
+# FIXME keep track of separate versions for each image. not all images need to update every time
+
 DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io"
 PYTHON="${PYTHON:-python3}"
 
