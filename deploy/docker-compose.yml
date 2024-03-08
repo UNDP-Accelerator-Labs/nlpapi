@@ -9,6 +9,8 @@ services:
       - '6334'
     volumes:
       - qdrant:/qdrant/storage:z
+    environment:
+      QDRANT__TELEMETRY_DISABLED: true
   rmain:
     container_name: rmain
     image: $DOCKER_RMAIN

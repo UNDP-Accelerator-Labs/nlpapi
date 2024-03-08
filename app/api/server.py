@@ -48,7 +48,7 @@ def setup(
 
     prefix = "/api"
 
-    server.bind_proxy("/qdrant/", "localhost:6663")
+    server.bind_proxy("/qdrant/", "http://localhost:6663/")
 
     server.suppress_noise = True
 
