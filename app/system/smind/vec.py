@@ -8,6 +8,16 @@ from qdrant_client.models import (
     VectorParams,
 )
 
+from app.system.config import Config
+
+
+VecDBConfig = TypedDict('VecDBConfig', {
+    "host": str,
+    "port": int,
+    "grpc": int,
+    "token": str | None,
+})
+
 
 DistanceFn = Literal[
     "cos",
@@ -45,13 +55,22 @@ FILE_PROTOCOL = "file://"
 EMBED_SIZE = 384  # 768  # FIXME: read from graph definition
 
 
-def get_vec_client(db_str: str) -> QdrantClient:
-    if db_str.startswith(FILE_PROTOCOL):
-        print(f"loading db file: {db_str.removeprefix(FILE_PROTOCOL)}")
-        db = QdrantClient(path=db_str.removeprefix(FILE_PROTOCOL))
+def get_vec_client(config: Config) -> QdrantClient:
+    vec_db = config["vector"]
+    host = vec_db["host"]
+    if host.startswith(FILE_PROTOCOL):
+        print(f"loading db file: {host.removeprefix(FILE_PROTOCOL)}")
+        db = QdrantClient(path=host.removeprefix(FILE_PROTOCOL))
     else:
-        print(f"loading db: {db_str}")
-        db = QdrantClient(db_str)
+        print(f"loading db: {host}")
+        token = vec_db["token"]
+        if not token:
+            token = None
+        db = QdrantClient(
+            url=host,
+            port=vec_db["port"],
+            grpc_port=vec_db["grpc"],
+            api_key=token)
     return db
 
 
@@ -77,7 +96,7 @@ def build_db_name(
     return name
 
 
-def add_embed(db: QdrantClient, name: str, chunks: list[EmbedChunk]) -> None:
+def add_embed(db: QdrantClient, name: str, chunks: list[EmbedChunk]) -> int:
 
     def convert_chunk(chunk: EmbedChunk) -> PointStruct:
         point_id = f"{chunk['base']}:{chunk['doc_id']}:{chunk['chunk_id']}"
@@ -94,6 +113,7 @@ def add_embed(db: QdrantClient, name: str, chunks: list[EmbedChunk]) -> None:
     db.upsert(
         collection_name=name,
         points=[convert_chunk(chunk) for chunk in chunks])
+    return len(chunks)
 
 
 def query_embed(

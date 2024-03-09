@@ -25,6 +25,9 @@ COPY "${CONFIG_PATH}" config.json
 ENV API_SERVER_NAMESPACE=default
 ENV HOST=0.0.0.0
 ENV PORT=${PORT}
+ENV SMIND_CFG=smind-config.json
+ENV GRAPH_PATH=graphs/
+ENV CONFIG_PATH=config.json
 EXPOSE ${PORT}
 ENTRYPOINT ["/bin/bash", "-l", "-c"]
 CMD ["python -u -m app --dedicated"]

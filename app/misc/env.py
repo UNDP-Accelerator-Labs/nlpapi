@@ -4,9 +4,12 @@ from typing import Literal
 
 EnvPath = Literal[
     "CONFIG_PATH",
+    "GRAPH_PATH",
+    "SMIND_CFG",
 ]
 EnvStr = Literal[
     "APP_SECRET",
+    "HOST",
     "LOGIN_DB_DIALECT",
     "LOGIN_DB_HOST",
     "LOGIN_DB_NAME",
@@ -14,11 +17,16 @@ EnvStr = Literal[
     "LOGIN_DB_SCHEMA",
     "LOGIN_DB_USERNAME",
     "OPENCAGE_API",
-    "HOST",
+    "QDRANT__SERVICE__API_KEY",
+    "QDRANT__TELEMETRY_DISABLED",
+    "QDRANT_HOST",
+    "WRITE_TOKEN",
 ]
 EnvInt = Literal[
     "LOGIN_DB_PORT",
     "PORT",
+    "QDRANT_REST_PORT",
+    "QDRANT_GRPC_PORT",
 ]
 
 

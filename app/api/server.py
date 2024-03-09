@@ -12,6 +12,8 @@ from app.api.mod import Module
 from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
 from app.api.response_types import (
+    AddEmbed,
+    QueryEmbed,
     SourceListResponse,
     SourceResponse,
     VersionResponse,
@@ -27,6 +29,20 @@ from app.system.location.forwardgeo import OpenCageFormat
 from app.system.location.pipeline import extract_locations, extract_opencage
 from app.system.location.response import GeoOutput, GeoQuery
 from app.system.ops.ops import get_ops
+from app.system.smind.api import (
+    get_text_results_immediate,
+    load_graph,
+    load_smind,
+    normalize_text,
+    snippify_text,
+)
+from app.system.smind.vec import (
+    add_embed,
+    build_db_name,
+    EmbedChunk,
+    get_vec_client,
+    query_embed,
+)
 
 
 MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
@@ -83,6 +99,15 @@ def setup(
     db = DBConnector(config["db"])
     ops = get_ops("db", config)
 
+    vec_db = get_vec_client(config)
+    articles_main = build_db_name(
+        "articles_main", distance_fn="dot", db=vec_db)
+
+    smind = load_smind(config["smind"])
+    graph_embed = load_graph(smind, "graph_embed.json")
+
+    write_token = envload_str("WRITE_TOKEN")
+
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
         token = rargs.get("post", {}).get("token")
@@ -94,6 +119,15 @@ def setup(
         if user is None:
             return Response("invalid token provided", 401)
         rargs["meta"]["user"] = user
+        return okay
+
+    def verify_write(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        token = rargs.get("post", {}).get("write_access")
+        if token is None:
+            raise KeyError("'write_access' not set")
+        if write_token != token:
+            raise ValueError("invalid write_access token!")
         return okay
 
     def verify_input(
@@ -108,7 +142,7 @@ def setup(
         if len(text) > MAX_INPUT_LENGTH:
             return Response(
                 f"input length exceeds {MAX_INPUT_LENGTH} bytes", 413)
-        rargs["meta"]["input"] = text
+        rargs["meta"]["input"] = normalize_text(text)
         return okay
 
     # *** misc ***
@@ -138,11 +172,83 @@ def setup(
             "sources": ops.get_sources(),
         }
 
+    # # # SECURE # # #
+    server.add_middleware(verify_token)
+
+    # *** embeddings ***
+
+    @server.json_post(f"{prefix}/add_embed")
+    @server.middleware(verify_write)
+    @server.middleware(verify_input)
+    def _post_add_embed(_req: QSRH, rargs: ReqArgs) -> AddEmbed:
+        args = rargs["post"]
+        meta = rargs["meta"]
+        input_str: str = meta["input"]
+        base = args["base"]
+        doc_id = int(args["doc_id"])
+        url = args["url"]
+        meta = args.get("meta", {})
+        snippets = list(snippify_text(input_str, 600))
+        embeds = get_text_results_immediate(
+            snippets,
+            smind=smind,
+            ns=graph_embed[0],
+            input_field=graph_embed[1],
+            output_field=graph_embed[2],
+            output_sample=[1.0])
+        embed_chunks: list[EmbedChunk] = [
+            {
+                "base": base,
+                "doc_id": doc_id,
+                "chunk_id": chunk_id,
+                "embed": embed,
+                "snippet": snippet,
+                "url": url,
+                "meta": meta,
+            }
+            for chunk_id, (snippet, embed) in enumerate(zip(snippets, embeds))
+            if embed is not None
+        ]
+        count = add_embed(vec_db, articles_main, embed_chunks)
+        failed = sum(1 if embed is None else 0 for embed in embed_chunks)
+        return {
+            "snippets": count,
+            "failed": failed,
+        }
+
+    @server.json_post(f"{prefix}/query_embed")
+    @server.middleware(verify_input)
+    def _post_query_embed(_req: QSRH, rargs: ReqArgs) -> QueryEmbed:
+        args = rargs["post"]
+        meta = rargs["meta"]
+        input_str: str = meta["input"]
+        offset: int | None = int(args.get("offset", 0))
+        if offset == 0:
+            offset = None
+        limit = int(args["limit"])
+        embed = get_text_results_immediate(
+            [input_str],
+            smind=smind,
+            ns=graph_embed[0],
+            input_field=graph_embed[1],
+            output_field=graph_embed[2],
+            output_sample=[1.0])[0]
+        if embed is None:
+            return {
+                "hits": [],
+                "status": "error",
+            }
+        hits = query_embed(
+            vec_db, articles_main, embed, offset=offset, limit=limit)
+        return {
+            "hits": hits,
+            "status": "ok",
+        }
+
     # *** location ***
 
     @server.json_get(f"{prefix}/geoforward")
     @server.middleware(verify_input)
-    @server.middleware(verify_token)
     def _get_geoforward(_req: QSRH, rargs: ReqArgs) -> OpenCageFormat:
         meta = rargs["meta"]
         input_str: str = meta["input"]
@@ -151,7 +257,6 @@ def setup(
 
     @server.json_post(f"{prefix}/locations")
     @server.middleware(verify_input)
-    @server.middleware(verify_token)
     def _post_locations(_req: QSRH, rargs: ReqArgs) -> GeoOutput:
         args = rargs["post"]
         meta = rargs["meta"]
@@ -171,7 +276,6 @@ def setup(
 
     @server.json_post(f"{prefix}/language")
     @server.middleware(verify_input)
-    @server.middleware(verify_token)
     def _post_language(_req: QSRH, rargs: ReqArgs) -> LangResponse:
         meta = rargs["meta"]
         input_str: str = meta["input"]
@@ -190,7 +294,6 @@ def setup(
 
     @server.json_post(f"{prefix}/extract")
     @server.middleware(verify_input)
-    @server.middleware(verify_token)
     def _post_extract(_req: QSRH, rargs: ReqArgs) -> dict[str, Any]:
         args = rargs["post"]
         meta = rargs["meta"]

@@ -1,7 +1,10 @@
 import json
 import os
+import re
 import time
+import unicodedata
 from collections.abc import Iterable
+from html import unescape
 from typing import cast, TypeVar
 
 from gemma import tokenizer
@@ -15,7 +18,7 @@ from scattermind.system.torch_util import tensor_to_str
 T = TypeVar('T')
 
 
-def load_config(config_fname: str) -> ScattermindAPI:
+def load_smind(config_fname: str) -> ScattermindAPI:
     with open(config_fname, "rb") as fin:
         config_obj = json.load(fin)
     return load_api(config_obj)
@@ -48,6 +51,32 @@ def get_token_count(prompts: list[str]) -> list[int]:
     duration = time.monotonic() - start_time
     print(f"tokenization time: {duration}s")
     return res
+
+
+def clean(text: str) -> str:
+    text = text.strip()
+    while True:
+        prev_text = text
+        text = unescape(text)
+        if prev_text == text:
+            break
+    text = unicodedata.normalize("NFKC", text)
+    text = re.sub("\r", "\n", text)
+    text = re.sub("\n\n+", "\n", text)
+    text = re.sub("\n[ \t]+", "\n", text)
+    text = re.sub("[ \t]+", " ", text)
+    text = re.sub("\n\n\n+", "\n\n", text)
+    return text
+
+
+def strip_html(text: str) -> str:
+    text = re.sub(r"<br\s*/?\s*>", "\n", text.strip())
+    text = re.sub(r"<(?:\"[^\"]*\"['\"]*|'[^']*'['\"]*|[^'\">])+>", "", text)
+    return text
+
+
+def normalize_text(text: str) -> str:
+    return clean(strip_html(text))
 
 
 def snippify_text(text: str, chunk_size: int) -> Iterable[str]:
