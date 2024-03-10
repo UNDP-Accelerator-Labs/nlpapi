@@ -62,7 +62,7 @@ source deploy/qdrant.version
 
 docker_build() {
     TAG="$1"
-    if docker inspect --type=image "${TAG}" &> /dev/null; then
+    if ! docker inspect --type=image "${TAG}" &> /dev/null ; then
         shift
         if [ ! -z "${DEV}" ]; then
             docker build -t "${TAG}" "${@}"
