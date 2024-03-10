@@ -55,6 +55,12 @@ FILE_PROTOCOL = "file://"
 EMBED_SIZE = 384  # 768  # FIXME: read from graph definition
 
 
+def ensure_valid_name(name: str) -> str:
+    if "-" in name or ":" in name:
+        raise ValueError(f"invalid name {name}")
+    return name
+
+
 def get_vec_client(config: Config) -> QdrantClient:
     vec_db = config["vector"]
     host = vec_db["host"]
@@ -80,7 +86,7 @@ def build_db_name(
         *,
         distance_fn: DistanceFn,
         db: QdrantClient | None) -> str:
-    name = f"{name}:{distance_fn}"
+    name = f"{ensure_valid_name(name)}-{distance_fn}"
     if db is not None:
         if distance_fn == "dot":
             distance: Distance = Distance.DOT
