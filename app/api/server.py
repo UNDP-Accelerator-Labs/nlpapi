@@ -120,7 +120,7 @@ def setup(
         "articles_main", distance_fn="dot", db=vec_db)
 
     smind = load_smind(config["smind"])
-    graph_embed = load_graph(smind, "graph_embed.json")
+    graph_embed = load_graph(config, smind, "graph_embed.json")
 
     write_token = envload_str("WRITE_TOKEN")
 
