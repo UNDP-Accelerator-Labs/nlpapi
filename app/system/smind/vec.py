@@ -70,6 +70,7 @@ def get_vec_client(config: Config) -> QdrantClient:
             host=host,
             port=vec_db["port"],
             grpc_port=vec_db["grpc"],
+            https=False,
             api_key=token)
     return db
 
