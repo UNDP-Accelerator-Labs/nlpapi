@@ -80,20 +80,10 @@ def get_version_strs() -> VersionDict:
 
 
 def setup(
-        addr: str,
-        port: int,
+        server: QuickServer,
         *,
-        parallel: bool,
         deploy: bool,
         versions: VersionDict) -> tuple[QuickServer, str]:
-    server: QuickServer = create_server(
-        (addr, port),
-        parallel=parallel,
-        thread_factory=threading.Thread,
-        token_handler=None,
-        worker_constructor=None,
-        soft_worker_death=True)
-
     prefix = "/api"
 
     server.bind_proxy("/qdrant/", "http://localhost:6663/")
@@ -350,7 +340,24 @@ def setup_server(
         addr = envload_str("HOST", default="127.0.0.1")
     if port is None:
         port = envload_int("PORT", default=8080)
-    return setup(addr, port, parallel=True, deploy=deploy, versions=versions)
+
+    server: QuickServer = create_server(
+        (addr, port),
+        parallel=True,
+        thread_factory=threading.Thread,
+        token_handler=None,
+        worker_constructor=None,
+        soft_worker_death=True)
+    success = False
+    try:
+        res = setup(server, deploy=deploy, versions=versions)
+        success = True
+        return res
+    finally:
+        if not success:
+            server.socket.close()
+            server.done = True
+            server.server_close()
 
 
 def fallback_server(
