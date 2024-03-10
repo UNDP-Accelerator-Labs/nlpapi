@@ -95,7 +95,7 @@ def get_config() -> Config:
                 "host": envload_str("QDRANT_HOST"),
                 "port": envload_int("QDRANT_REST_PORT", default=6333),
                 "grpc": envload_int("QDRANT_GRPC_PORT", default=6334),
-                "token": envload_str("QDRANT__SERVICE__API_KEY", default=""),
+                "token": envload_str("QDRANT_API_KEY", default=""),
             },
             "smind": envload_path("SMIND_CFG"),
             "graphs": envload_path("GRAPH_PATH"),
