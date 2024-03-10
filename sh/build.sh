@@ -71,17 +71,17 @@ source "${QDRANT_VERSION_FILE}"
 
 docker_build() {
     TAG="$1"
-    if ! docker inspect --type=image "${TAG}" &> /dev/null ; then
-        shift
-        if [ ! -z "${DEV}" ]; then
-            docker build -t "${TAG}" "${@}"
-        else
-            docker buildx build --platform linux/amd64 -t "${TAG}" "${@}"
-        fi
-        echo "built ${TAG}"
+    # if ! docker inspect --type=image "${TAG}" &> /dev/null ; then
+    shift
+    if [ ! -z "${DEV}" ]; then
+        docker build -t "${TAG}" "${@}"
     else
-        echo "${TAG} already exists!"
+        docker buildx build --platform linux/amd64 -t "${TAG}" "${@}"
     fi
+    echo "built ${TAG}"
+    # else
+    #     echo "${TAG} already exists!"
+    # fi
 }
 
 docker_build \
