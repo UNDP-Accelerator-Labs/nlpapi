@@ -14,29 +14,38 @@ PYTHON="${PYTHON:-python3}"
 DOCKER_CONFIG=docker.config.json
 LOCAL_CONFIG=config.json
 NO_CONFIG=noconfig.json
+DEFAULT_CONFIG=-
 SMIND_CONFIG="${SMIND_CONFIG:-deploy/smind-config.json}"
 SMIND_GRAPHS="${SMIND_GRAPHS:-deploy/graphs/}"
 
 QDRANT_API_TOKEN=$(make -s uuid)
 
+REDIS_VERSION_FILE="buildtmp/redis.version"
+QDRANT_VERSION_FILE="buildtmp/qdrant.version"
 SMIND_CFG="buildtmp/smind-config.json"
 SMIND_GRS="buildtmp/graphs/"
 RMAIN_CFG="study/rmain/redis.conf"
 RDATA_CFG="study/rdata/redis.conf"
 RCACHE_CFG="study/rcache/redis.conf"
 
+cp "deploy/redis.version" "${REDIS_VERSION_FILE}"
+cp "deploy/qdrant.version" "${QDRANT_VERSION_FILE}"
 cp "${SMIND_CONFIG}" "${SMIND_CFG}"
 cp -R "${SMIND_GRAPHS}" "${SMIND_GRS}"
 
 IMAGE_TAG="${IMAGE_TAG:-$(make -s name)}"
 IMAGE_BASE="nlpapi"
-CONFIG_PATH="${CONFIG_PATH:-${DOCKER_CONFIG}}"
 PORT="${PORT:-8080}"
 
 if [ ! -z "${DEV}" ]; then
     IMAGE_BASE="${IMAGE_BASE}-dev"
 fi
 
+if [ ! -z "${DEV}" ]; then
+    CONFIG_PATH="${CONFIG_PATH:-${DOCKER_CONFIG}}"
+else
+    CONFIG_PATH="${CONFIG_PATH:-${DEFAULT_CONFIG}}"
+fi
 echo "using config: ${CONFIG_PATH}"
 if [ "${CONFIG_PATH}" == "${LOCAL_CONFIG}" ]; then
     echo "WARNING: using local config file!" 1>&2
@@ -57,8 +66,8 @@ trap 'rm -- version.txt' EXIT
 
 echo "building ${IMAGE_BASE}"
 
-source deploy/redis.version
-source deploy/qdrant.version
+source "${REDIS_VERSION_FILE}"
+source "${QDRANT_VERSION_FILE}"
 
 docker_build() {
     TAG="$1"
@@ -95,6 +104,7 @@ docker_build \
     "${IMAGE_BASE}-rmain:${REDIS_DOCKER_VERSION}" \
     --build-arg "PORT=6381" \
     --build-arg "CFG_FILE=${RMAIN_CFG}" \
+    --build-arg "REDIS_VERSION_FILE=${REDIS_VERSION_FILE}" \
     -f deploy/redis.Dockerfile \
     .
 
@@ -102,6 +112,7 @@ docker_build \
     "${IMAGE_BASE}-rdata:${REDIS_DOCKER_VERSION}" \
     --build-arg "PORT=6382" \
     --build-arg "CFG_FILE=${RDATA_CFG}" \
+    --build-arg "REDIS_VERSION_FILE=${REDIS_VERSION_FILE}" \
     -f deploy/redis.Dockerfile \
     .
 
@@ -109,6 +120,7 @@ docker_build \
     "${IMAGE_BASE}-rcache:${REDIS_DOCKER_VERSION}" \
     --build-arg "PORT=6383" \
     --build-arg "CFG_FILE=${RCACHE_CFG}" \
+    --build-arg "REDIS_VERSION_FILE=${REDIS_VERSION_FILE}" \
     -f deploy/redis.Dockerfile \
     .
 
