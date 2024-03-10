@@ -57,106 +57,76 @@ trap 'rm -- version.txt' EXIT
 
 echo "building ${IMAGE_BASE}"
 
+source deploy/redis.version
+source deploy/qdrant.version
+
+docker_build() {
+    TAG="$1"
+    if docker inspect --type=image "${TAG}" &> /dev/null; then
+        shift
+        if [ ! -z "${DEV}" ]; then
+            docker build -t "${TAG}" "${@}"
+        else
+            docker buildx build --platform linux/amd64 -t "${TAG}" "${@}"
+        fi
+        echo "built ${TAG}"
+    else
+        echo "${TAG} already exists!"
+    fi
+}
+
+docker_build \
+    "${IMAGE_BASE}-api:${IMAGE_TAG}" \
+    --build-arg "CONFIG_PATH=${CONFIG_PATH}" \
+    --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
+    --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
+    --build-arg "PORT=${PORT}" \
+    -f deploy/api.Dockerfile \
+    .
+
+docker_build \
+    "${IMAGE_BASE}-worker:${IMAGE_TAG}" \
+    --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
+    --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
+    -f deploy/worker.Dockerfile \
+    .
+
+docker_build \
+    "${IMAGE_BASE}-rmain:${REDIS_DOCKER_VERSION}" \
+    --build-arg "PORT=6381" \
+    --build-arg "CFG_FILE=${RMAIN_CFG}" \
+    -f deploy/redis.Dockerfile \
+    .
+
+docker_build \
+    "${IMAGE_BASE}-rdata:${REDIS_DOCKER_VERSION}" \
+    --build-arg "PORT=6382" \
+    --build-arg "CFG_FILE=${RDATA_CFG}" \
+    -f deploy/redis.Dockerfile \
+    .
+
+docker_build \
+    "${IMAGE_BASE}-rcache:${REDIS_DOCKER_VERSION}" \
+    --build-arg "PORT=6383" \
+    --build-arg "CFG_FILE=${RCACHE_CFG}" \
+    -f deploy/redis.Dockerfile \
+    .
+
 if [ ! -z "${DEV}" ]; then
-    docker build \
-        --build-arg "CONFIG_PATH=${CONFIG_PATH}" \
-        --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
-        --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
-        --build-arg "PORT=${PORT}" \
-        -t "${IMAGE_BASE}-api:${IMAGE_TAG}" \
-        -f deploy/api.Dockerfile \
-        .
-
-    docker build \
-        --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
-        --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
-        -t "${IMAGE_BASE}-worker:${IMAGE_TAG}" \
-        -f deploy/worker.Dockerfile \
-        .
-
-    docker build \
-        --build-arg "PORT=6381" \
-        --build-arg "CFG_FILE=${RMAIN_CFG}" \
-        -t "${IMAGE_BASE}-rmain:${IMAGE_TAG}" \
-        -f deploy/redis.Dockerfile \
-        .
-
-    docker build \
-        --build-arg "PORT=6382" \
-        --build-arg "CFG_FILE=${RDATA_CFG}" \
-        -t "${IMAGE_BASE}-rdata:${IMAGE_TAG}" \
-        -f deploy/redis.Dockerfile \
-        .
-
-    docker build \
-        --build-arg "PORT=6383" \
-        --build-arg "CFG_FILE=${RCACHE_CFG}" \
-        -t "${IMAGE_BASE}-rcache:${IMAGE_TAG}" \
-        -f deploy/redis.Dockerfile \
-        .
-
     DOCKER_COMPOSE_OUT="docker-compose.dev.yml"
 else
-    docker buildx build \
-        --platform linux/amd64 \
-        --build-arg "CONFIG_PATH=${CONFIG_PATH}" \
-        --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
-        --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
-        --build-arg "PORT=${PORT}" \
-        -t "${IMAGE_BASE}-api:${IMAGE_TAG}" \
-        -f deploy/api.Dockerfile \
-        .
-
-    docker buildx build \
-        --platform linux/amd64 \
-        --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
-        --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
-        -t "${IMAGE_BASE}-worker:${IMAGE_TAG}" \
-        -f deploy/worker.Dockerfile \
-        .
-
-    docker buildx build \
-        --platform linux/amd64 \
-        --build-arg "PORT=6381" \
-        --build-arg "CFG_FILE=${RMAIN_CFG}" \
-        -t "${IMAGE_BASE}-rmain:${IMAGE_TAG}" \
-        -f deploy/redis.Dockerfile \
-        .
-
-    docker buildx build \
-        --platform linux/amd64 \
-        --build-arg "PORT=6382" \
-        --build-arg "CFG_FILE=${RDATA_CFG}" \
-        -t "${IMAGE_BASE}-rdata:${IMAGE_TAG}" \
-        -f deploy/redis.Dockerfile \
-        .
-
-    docker buildx build \
-        --platform linux/amd64 \
-        --build-arg "PORT=6383" \
-        --build-arg "CFG_FILE=${RCACHE_CFG}" \
-        -t "${IMAGE_BASE}-rcache:${IMAGE_TAG}" \
-        -f deploy/redis.Dockerfile \
-        .
-
     DOCKER_COMPOSE_OUT="docker-compose.yml"
 fi
 
-echo "# created by sh/build.sh" > deploy/default.env
-echo "DOCKER_WORKER=${IMAGE_BASE}-worker:${IMAGE_TAG}" >> deploy/default.env
-echo "DOCKER_API=${IMAGE_BASE}-api:${IMAGE_TAG}" >> deploy/default.env
-echo "DOCKER_RMAIN=${IMAGE_BASE}-rmain:${IMAGE_TAG}" >> deploy/default.env
-echo "DOCKER_RDATA=${IMAGE_BASE}-rdata:${IMAGE_TAG}" >> deploy/default.env
-echo "DOCKER_RCACHE=${IMAGE_BASE}-rcache:${IMAGE_TAG}" >> deploy/default.env
-echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${IMAGE_TAG}" >> deploy/default.env
-echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> deploy/default.env
-
-echo "built ${IMAGE_BASE}-api:${IMAGE_TAG}"
-echo "built ${IMAGE_BASE}-worker:${IMAGE_TAG}"
-echo "built ${IMAGE_BASE}-rmain:${IMAGE_TAG}"
-echo "built ${IMAGE_BASE}-rdata:${IMAGE_TAG}"
-echo "built ${IMAGE_BASE}-rcache:${IMAGE_TAG}"
-echo "built ${IMAGE_BASE}-qdrant:${IMAGE_TAG}"
+DEFAULT_ENV_FILE=deploy/default.env
+echo "# created by sh/build.sh" > "${DEFAULT_ENV_FILE}"
+echo "DOCKER_WORKER=${IMAGE_BASE}-worker:${IMAGE_TAG}" >> "${DEFAULT_ENV_FILE}"
+echo "DOCKER_API=${IMAGE_BASE}-api:${IMAGE_TAG}" >> "${DEFAULT_ENV_FILE}"
+echo "DOCKER_RMAIN=${IMAGE_BASE}-rmain:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
+echo "DOCKER_RDATA=${IMAGE_BASE}-rdata:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
+echo "DOCKER_RCACHE=${IMAGE_BASE}-rcache:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
+echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
+echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> "${DEFAULT_ENV_FILE}"
 
 ! read -r -d '' PY_COMPOSE <<'EOF'
 import os
@@ -187,4 +157,4 @@ with open(dout, "w", encoding="utf-8") as fout:
     fout.write(content)
 EOF
 
-${PYTHON} -c "${PY_COMPOSE}" "${DOCKER_LOGIN_SERVER}" "deploy/docker-compose.yml" "deploy/default.env" "${DOCKER_COMPOSE_OUT}"
+${PYTHON} -c "${PY_COMPOSE}" "${DOCKER_LOGIN_SERVER}" "deploy/docker-compose.yml" "${DEFAULT_ENV_FILE}" "${DOCKER_COMPOSE_OUT}"
