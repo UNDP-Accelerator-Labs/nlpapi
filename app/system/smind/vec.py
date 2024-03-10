@@ -67,7 +67,7 @@ def get_vec_client(config: Config) -> QdrantClient:
         if not token:
             token = None
         db = QdrantClient(
-            url=host,
+            host=host,
             port=vec_db["port"],
             grpc_port=vec_db["grpc"],
             api_key=token)
