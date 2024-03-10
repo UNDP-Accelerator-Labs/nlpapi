@@ -2,7 +2,7 @@
 import sys
 import threading
 import uuid
-from typing import Any
+from typing import Any, TypedDict
 
 from quick_server import create_server, QuickServer
 from quick_server import QuickServerRequestHandler as QSRH
@@ -19,6 +19,7 @@ from app.api.response_types import (
     VersionResponse,
 )
 from app.misc.env import envload_int, envload_str
+from app.misc.util import get_time_str
 from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
@@ -49,11 +50,42 @@ MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
 MAX_LINKS = 20
 
 
+VersionDict = TypedDict('VersionDict', {
+    "python_version_detail": str,
+    "python_version": str,
+    "server_version": str,
+    "app_version": str,
+    "commit": str,
+    "deploy_time": str,
+    "start_time": str,
+})
+
+
+def get_version_strs() -> VersionDict:
+    py_version_detail = f"{sys.version}"
+    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    version_name = get_version("name")
+    version_hash = get_version("hash")
+    version_date = get_version("date")
+    server_start = get_time_str()
+    return {
+        "python_version_detail": py_version_detail,
+        "python_version": py_version,
+        "server_version": f"nlpapi/{version_name[1:]}",
+        "app_version": version_name,
+        "commit": version_hash,
+        "deploy_time": version_date,
+        "start_time": server_start,
+    }
+
+
 def setup(
         addr: str,
         port: int,
+        *,
         parallel: bool,
-        deploy: bool) -> tuple[QuickServer, str]:
+        deploy: bool,
+        versions: VersionDict) -> tuple[QuickServer, str]:
     server: QuickServer = create_server(
         (addr, port),
         parallel=parallel,
@@ -83,15 +115,9 @@ def setup(
     if deploy:
         server.no_command_loop = True
 
-    py_version_detail = f"{sys.version}"
-    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    version_name = get_version(return_hash=False)
-    version_hash = get_version(return_hash=True)
-    print(f"python version: {py_version_detail}")
-    print(f"app version: {version_name}")
-    print(f"app commit: {version_hash}")
+    server.update_version_string(versions["server_version"])
 
-    server.update_version_string(f"nlpapi/{version_name[1:]}")
+    server.set_common_invalid_paths(["/", "//"])
 
     server.set_default_token_expiration(48 * 60 * 60)  # 2 days
 
@@ -150,9 +176,12 @@ def setup(
     @server.json_get(f"{prefix}/version")
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
         return {
-            "app_name": version_name,
-            "app_commit": version_hash,
-            "python": py_version,
+            "app_name": versions["app_version"],
+            "app_commit": versions["commit"],
+            "python": versions["python_version"],
+            "deploy_date": versions["deploy_time"],
+            "start_date": versions["start_time"],
+            "error": None,
         }
 
     # *** sources ***
@@ -312,14 +341,64 @@ def setup(
 
 
 def setup_server(
+        *,
         deploy: bool,
         addr: str | None,
-        port: int | None) -> tuple[QuickServer, str]:
+        port: int | None,
+        versions: VersionDict) -> tuple[QuickServer, str]:
     if addr is None:
         addr = envload_str("HOST", default="127.0.0.1")
     if port is None:
         port = envload_int("PORT", default=8080)
-    return setup(addr, port, parallel=True, deploy=deploy)
+    return setup(addr, port, parallel=True, deploy=deploy, versions=versions)
+
+
+def fallback_server(
+        *,
+        deploy: bool,
+        addr: str | None,
+        port: int | None,
+        versions: VersionDict,
+        exc_strs: list[str]) -> tuple[QuickServer, str]:
+    if addr is None:
+        addr = envload_str("HOST", default="127.0.0.1")
+    if port is None:
+        port = envload_int("PORT", default=8080)
+    server: QuickServer = create_server(
+        (addr, port),
+        parallel=True,
+        thread_factory=threading.Thread,
+        token_handler=None,
+        worker_constructor=None,
+        soft_worker_death=True)
+
+    prefix = "/api"
+
+    server_timeout = 10 * 60
+    server.timeout = server_timeout
+    server.socket.settimeout(server_timeout)
+
+    if deploy:
+        server.no_command_loop = True
+
+    server.update_version_string(versions["server_version"])
+
+    server.set_common_invalid_paths(["/", "//"])
+
+    # *** misc ***
+
+    @server.json_get(f"{prefix}/version")
+    def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
+        return {
+            "app_name": versions["app_version"],
+            "app_commit": versions["commit"],
+            "python": versions["python_version"],
+            "deploy_date": versions["deploy_time"],
+            "start_date": versions["start_time"],
+            "error": exc_strs,
+        }
+
+    return server, prefix
 
 
 def start(server: QuickServer, prefix: str) -> None:

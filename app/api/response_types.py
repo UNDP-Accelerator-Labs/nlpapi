@@ -13,6 +13,9 @@ VersionResponse = TypedDict('VersionResponse', {
     "app_name": str,
     "app_commit": str,
     "python": str,
+    "deploy_date": str,
+    "start_date": str,
+    "error": list[str] | None,
 })
 AddEmbed = TypedDict('AddEmbed', {
     "snippets": int,
