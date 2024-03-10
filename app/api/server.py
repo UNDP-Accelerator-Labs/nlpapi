@@ -86,8 +86,6 @@ def setup(
         versions: VersionDict) -> tuple[QuickServer, str]:
     prefix = "/api"
 
-    server.bind_proxy("/qdrant/", "http://localhost:6663/")
-
     server.suppress_noise = True
 
     def report_slow_requests(
@@ -123,6 +121,10 @@ def setup(
     graph_embed = load_graph(config, smind, "graph_embed.json")
 
     write_token = envload_str("WRITE_TOKEN")
+
+    vec_cfg = config["vector"]
+    server.bind_proxy(
+        "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}/")
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
