@@ -175,7 +175,7 @@ with open(denv, "r", encoding="utf-8") as fin:
         variable, value = line.split("=", 1)
         variable = f"${variable}".strip()
         value = f"{value.strip()}"
-        if variable.startswith("DOCKER_"):
+        if variable.startswith("$DOCKER_"):
             value = f"{prefix}/{value}"
         substitute[variable] = value
 with open(dcompose, "r", encoding="utf-8") as din:
