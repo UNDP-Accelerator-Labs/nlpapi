@@ -173,7 +173,11 @@ with open(denv, "r", encoding="utf-8") as fin:
         if not line:
             continue
         variable, value = line.split("=", 1)
-        substitute[f"${variable}".strip()] = f"{prefix}/{value.strip()}"
+        variable = f"${variable}".strip()
+        value = f"{value.strip()}"
+        if variable.startswith("DOCKER_"):
+            value = f"{prefix}/{value}"
+        substitute[variable] = value
 with open(dcompose, "r", encoding="utf-8") as din:
     content = din.read()
 for variable, value in sorted(
