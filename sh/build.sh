@@ -100,27 +100,33 @@ docker_build \
     -f deploy/worker.Dockerfile \
     .
 
+echo "rmain:${REDIS_DOCKER_VERSION}" > buildtmp/rmain.version
+
 docker_build \
     "${IMAGE_BASE}-rmain:${REDIS_DOCKER_VERSION}" \
     --build-arg "PORT=6381" \
     --build-arg "CFG_FILE=${RMAIN_CFG}" \
-    --build-arg "REDIS_VERSION_FILE=${REDIS_VERSION_FILE}" \
+    --build-arg "REDIS_VERSION_FILE=buildtmp/rmain.version" \
     -f deploy/redis.Dockerfile \
     .
+
+echo "rdata:${REDIS_DOCKER_VERSION}" > buildtmp/rdata.version
 
 docker_build \
     "${IMAGE_BASE}-rdata:${REDIS_DOCKER_VERSION}" \
     --build-arg "PORT=6382" \
     --build-arg "CFG_FILE=${RDATA_CFG}" \
-    --build-arg "REDIS_VERSION_FILE=${REDIS_VERSION_FILE}" \
+    --build-arg "REDIS_VERSION_FILE=buildtmp/rdata.version" \
     -f deploy/redis.Dockerfile \
     .
+
+echo "rcache:${REDIS_DOCKER_VERSION}" > buildtmp/rcache.version
 
 docker_build \
     "${IMAGE_BASE}-rcache:${REDIS_DOCKER_VERSION}" \
     --build-arg "PORT=6383" \
     --build-arg "CFG_FILE=${RCACHE_CFG}" \
-    --build-arg "REDIS_VERSION_FILE=${REDIS_VERSION_FILE}" \
+    --build-arg "REDIS_VERSION_FILE=buildtmp/rcache.version" \
     -f deploy/redis.Dockerfile \
     .
 
