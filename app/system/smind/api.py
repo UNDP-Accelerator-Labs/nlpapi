@@ -14,6 +14,8 @@ from scattermind.system.base import TaskId
 from scattermind.system.names import GNamespace
 from scattermind.system.torch_util import tensor_to_str
 
+from app.system.config import Config
+
 
 T = TypeVar('T')
 
@@ -25,9 +27,10 @@ def load_smind(config_fname: str) -> ScattermindAPI:
 
 
 def load_graph(
+        config: Config,
         smind: ScattermindAPI,
         graph_fname: str) -> tuple[GNamespace, str, str]:
-    with open(graph_fname, "rb") as fin:
+    with open(os.path.join(config["graphs"], graph_fname), "rb") as fin:
         graph_def_obj = json.load(fin)
     ns = smind.load_graph(graph_def_obj)
     inputs = list(smind.main_inputs(ns))
