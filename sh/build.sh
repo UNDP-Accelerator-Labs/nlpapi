@@ -17,6 +17,8 @@ NO_CONFIG=noconfig.json
 SMIND_CONFIG="${SMIND_CONFIG:-deploy/smind-config.json}"
 SMIND_GRAPHS="${SMIND_GRAPHS:-deploy/graphs/}"
 
+QDRANT_API_TOKEN=$(make -s uuid)
+
 SMIND_CFG="buildtmp/smind-config.json"
 SMIND_GRS="buildtmp/graphs/"
 RMAIN_CFG="study/rmain/redis.conf"
@@ -147,6 +149,7 @@ echo "DOCKER_RMAIN=${IMAGE_BASE}-rmain:${IMAGE_TAG}" >> deploy/default.env
 echo "DOCKER_RDATA=${IMAGE_BASE}-rdata:${IMAGE_TAG}" >> deploy/default.env
 echo "DOCKER_RCACHE=${IMAGE_BASE}-rcache:${IMAGE_TAG}" >> deploy/default.env
 echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${IMAGE_TAG}" >> deploy/default.env
+echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> deploy/default.env
 
 echo "built ${IMAGE_BASE}-api:${IMAGE_TAG}"
 echo "built ${IMAGE_BASE}-worker:${IMAGE_TAG}"

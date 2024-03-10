@@ -399,7 +399,7 @@ def fallback_server(
         return {
             "app_name": versions["app_version"],
             "app_commit": versions["commit"],
-            "python": versions["python_version"],
+            "python": versions["python_version_detail"],
             "deploy_date": versions["deploy_time"],
             "start_date": versions["start_time"],
             "error": exc_strs,

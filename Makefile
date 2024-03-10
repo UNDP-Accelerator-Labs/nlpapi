@@ -132,6 +132,9 @@ requirements-check:
 requirements-complete:
 	PYTHON=$(PYTHON) ./sh/requirements_complete.sh $(FILE)
 
+uuid:
+	python -c "import uuid; print(f'{uuid.uuid4().hex}')"
+
 name:
 	git describe --tags --match `git tag --merged | sort -rV | head -n 1`
 
