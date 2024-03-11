@@ -2,6 +2,7 @@ from typing import Literal, TypedDict
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
+    CollectionStatus,
     Distance,
     PointStruct,
     ScoredPoint,
@@ -98,12 +99,23 @@ def build_db_name(
             distance = Distance.MANHATTAN
         else:
             raise ValueError(f"invalid distance name: {distance_fn}")
-        config = VectorParams(size=EMBED_SIZE, distance=distance)
-        db.recreate_collection(collection_name=name, vectors_config=config)
+        status = db.get_collection(collection_name=name)
+        print(f"load {name}: {status.status}\n{status}")
+        if status.status == CollectionStatus.RED:
+            print(f"create {name}")
+            config = VectorParams(
+                size=EMBED_SIZE, distance=distance, on_disk=True)
+            db.create_collection(
+                collection_name=name,
+                vectors_config=config,
+                on_disk_payload=True)
     return name
 
 
 def add_embed(db: QdrantClient, name: str, chunks: list[EmbedChunk]) -> int:
+    print(f"add_embed {name} {len(chunks)} items")
+    if not chunks:
+        return 0
 
     def convert_chunk(chunk: EmbedChunk) -> PointStruct:
         point_id = f"{chunk['base']}:{chunk['doc_id']}:{chunk['chunk_id']}"
@@ -130,6 +142,7 @@ def query_embed(
         *,
         limit: int,
         offset: int | None = None) -> list[ResultChunk]:
+    print(f"query {name} offset={offset} limit={limit}")
     hits = db.search(
         collection_name=name,
         query_vector=embed,
