@@ -42,7 +42,7 @@ if [ -z "${MODE}" ]; then
             echo "please clone scattermind to ${SMIND_PATH}" >&2
             exit 6
         fi
-        ${PYTHON} -m pip uninstall quick-server redipy scattermind
+        ${PYTHON} -m pip uninstall -y quick-server redipy scattermind
         ${PYTHON} -m pip install --upgrade -e "${QUICK_SERVER_PATH}"
         ${PYTHON} -m pip install --upgrade -e "${REDIPY_PATH}"
         ${PYTHON} -m pip install --upgrade -e "${SMIND_PATH}"
@@ -91,5 +91,6 @@ fi
 
 if [ -z "${MODE}" ] || [ "${MODE}" = "api" ]; then
     echo "initializing spacy"
+    # FIXME potentially use xx_ent_wiki_sm (https://spacy.io/models/xx)?
     ${PYTHON} -m spacy download en_core_web_sm
 fi
