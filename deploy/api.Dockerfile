@@ -10,10 +10,11 @@ RUN apt-get update && apt-get -y upgrade \
 WORKDIR /usr/src/app
 RUN pip install --progress-bar off --no-cache-dir 'torch~=2.2.0' torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 COPY Makefile .
-COPY requirements.api.txt .
+ARG REQUIREMENTS_PATH
+COPY "${REQUIREMENTS_PATH}" "requirements.docker.txt"
 RUN mkdir sh
 COPY sh/install.sh sh
-RUN make install-api
+RUN REQUIREMENTS_PATH="requirements.docker.txt" make install-api
 COPY . .
 ARG PORT=8080
 ARG CONFIG_PATH

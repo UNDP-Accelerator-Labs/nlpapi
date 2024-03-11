@@ -11,10 +11,11 @@ WORKDIR /usr/src/app
 # FIXME: change to cuda image once we move to GPU
 RUN pip install --progress-bar off --no-cache-dir 'torch~=2.2.0' torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 COPY Makefile .
-COPY requirements.worker.txt .
+ARG REQUIREMENTS_PATH
+COPY "${REQUIREMENTS_PATH}" "requirements.docker.txt"
 RUN mkdir sh
 COPY sh/install.sh sh
-RUN make install-worker
+RUN REQUIREMENTS_PATH="requirements.docker.txt" make install-worker
 COPY . .
 ARG SMIND_GRAPHS
 ARG SMIND_CONFIG

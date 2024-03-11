@@ -118,13 +118,13 @@ dockerpush:
 	./sh/dockerpush.sh
 
 install:
-	PYTHON=$(PYTHON) ./sh/install.sh
+	PYTHON=$(PYTHON) REQUIREMENTS_PATH=$(REQUIREMENTS_PATH) ./sh/install.sh
 
 install-api:
-	PYTHON=$(PYTHON) MODE=api ./sh/install.sh
+	PYTHON=$(PYTHON) MODE=api REQUIREMENTS_PATH=$(REQUIREMENTS_PATH) ./sh/install.sh
 
 install-worker:
-	PYTHON=$(PYTHON) MODE=worker ./sh/install.sh
+	PYTHON=$(PYTHON) MODE=worker REQUIREMENTS_PATH=$(REQUIREMENTS_PATH) ./sh/install.sh
 
 requirements-check:
 	PYTHON=$(PYTHON) ./sh/requirements_check.sh $(FILE)

@@ -12,3 +12,4 @@ study/sm_pads.json
 *.rdb
 *.log
 *.csv
+requirements.docker.txt

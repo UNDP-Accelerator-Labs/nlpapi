@@ -134,6 +134,14 @@ def setup(
 
     QSRH.send_to_proxy = stp_patch  # type: ignore
 
+    # TODO: reject write token anywhere else
+    # TODO: record each search term
+    # TODO: allow using github versions of some packages
+    # TODO: create azure volume
+    # FIXME: make proxy forwarding work with qdrant dashboard
+    # TODO: provide statistics about scattermind
+    # TODO: provide statistics about qdrant dbs
+
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
         token = rargs.get("post", {}).get("token")

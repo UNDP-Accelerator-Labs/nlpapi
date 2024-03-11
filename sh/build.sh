@@ -6,8 +6,6 @@ cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
 mkdir -p buildtmp
 
-# FIXME keep track of separate versions for each image. not all images need to update every time
-
 DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io"
 PYTHON="${PYTHON:-python3}"
 
@@ -22,6 +20,9 @@ QDRANT_API_TOKEN=$(make -s uuid)
 
 REDIS_VERSION_FILE="buildtmp/redis.version"
 QDRANT_VERSION_FILE="buildtmp/qdrant.version"
+DEVMODE_CONF_FILE="buildtmp/devmode.conf"
+REQUIREMENTS_API_FILE="buildtmp/requirements.api.txt"
+REQUIREMENTS_WORKER_FILE="buildtmp/requirements.worker.txt"
 SMIND_CFG="buildtmp/smind-config.json"
 SMIND_GRS="buildtmp/graphs/"
 RMAIN_CFG="study/rmain/redis.conf"
@@ -30,6 +31,7 @@ RCACHE_CFG="study/rcache/redis.conf"
 
 cp "deploy/redis.version" "${REDIS_VERSION_FILE}"
 cp "deploy/qdrant.version" "${QDRANT_VERSION_FILE}"
+cp "deploy/devmode.conf" "${DEVMODE_CONF_FILE}"
 cp "${SMIND_CONFIG}" "${SMIND_CFG}"
 cp -R "${SMIND_GRAPHS}" "${SMIND_GRS}"
 
@@ -68,6 +70,63 @@ echo "building ${IMAGE_BASE}"
 
 source "${REDIS_VERSION_FILE}"
 source "${QDRANT_VERSION_FILE}"
+source "${DEVMODE_CONF_FILE}"
+
+QUICK_SERVER_PATH="../quick_server"
+REDIPY_PATH="../redipy"
+SMIND_PATH="../scattermind"
+
+QUICK_SERVER_URL="git+https://github.com/JosuaKrause/quick_server.git"
+REDIPY_URL="git+https://github.com/JosuaKrause/redipy.git"
+SMIND_URL="git+https://github.com/JosuaKrause/scattermind.git"
+
+! read -r -d '' PY_LIB <<'EOF'
+import os
+import sys
+
+fname = sys.argv[1]
+lib_name = sys.argv[2]
+lib_replace = sys.argv[3]
+lines = []
+with open(fname, "r", encoding="utf-8") as fin:
+    for line in fin:
+        line = line.rstrip()
+        if not line.startswith(lib_name):
+            lines.append(line)
+            continue
+        lines.append(lib_replace)
+with open(fname, "w", encoding="utf-8") as fout:
+    fout.write("\n".join(lines))
+EOF
+
+replace_lib() {
+    REQ_FILE="$1"
+    LIB="$2"
+    LIB_PATH="$3"
+    LIB_URL="$4"
+    pushd "${LIB_PATH}"
+    LIB_HASH=$(git describe --match NOTATAG --always --abbrev=40 --dirty='!')
+    popd
+    case "${LIB_HASH}" in *!)
+        echo "library ${LIB} at ${LIB_PATH} is dirty!"
+        exit 1
+    esac
+    ${PYTHON} -c "${PY_LIB}" "${REQ_FILE}" "${LIB}" "${LIB_URL}@${LIB_HASH}"
+}
+
+cp "requirements.api.txt" "${REQUIREMENTS_API_FILE}"
+cp "requirements.worker.txt" "${REQUIREMENTS_WORKER_FILE}"
+if [ ! -z "${DEVMODE}" ]; then
+    echo "library dev mode active"
+
+    replace_lib "${REQUIREMENTS_API_FILE}" "quick-server" "${QUICK_SERVER_PATH}" "${QUICK_SERVER_URL}"
+    replace_lib "${REQUIREMENTS_API_FILE}" "redipy" "${REDIPY_PATH}" "${REDIPY_URL}"
+    replace_lib "${REQUIREMENTS_API_FILE}" "scattermind" "${SMIND_PATH}" "${SMIND_URL}"
+
+    replace_lib "${REQUIREMENTS_WORKER_FILE}" "quick-server" "${QUICK_SERVER_PATH}" "${QUICK_SERVER_URL}"
+    replace_lib "${REQUIREMENTS_WORKER_FILE}" "redipy" "${REDIPY_PATH}" "${REDIPY_URL}"
+    replace_lib "${REQUIREMENTS_WORKER_FILE}" "scattermind" "${SMIND_PATH}" "${SMIND_URL}"
+fi
 
 docker_build() {
     TAG="$1"
@@ -86,6 +145,7 @@ docker_build() {
 
 docker_build \
     "${IMAGE_BASE}-api:${IMAGE_TAG}" \
+    --build-arg "REQUIREMENTS_PATH=${REQUIREMENTS_API_FILE}" \
     --build-arg "CONFIG_PATH=${CONFIG_PATH}" \
     --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
     --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
@@ -95,6 +155,7 @@ docker_build \
 
 docker_build \
     "${IMAGE_BASE}-worker:${IMAGE_TAG}" \
+    --build-arg "REQUIREMENTS_PATH=${REQUIREMENTS_WORKER_FILE}" \
     --build-arg "SMIND_CONFIG=${SMIND_CFG}" \
     --build-arg "SMIND_GRAPHS=${SMIND_GRS}" \
     -f deploy/worker.Dockerfile \

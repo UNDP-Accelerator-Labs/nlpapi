@@ -1,6 +1,6 @@
-# FIXME: the types are there, though...
 import threading
 
+# FIXME: the types are there, though...
 from keybert import KeyBERT  # type: ignore
 from scattermind.system.base import NodeId
 from scattermind.system.client.client import ComputeTask
