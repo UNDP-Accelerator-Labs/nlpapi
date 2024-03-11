@@ -1,8 +1,8 @@
 from typing import Literal, TypedDict
 
 from qdrant_client import QdrantClient
+from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.models import (
-    CollectionStatus,
     Distance,
     PointStruct,
     ScoredPoint,
@@ -99,9 +99,10 @@ def build_db_name(
             distance = Distance.MANHATTAN
         else:
             raise ValueError(f"invalid distance name: {distance_fn}")
-        status = db.get_collection(collection_name=name)
-        print(f"load {name}: {status.status}\n{status}")
-        if status.status == CollectionStatus.RED:
+        try:
+            status = db.get_collection(collection_name=name)
+            print(f"load {name}: {status.status}\n{status}")
+        except UnexpectedResponse:
             print(f"create {name}")
             config = VectorParams(
                 size=EMBED_SIZE, distance=distance, on_disk=True)
