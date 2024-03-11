@@ -14,8 +14,7 @@ from app.api.mods.loc import LocationModule
 from app.api.response_types import (
     AddEmbed,
     QueryEmbed,
-    SourceListResponse,
-    SourceResponse,
+    StatsResponse,
     VersionResponse,
 )
 from app.misc.env import envload_int, envload_str
@@ -29,8 +28,10 @@ from app.system.language.pipeline import extract_language
 from app.system.location.forwardgeo import OpenCageFormat
 from app.system.location.pipeline import extract_locations, extract_opencage
 from app.system.location.response import GeoOutput, GeoQuery
-from app.system.ops.ops import get_ops
+
+# from app.system.ops.ops import get_ops
 from app.system.smind.api import (
+    get_queue_stats,
     get_text_results_immediate,
     load_graph,
     load_smind,
@@ -42,7 +43,9 @@ from app.system.smind.vec import (
     build_db_name,
     EmbedChunk,
     get_vec_client,
+    get_vec_stats,
     query_embed,
+    VecDBStat,
 )
 
 
@@ -111,14 +114,21 @@ def setup(
 
     config = get_config()
     db = DBConnector(config["db"])
-    ops = get_ops("db", config)
+    # ops = get_ops("db", config)
 
     vec_db = get_vec_client(config)
-    articles_main = build_db_name(
-        "articles_main", distance_fn="dot", db=vec_db)
 
     smind = load_smind(config["smind"])
     graph_embed = load_graph(config, smind, "graph_embed.json")
+
+    articles_ns, articles_input, articles_output, articles_size = graph_embed
+    if articles_size is None:
+        raise ValueError(f"graph {graph_embed} as variable shape")
+    articles_main = build_db_name(
+        "articles_main",
+        distance_fn="dot",
+        db=vec_db,
+        embed_size=articles_size)
 
     write_token = envload_str("WRITE_TOKEN")
 
@@ -134,13 +144,9 @@ def setup(
 
     QSRH.send_to_proxy = stp_patch  # type: ignore
 
-    # TODO: reject write token anywhere else
     # TODO: record each search term
-    # TODO: allow using github versions of some packages
     # TODO: create azure volume
     # FIXME: make proxy forwarding work with qdrant dashboard
-    # TODO: provide statistics about scattermind
-    # TODO: provide statistics about qdrant dbs
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
@@ -153,6 +159,15 @@ def setup(
         if user is None:
             return Response("invalid token provided", 401)
         rargs["meta"]["user"] = user
+        return okay
+
+    def verify_readonly(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        token = rargs.get("post", {}).get("write_access")
+        if token is not None:
+            raise ValueError(
+                "'write_access' was passed for readonly operation! this might "
+                "be an error in the script that is accessing the API")
         return okay
 
     def verify_write(
@@ -182,6 +197,7 @@ def setup(
     # *** misc ***
 
     @server.json_get(f"{prefix}/version")
+    @server.middleware(verify_readonly)
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
         return {
             "app_name": versions["app_version"],
@@ -192,22 +208,33 @@ def setup(
             "error": None,
         }
 
-    # *** sources ***
-
-    @server.json_post(f"{prefix}/source")
-    def _post_source(_req: QSRH, rargs: ReqArgs) -> SourceResponse:
-        args = rargs["post"]
-        source = f"{args['source']}"
-        ops.add_source(source)
+    @server.json_get(f"{prefix}/stats")
+    @server.middleware(verify_readonly)
+    def _get_stats(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
+        vecdbs: list[VecDBStat] = [
+            get_vec_stats(vec_db, articles_main),
+        ]
         return {
-            "source": source,
+            "vecdbs": vecdbs,
+            "queues": get_queue_stats(smind),
         }
 
-    @server.json_get(f"{prefix}/source")
-    def _get_source(_req: QSRH, _rargs: ReqArgs) -> SourceListResponse:
-        return {
-            "sources": ops.get_sources(),
-        }
+    # # *** sources ***
+    #
+    # @server.json_post(f"{prefix}/source")
+    # def _post_source(_req: QSRH, rargs: ReqArgs) -> SourceResponse:
+    #     args = rargs["post"]
+    #     source = f"{args['source']}"
+    #     ops.add_source(source)
+    #     return {
+    #         "source": source,
+    #     }
+    #
+    # @server.json_get(f"{prefix}/source")
+    # def _get_source(_req: QSRH, _rargs: ReqArgs) -> SourceListResponse:
+    #     return {
+    #         "sources": ops.get_sources(),
+    #     }
 
     # # # SECURE # # #
     server.add_middleware(verify_token)
@@ -254,6 +281,7 @@ def setup(
         }
 
     @server.json_post(f"{prefix}/query_embed")
+    @server.middleware(verify_readonly)
     @server.middleware(verify_input)
     def _post_query_embed(_req: QSRH, rargs: ReqArgs) -> QueryEmbed:
         args = rargs["post"]
@@ -266,9 +294,9 @@ def setup(
         embed = get_text_results_immediate(
             [input_str],
             smind=smind,
-            ns=graph_embed[0],
-            input_field=graph_embed[1],
-            output_field=graph_embed[2],
+            ns=articles_ns,
+            input_field=articles_input,
+            output_field=articles_output,
             output_sample=[1.0])[0]
         if embed is None:
             return {
@@ -285,6 +313,7 @@ def setup(
     # *** location ***
 
     @server.json_get(f"{prefix}/geoforward")
+    @server.middleware(verify_readonly)
     @server.middleware(verify_input)
     def _get_geoforward(_req: QSRH, rargs: ReqArgs) -> OpenCageFormat:
         meta = rargs["meta"]
@@ -293,6 +322,7 @@ def setup(
         return extract_opencage(db, input_str, user)
 
     @server.json_post(f"{prefix}/locations")
+    @server.middleware(verify_readonly)
     @server.middleware(verify_input)
     def _post_locations(_req: QSRH, rargs: ReqArgs) -> GeoOutput:
         args = rargs["post"]
@@ -312,6 +342,7 @@ def setup(
     # *** language ***
 
     @server.json_post(f"{prefix}/language")
+    @server.middleware(verify_readonly)
     @server.middleware(verify_input)
     def _post_language(_req: QSRH, rargs: ReqArgs) -> LangResponse:
         meta = rargs["meta"]
@@ -330,6 +361,7 @@ def setup(
     add_mod(LanguageModule(db))
 
     @server.json_post(f"{prefix}/extract")
+    @server.middleware(verify_readonly)
     @server.middleware(verify_input)
     def _post_extract(_req: QSRH, rargs: ReqArgs) -> dict[str, Any]:
         args = rargs["post"]

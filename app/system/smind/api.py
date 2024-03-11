@@ -5,7 +5,7 @@ import time
 import unicodedata
 from collections.abc import Iterable
 from html import unescape
-from typing import cast, TypeVar
+from typing import cast, TypedDict, TypeVar
 
 from gemma import tokenizer
 from scattermind.api.api import ScattermindAPI
@@ -20,6 +20,13 @@ from app.system.config import Config
 T = TypeVar('T')
 
 
+QueueStat = TypedDict('QueueStat', {
+    "id": str,
+    "name": str,
+    "count": int,
+})
+
+
 def load_smind(config_fname: str) -> ScattermindAPI:
     with open(config_fname, "rb") as fin:
         config_obj = json.load(fin)
@@ -29,7 +36,7 @@ def load_smind(config_fname: str) -> ScattermindAPI:
 def load_graph(
         config: Config,
         smind: ScattermindAPI,
-        graph_fname: str) -> tuple[GNamespace, str, str]:
+        graph_fname: str) -> tuple[GNamespace, str, str, int | None]:
     with open(os.path.join(config["graphs"], graph_fname), "rb") as fin:
         graph_def_obj = json.load(fin)
     ns = smind.load_graph(graph_def_obj)
@@ -39,7 +46,21 @@ def load_graph(
         raise ValueError(f"invalid graph inputs: {inputs}")
     if len(outputs) != 1:
         raise ValueError(f"invalid graph outputs: {outputs}")
-    return ns, inputs[0], outputs[0]
+    _, embed_shape = smind.output_format(ns, outputs[0])
+    if len(embed_shape) != 1:
+        raise ValueError(f"invalid graph output shape: {embed_shape}")
+    return ns, inputs[0], outputs[0], embed_shape[0]
+
+
+def get_queue_stats(smind: ScattermindAPI) -> list[QueueStat]:
+    return [
+        {
+            "id": stat["id"].to_parseable(),
+            "name": stat["name"].get(),
+            "count": stat["count"],
+        }
+        for stat in smind.get_queue_stats()
+    ]
 
 
 GEMMA_FOLDER = "study/mdata/gemma2b/"

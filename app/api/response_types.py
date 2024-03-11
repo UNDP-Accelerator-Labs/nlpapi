@@ -1,6 +1,7 @@
 from typing import Literal, TypedDict
 
-from app.system.smind.vec import ResultChunk
+from app.system.smind.api import QueueStat
+from app.system.smind.vec import ResultChunk, VecDBStat
 
 
 SourceResponse = TypedDict('SourceResponse', {
@@ -16,6 +17,10 @@ VersionResponse = TypedDict('VersionResponse', {
     "deploy_date": str,
     "start_date": str,
     "error": list[str] | None,
+})
+StatsResponse = TypedDict('StatsResponse', {
+    "vecdbs": list[VecDBStat],
+    "queues": list[QueueStat],
 })
 AddEmbed = TypedDict('AddEmbed', {
     "snippets": int,

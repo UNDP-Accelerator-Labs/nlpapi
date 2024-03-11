@@ -13,6 +13,12 @@ from qdrant_client.models import (
 from app.system.config import Config
 
 
+VecDBStat = TypedDict('VecDBStat', {
+    "name": str,
+    "point_count": int | None,
+})
+
+
 VecDBConfig = TypedDict('VecDBConfig', {
     "host": str,
     "port": int,
@@ -54,9 +60,6 @@ ResultChunk = TypedDict('ResultChunk', {
 FILE_PROTOCOL = "file://"
 
 
-EMBED_SIZE = 384  # 768  # FIXME: read from graph definition
-
-
 def ensure_valid_name(name: str) -> str:
     if "-" in name or ":" in name:
         raise ValueError(f"invalid name {name}")
@@ -83,11 +86,20 @@ def get_vec_client(config: Config) -> QdrantClient:
     return db
 
 
+def get_vec_stats(db: QdrantClient, name: str) -> VecDBStat:
+    status = db.get_collection(collection_name=name)
+    return {
+        "name": name,
+        "point_count": status.indexed_vectors_count,
+    }
+
+
 def build_db_name(
         name: str,
         *,
         distance_fn: DistanceFn,
-        db: QdrantClient | None) -> str:
+        embed_size: int,
+        db: QdrantClient) -> str:
     name = f"{ensure_valid_name(name)}-{distance_fn}"
     if db is not None:
         if distance_fn == "dot":
@@ -106,7 +118,7 @@ def build_db_name(
         except UnexpectedResponse:
             print(f"create {name}")
             config = VectorParams(
-                size=EMBED_SIZE, distance=distance, on_disk=True)
+                size=embed_size, distance=distance, on_disk=True)
             db.create_collection(
                 collection_name=name,
                 vectors_config=config,
