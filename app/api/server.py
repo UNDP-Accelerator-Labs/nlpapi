@@ -211,9 +211,10 @@ def setup(
     @server.json_get(f"{prefix}/stats")
     @server.middleware(verify_readonly)
     def _get_stats(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
-        vecdbs: list[VecDBStat] = [
-            get_vec_stats(vec_db, articles_main),
-        ]
+        vecdbs: list[VecDBStat] = []
+        articles_stats = get_vec_stats(vec_db, articles_main)
+        if articles_stats is not None:
+            vecdbs.append(articles_stats)
         return {
             "vecdbs": vecdbs,
             "queues": get_queue_stats(smind),

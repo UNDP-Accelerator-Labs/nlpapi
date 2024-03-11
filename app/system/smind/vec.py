@@ -86,12 +86,15 @@ def get_vec_client(config: Config) -> QdrantClient:
     return db
 
 
-def get_vec_stats(db: QdrantClient, name: str) -> VecDBStat:
-    status = db.get_collection(collection_name=name)
-    return {
-        "name": name,
-        "point_count": status.indexed_vectors_count,
-    }
+def get_vec_stats(db: QdrantClient, name: str) -> VecDBStat | None:
+    try:
+        status = db.get_collection(collection_name=name)
+        return {
+            "name": name,
+            "point_count": status.indexed_vectors_count,
+        }
+    except UnexpectedResponse:
+        return None
 
 
 def build_db_name(
@@ -116,7 +119,7 @@ def build_db_name(
             status = db.get_collection(collection_name=name)
             print(f"load {name}: {status.status}\n{status}")
         except UnexpectedResponse:
-            print(f"create {name}")
+            print(f"create {name} size={embed_size} distance={distance}")
             config = VectorParams(
                 size=embed_size, distance=distance, on_disk=True)
             db.create_collection(
