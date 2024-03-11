@@ -1,3 +1,4 @@
+import json
 from typing import Literal, TypedDict
 
 from qdrant_client import QdrantClient
@@ -128,6 +129,8 @@ def add_embed(db: QdrantClient, name: str, chunks: list[EmbedChunk]) -> int:
         }
         for key, value in chunk["meta"].items():
             payload[f"meta:{key}"] = value
+        print(f"insert {point_id} ({len(chunk['embed'])})")
+        print(json.dumps(payload, indent=2, sort_keys=True))
         return PointStruct(id=point_id, vector=chunk["embed"], payload=payload)
 
     db.upsert(
