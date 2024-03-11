@@ -20,7 +20,7 @@ fi
 
 ${PYTHON} -m pip install --progress-bar off --upgrade pip
 if [ -z "${MODE}" ]; then
-    REQUIREMENTS_PATH="${REQUIREMENTS_PATH}:-requirements.txt"
+    REQUIREMENTS_PATH="${REQUIREMENTS_PATH:-requirements.txt}"
     ${PYTHON} -m pip install --progress-bar off --upgrade -r "${REQUIREMENTS_PATH}"
 
     source deploy/devmode.conf
@@ -48,10 +48,10 @@ if [ -z "${MODE}" ]; then
         ${PYTHON} -m pip install --upgrade -e "${SMIND_PATH}"
     fi
 elif [ "${MODE}" = "api" ]; then
-    REQUIREMENTS_PATH="${REQUIREMENTS_PATH}:-requirements.api.txt"
+    REQUIREMENTS_PATH="${REQUIREMENTS_PATH:-requirements.api.txt}"
     ${PYTHON} -m pip install --progress-bar off --no-cache-dir --upgrade -r "${REQUIREMENTS_PATH}"
 elif [ "${MODE}" = "worker" ]; then
-    REQUIREMENTS_PATH="${REQUIREMENTS_PATH}:-requirements.worker.txt"
+    REQUIREMENTS_PATH="${REQUIREMENTS_PATH:-requirements.worker.txt}"
     ${PYTHON} -m pip install --progress-bar off --no-cache-dir --upgrade -r "${REQUIREMENTS_PATH}"
 else
     echo "invalid mode ${MODE}" >&2
