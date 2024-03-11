@@ -124,7 +124,7 @@ def setup(
 
     vec_cfg = config["vector"]
     server.bind_proxy(
-        "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}/")
+        "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:

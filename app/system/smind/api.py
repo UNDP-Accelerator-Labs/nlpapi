@@ -121,9 +121,10 @@ def get_text_results_immediate(
             {
                 input_field: text,
             })
+        print(f"enqueue task {task_id} '{text}'")
         lookup[task_id] = ix
     res: dict[int, T] = {}
-    for tid, resp in smind.wait_for(list(lookup.keys()), timeout=None):
+    for tid, resp in smind.wait_for(list(lookup.keys()), timeout=60):
         if resp["error"] is not None:
             error = resp["error"]
             print(f"{error['code']} ({error['ctx']}): {error['message']}")
@@ -141,4 +142,7 @@ def get_text_results_immediate(
                     f"{type(output)}<:{type(output_sample)}")
             curix = lookup[tid]
             res[curix] = output
+        print(
+            f"retrieved task {tid} ({resp['ns']}) {resp['status']} "
+            f"{resp['duration']}s retry={resp['retries']}")
     return [res.get(ix, None) for ix in range(len(texts))]
