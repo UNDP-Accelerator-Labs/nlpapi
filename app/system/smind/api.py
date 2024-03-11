@@ -145,4 +145,5 @@ def get_text_results_immediate(
         print(
             f"retrieved task {tid} ({resp['ns']}) {resp['status']} "
             f"{resp['duration']}s retry={resp['retries']}")
+        smind.clear_task(tid)
     return [res.get(ix, None) for ix in range(len(texts))]
