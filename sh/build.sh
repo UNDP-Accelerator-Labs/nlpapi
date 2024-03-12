@@ -73,9 +73,14 @@ trap 'rm -- version.txt' EXIT
 
 echo "building ${IMAGE_BASE}"
 
+source "${DEVMODE_CONF_FILE}"
 source "${REDIS_VERSION_FILE}"
 source "${QDRANT_VERSION_FILE}"
-source "${DEVMODE_CONF_FILE}"
+
+if [ ! -z "${DEVMODE}" ]; then
+    QDRANT_DOCKER_VERSION="${QDRANT_DOCKER_VERSION}-devmode"
+    REDIS_DOCKER_VERSION="${REDIS_DOCKER_VERSION}-devmode"
+fi
 
 QUICK_SERVER_PATH="../quick_server"
 REDIPY_PATH="../redipy"
@@ -109,9 +114,15 @@ replace_lib() {
     LIB="$2"
     LIB_PATH="$3"
     LIB_URL="$4"
-    pushd "${LIB_PATH}"
-    LIB_HASH=$(git describe --match NOTATAG --always --abbrev=40 --dirty='!')
-    popd
+    LIB_BRANCH="$5"
+    if [ -d "${LIB_PATH}" ]; then
+        pushd "${LIB_PATH}"
+        LIB_HASH=$(git describe --match NOTATAG --always --abbrev=40 --dirty='!')
+        popd
+    else
+        echo "${LIB_PATH} not found! using branch ${LIB_BRANCH} instead"
+        LIB_HASH="${LIB_BRANCH}"
+    fi
     case "${LIB_HASH}" in *!)
         echo "library ${LIB} at ${LIB_PATH} is dirty!"
         exit 1
@@ -124,13 +135,13 @@ cp "requirements.worker.txt" "${REQUIREMENTS_WORKER_FILE}"
 if [ ! -z "${DEVMODE}" ]; then
     echo "library dev mode active"
 
-    replace_lib "${REQUIREMENTS_API_FILE}" "quick-server" "${QUICK_SERVER_PATH}" "${QUICK_SERVER_URL}"
-    replace_lib "${REQUIREMENTS_API_FILE}" "redipy" "${REDIPY_PATH}" "${REDIPY_URL}"
-    replace_lib "${REQUIREMENTS_API_FILE}" "scattermind" "${SMIND_PATH}" "${SMIND_URL}"
+    replace_lib "${REQUIREMENTS_API_FILE}" "quick-server" "${QUICK_SERVER_PATH}" "${QUICK_SERVER_URL}" "${QUICK_SERVER_BRANCH}"
+    replace_lib "${REQUIREMENTS_API_FILE}" "redipy" "${REDIPY_PATH}" "${REDIPY_URL}" "${REDIPY_BRANCH}"
+    replace_lib "${REQUIREMENTS_API_FILE}" "scattermind" "${SMIND_PATH}" "${SMIND_URL}" "${SMIND_BRANCH}"
 
-    replace_lib "${REQUIREMENTS_WORKER_FILE}" "quick-server" "${QUICK_SERVER_PATH}" "${QUICK_SERVER_URL}"
-    replace_lib "${REQUIREMENTS_WORKER_FILE}" "redipy" "${REDIPY_PATH}" "${REDIPY_URL}"
-    replace_lib "${REQUIREMENTS_WORKER_FILE}" "scattermind" "${SMIND_PATH}" "${SMIND_URL}"
+    replace_lib "${REQUIREMENTS_WORKER_FILE}" "quick-server" "${QUICK_SERVER_PATH}" "${QUICK_SERVER_URL}" "${QUICK_SERVER_BRANCH}"
+    replace_lib "${REQUIREMENTS_WORKER_FILE}" "redipy" "${REDIPY_PATH}" "${REDIPY_URL}" "${REDIPY_BRANCH}"
+    replace_lib "${REQUIREMENTS_WORKER_FILE}" "scattermind" "${SMIND_PATH}" "${SMIND_URL}" "${SMIND_BRANCH}"
 fi
 
 docker_build() {

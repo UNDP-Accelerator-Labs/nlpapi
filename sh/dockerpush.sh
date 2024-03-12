@@ -8,8 +8,18 @@ IMAGE_TAG="${IMAGE_TAG:-$(make -s name)}"
 IMAGE_BASE="nlpapi"
 DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io"
 
-source deploy/redis.version
-source deploy/qdrant.version
+DEVMODE_CONF_FILE="deploy/devmode.conf"
+REDIS_VERSION_FILE="deploy/redis.version"
+QDRANT_VERSION_FILE="deploy/qdrant.version"
+
+source "${DEVMODE_CONF_FILE}"
+source "${REDIS_VERSION_FILE}"
+source "${QDRANT_VERSION_FILE}"
+
+if [ ! -z "${DEVMODE}" ]; then
+    QDRANT_DOCKER_VERSION="${QDRANT_DOCKER_VERSION}-devmode"
+    REDIS_DOCKER_VERSION="${REDIS_DOCKER_VERSION}-devmode"
+fi
 
 dpush() {
     IMAGE="${IMAGE_BASE}-$1:$2"
