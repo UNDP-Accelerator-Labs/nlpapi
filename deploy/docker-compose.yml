@@ -20,6 +20,11 @@ services:
       - '6381'
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rmain:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6381", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
   rdata:
     container_name: rdata
     image: $DOCKER_RDATA
@@ -28,6 +33,11 @@ services:
       - '6382'
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6382", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
   rcache:
     container_name: rcache
     image: $DOCKER_RCACHE
@@ -36,6 +46,11 @@ services:
       - '6383'
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rcache:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6383", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
   worker:
     deploy:
       mode: replicated
@@ -51,6 +66,11 @@ services:
       - rcache
     volumes:
       - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
+    healthcheck:
+      test: ["CMD", "true"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
   api:
     container_name: api
     image: $DOCKER_API
