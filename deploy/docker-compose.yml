@@ -57,6 +57,8 @@ services:
     depends_on:
       - qdrant
       - rmain
+      - rdata
+      - rcache
     ports:
       - '8080:8080'
     environment:
@@ -67,5 +69,7 @@ services:
     links:
       - qdrant
       - rmain
+      - rdata
+      - rcache
     volumes:
       - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
