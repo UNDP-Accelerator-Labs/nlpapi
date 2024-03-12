@@ -137,6 +137,8 @@ def setup(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
 
     # TODO: record each search term
+    # TODO: deduplicate results (only one result for each document)
+    # TODO: allow flushing of db
     # FIXME: make proxy forwarding work with qdrant dashboard
 
     def verify_token(
