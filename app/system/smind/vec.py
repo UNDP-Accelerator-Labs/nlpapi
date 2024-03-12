@@ -1,4 +1,5 @@
 import json
+import traceback
 import uuid
 from typing import Literal, TypedDict
 
@@ -9,6 +10,7 @@ from qdrant_client.http.exceptions import (
 )
 from qdrant_client.models import (
     Distance,
+    OptimizersConfig,
     PointStruct,
     ScoredPoint,
     VectorParams,
@@ -125,13 +127,25 @@ def build_db_name(
         try:
             status = db.get_collection(collection_name=name)
             print(f"load {name}: {status.status}\n{status}")
-        except UnexpectedResponse:
+        except (UnexpectedResponse, ResponseHandlingException):
+            print(traceback.format_exc())
             print(f"create {name} size={embed_size} distance={distance}")
             config = VectorParams(
-                size=embed_size, distance=distance, on_disk=True)
+                size=embed_size,
+                distance=distance,
+                on_disk=True)
+            optimizers = OptimizersConfig(
+                deleted_threshold=0.2,
+                vacuum_min_vector_number=1000,
+                default_segment_number=0,
+                memmap_threshold=512*1024,
+                indexing_threshold=512*1024,
+                flush_interval_sec=60,
+                max_optimization_threads=4)
             db.create_collection(
                 collection_name=name,
                 vectors_config=config,
+                optimizers_config=optimizers,
                 on_disk_payload=True)
     return name
 
