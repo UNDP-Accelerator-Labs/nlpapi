@@ -30,22 +30,25 @@ if [ -z "${MODE}" ]; then
         QUICK_SERVER_PATH="../quick_server"
         REDIPY_PATH="../redipy"
         SMIND_PATH="../scattermind"
-        if [ ! -d "${QUICK_SERVER_PATH}" ]; then
-            echo "please clone quick_server to ${QUICK_SERVER_PATH}" >&2
-            exit 4
-        fi
-        if [ ! -d "${REDIPY_PATH}" ]; then
-            echo "please clone redipy to ${REDIPY_PATH}" >&2
-            exit 5
-        fi
-        if [ ! -d "${SMIND_PATH}" ]; then
-            echo "please clone scattermind to ${SMIND_PATH}" >&2
-            exit 6
-        fi
         ${PYTHON} -m pip uninstall -y quick-server redipy scattermind
-        ${PYTHON} -m pip install --upgrade -e "${QUICK_SERVER_PATH}"
-        ${PYTHON} -m pip install --upgrade -e "${REDIPY_PATH}"
-        ${PYTHON} -m pip install --upgrade -e "${SMIND_PATH}"
+        QUICK_SERVER_URL="git+https://github.com/JosuaKrause/quick_server.git"
+        REDIPY_URL="git+https://github.com/JosuaKrause/redipy.git"
+        SMIND_URL="git+https://github.com/JosuaKrause/scattermind.git"
+        if [ -d "${QUICK_SERVER_PATH}" ]; then
+            ${PYTHON} -m pip install --upgrade -e "${QUICK_SERVER_PATH}"
+        else
+            ${PYTHON} -m pip install --upgrade "${QUICK_SERVER_URL}@${QUICK_SERVER_BRANCH}"
+        fi
+        if [ -d "${REDIPY_PATH}" ]; then
+            ${PYTHON} -m pip install --upgrade -e "${REDIPY_PATH}"
+        else
+            ${PYTHON} -m pip install --upgrade "${REDIPY_URL}@${REDIPY_BRANCH}"
+        fi
+        if [ -d "${SMIND_PATH}" ]; then
+            ${PYTHON} -m pip install --upgrade -e "${SMIND_PATH}"
+        else
+            ${PYTHON} -m pip install --upgrade "${SMIND_URL}@${SMIND_BRANCH}"
+        fi
     fi
 elif [ "${MODE}" = "api" ]; then
     REQUIREMENTS_PATH="${REQUIREMENTS_PATH:-requirements.api.txt}"
