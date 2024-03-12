@@ -24,7 +24,8 @@ QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
 
 VecDBStat = TypedDict('VecDBStat', {
     "name": str,
-    "point_count": int | None,
+    "status": str,
+    "count": int,
 })
 
 
@@ -98,9 +99,11 @@ def get_vec_client(config: Config) -> QdrantClient:
 def get_vec_stats(db: QdrantClient, name: str) -> VecDBStat | None:
     try:
         status = db.get_collection(collection_name=name)
+        count = db.count(collection_name=name)
         return {
             "name": name,
-            "point_count": status.indexed_vectors_count,
+            "status": status.status,
+            "count": count.count,
         }
     except (UnexpectedResponse, ResponseHandlingException):
         return None
