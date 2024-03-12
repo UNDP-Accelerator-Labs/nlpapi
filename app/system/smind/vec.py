@@ -2,14 +2,16 @@ import json
 from typing import Literal, TypedDict
 
 from qdrant_client import QdrantClient
-from qdrant_client.http.exceptions import UnexpectedResponse
+from qdrant_client.http.exceptions import (
+    ResponseHandlingException,
+    UnexpectedResponse,
+)
 from qdrant_client.models import (
     Distance,
     PointStruct,
     ScoredPoint,
     VectorParams,
 )
-from qdrant_openapi_client.exceptions import ResponseHandlingException
 
 from app.system.config import Config
 
