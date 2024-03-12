@@ -1,4 +1,5 @@
 import json
+import uuid
 from typing import Literal, TypedDict
 
 from qdrant_client import QdrantClient
@@ -14,6 +15,9 @@ from qdrant_client.models import (
 )
 
 from app.system.config import Config
+
+
+QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
 
 
 VecDBStat = TypedDict('VecDBStat', {
@@ -140,6 +144,7 @@ def add_embed(db: QdrantClient, name: str, chunks: list[EmbedChunk]) -> int:
     def convert_chunk(chunk: EmbedChunk) -> PointStruct:
         point_id = f"{chunk['base']}:{chunk['doc_id']}:{chunk['chunk_id']}"
         payload = {
+            "vector_id": point_id,
             "doc_id": chunk["doc_id"],
             "base": chunk["base"],
             "url": chunk["url"],
@@ -149,7 +154,10 @@ def add_embed(db: QdrantClient, name: str, chunks: list[EmbedChunk]) -> int:
             payload[f"meta:{key}"] = value
         print(f"insert {point_id} ({len(chunk['embed'])})")
         print(json.dumps(payload, indent=2, sort_keys=True))
-        return PointStruct(id=point_id, vector=chunk["embed"], payload=payload)
+        return PointStruct(
+            id=f"{uuid.uuid5(QDRANT_UUID, point_id)}",
+            vector=chunk["embed"],
+            payload=payload)
 
     db.upsert(
         collection_name=name,
@@ -181,7 +189,7 @@ def query_embed(
                 continue
             meta[meta_key] = value
         return {
-            "vector_id": f"{hit.id}",
+            "vector_id": payload["vector_id"],
             "score": hit.score,
             "base": payload["base"],
             "doc_id": payload["doc_id"],
