@@ -8,7 +8,7 @@ services:
       - '6333'
       - '6334'
     volumes:
-      - qdrant:/qdrant/storage:z
+      - ${WEBAPP_STORAGE_HOME}/qdrant:/qdrant/storage:z
     environment:
       QDRANT__TELEMETRY_DISABLED: true
       # QDRANT__SERVICE__API_KEY: $QDRANT_API_TOKEN
@@ -19,7 +19,7 @@ services:
     expose:
       - '6381'
     volumes:
-      - rmain:/data
+      - ${WEBAPP_STORAGE_HOME}/rmain:/data
   rdata:
     container_name: rdata
     image: $DOCKER_RDATA
@@ -27,7 +27,7 @@ services:
     expose:
       - '6382'
     volumes:
-      - rdata:/data
+      - ${WEBAPP_STORAGE_HOME}/rdata:/data
   rcache:
     container_name: rcache
     image: $DOCKER_RCACHE
@@ -35,7 +35,7 @@ services:
     expose:
       - '6383'
     volumes:
-      - rcache:/data
+      - ${WEBAPP_STORAGE_HOME}/rcache:/data
   worker:
     deploy:
       mode: replicated
@@ -50,7 +50,7 @@ services:
       - rdata
       - rcache
     volumes:
-      - smind_cache:/smind_cache
+      - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
   api:
     container_name: api
     image: $DOCKER_API
@@ -68,15 +68,4 @@ services:
       - qdrant
       - rmain
     volumes:
-      - smind_cache:/smind_cache
-volumes:
-  qdrant:
-    driver: local
-  rmain:
-    driver: local
-  rdata:
-    driver: local
-  rcache:
-    driver: local
-  smind_cache:
-    driver: local
+      - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
