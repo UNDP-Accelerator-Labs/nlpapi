@@ -2,11 +2,13 @@ import json
 import os
 import re
 import time
+import traceback
 import unicodedata
 from collections.abc import Iterable
 from html import unescape
 from typing import cast, TypedDict, TypeVar
 
+import redis
 from gemma import tokenizer
 from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
@@ -53,14 +55,18 @@ def load_graph(
 
 
 def get_queue_stats(smind: ScattermindAPI) -> list[QueueStat]:
-    return [
-        {
-            "id": stat["id"].to_parseable(),
-            "name": stat["name"].get(),
-            "count": stat["count"],
-        }
-        for stat in smind.get_queue_stats()
-    ]
+    try:
+        return [
+            {
+                "id": stat["id"].to_parseable(),
+                "name": stat["name"].get(),
+                "count": stat["count"],
+            }
+            for stat in smind.get_queue_stats()
+        ]
+    except redis.ConnectionError:
+        print(traceback.format_exc())
+        return []
 
 
 GEMMA_FOLDER = "study/mdata/gemma2b/"

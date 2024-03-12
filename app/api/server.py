@@ -136,16 +136,7 @@ def setup(
     server.bind_proxy(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
 
-    stp = QSRH.send_to_proxy
-
-    def stp_patch(req: QSRH, proxy_url: str) -> None:
-        print(f"proxy to {proxy_url}")
-        stp(req, proxy_url)
-
-    QSRH.send_to_proxy = stp_patch  # type: ignore
-
     # TODO: record each search term
-    # TODO: create azure volume
     # FIXME: make proxy forwarding work with qdrant dashboard
 
     def verify_token(
