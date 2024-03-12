@@ -3,12 +3,9 @@ deploy/
 data/
 notebooks/
 test-results/
+study/
 config.json
 test*.json
-study/mdata/
-study/_vec.db/
-study/prompts/
-study/sm_pads.json
 *.rdb
 *.log
 *.csv
