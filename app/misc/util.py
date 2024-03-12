@@ -8,6 +8,7 @@ import string
 import threading
 import uuid
 from collections.abc import Callable, Iterable, Iterator
+from datetime import datetime, timezone
 from typing import Any, IO, TypeVar
 
 import numpy as np
@@ -240,6 +241,39 @@ def to_timestamp(time: pd.Timestamp) -> float:
 
 def now_ts() -> pd.Timestamp:
     return pd.Timestamp("now", tz="UTC")
+
+
+def now() -> datetime:
+    """
+    Computes the current time with UTC timezone.
+
+    Returns:
+        datetime: A timezone aware instance of now.
+    """
+    return datetime.now(timezone.utc).astimezone()
+
+
+def fmt_time(when: datetime) -> str:
+    """
+    Formats a timestamp as ISO formatted string.
+
+    Args:
+        when (datetime): The timestamp.
+
+    Returns:
+        str: The formatted string.
+    """
+    return when.isoformat()
+
+
+def get_time_str() -> str:
+    """
+    Get the current time as ISO formatted string.
+
+    Returns:
+        str: The current time in ISO format.
+    """
+    return fmt_time(now())
 
 
 def get_function_info(*, clazz: type) -> tuple[str, int, str]:

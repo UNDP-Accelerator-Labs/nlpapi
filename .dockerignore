@@ -3,12 +3,11 @@ deploy/
 data/
 notebooks/
 test-results/
+study/
+vecdb/
 config.json
 test*.json
-study/mdata/
-study/_vec.db/
-study/prompts/
-study/sm_pads.json
 *.rdb
 *.log
 *.csv
+requirements.docker.txt

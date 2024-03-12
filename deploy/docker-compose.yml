@@ -8,31 +8,36 @@ services:
       - '6333'
       - '6334'
     volumes:
-      - qdrant:/qdrant/storage:z
+      - ${WEBAPP_STORAGE_HOME}/qdrant:/qdrant_data
+    environment:
+      QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
+      QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
+      QDRANT__TELEMETRY_DISABLED: true
+      # QDRANT__SERVICE__API_KEY: $QDRANT_API_TOKEN
   rmain:
     container_name: rmain
     image: $DOCKER_RMAIN
     restart: always
     expose:
-      - '6381'
+      - '6379'
     volumes:
-      - rmain:/data
+      - ${WEBAPP_STORAGE_HOME}/rmain:/data
   rdata:
     container_name: rdata
     image: $DOCKER_RDATA
     restart: always
     expose:
-      - '6382'
+      - '6379'
     volumes:
-      - rdata:/data
+      - ${WEBAPP_STORAGE_HOME}/rdata:/data
   rcache:
     container_name: rcache
     image: $DOCKER_RCACHE
     restart: always
     expose:
-      - '6383'
+      - '6379'
     volumes:
-      - rcache:/data
+      - ${WEBAPP_STORAGE_HOME}/rcache:/data
   worker:
     deploy:
       mode: replicated
@@ -47,32 +52,26 @@ services:
       - rdata
       - rcache
     volumes:
-      - smind_cache:/smind_cache
+      - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
   api:
     container_name: api
     image: $DOCKER_API
     depends_on:
       - qdrant
       - rmain
+      - rdata
+      - rcache
     ports:
       - '8080:8080'
     environment:
       QDRANT_HOST: qdrant
       QDRANT_REST_PORT: 6333
       QDRANT_GRPC_PORT: 6334
+      # QDRANT_API_KEY: $QDRANT_API_TOKEN
     links:
       - qdrant
       - rmain
+      - rdata
+      - rcache
     volumes:
-      - smind_cache:/smind_cache
-volumes:
-  qdrant:
-    driver: local
-  rmain:
-    driver: local
-  rdata:
-    driver: local
-  rcache:
-    driver: local
-  smind_cache:
-    driver: local
+      - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache

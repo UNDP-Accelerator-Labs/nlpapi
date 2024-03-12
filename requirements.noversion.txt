@@ -38,6 +38,7 @@ pytz
 qdrant-client
 qtconsole
 quick-server
+redipy
 requests
 scattermind
 scikit-learn

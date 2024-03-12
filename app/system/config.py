@@ -8,12 +8,16 @@ from app.misc.io import open_read, open_write
 
 if TYPE_CHECKING:
     from app.system.db.db import DBConfig
+    from app.system.smind.vec import VecDBConfig
 
 
 Config = TypedDict('Config', {
     "db": 'DBConfig',
     "opencage": str,
     "appsecret": str,
+    "vector": 'VecDBConfig',
+    "smind": str,
+    "graphs": str,
 })
 
 
@@ -39,10 +43,19 @@ def config_template() -> Config:
         "user": "INVALID",
         "passwd": "INVALID",
     }
+    default_vec: 'VecDBConfig' = {
+        "host": "INVALID",
+        "port": 6333,
+        "grpc": 6334,
+        "token": "",
+    }
     return {
         "db": default_conn.copy(),
         "opencage": "INVALID",
         "appsecret": "INVALID",
+        "vector": default_vec.copy(),
+        "smind": "INVALID",
+        "graphs": "INVALID",
     }
 
 
@@ -78,6 +91,14 @@ def get_config() -> Config:
             },
             "opencage": envload_str("OPENCAGE_API"),
             "appsecret": envload_str("APP_SECRET"),
+            "vector": {
+                "host": envload_str("QDRANT_HOST"),
+                "port": envload_int("QDRANT_REST_PORT", default=6333),
+                "grpc": envload_int("QDRANT_GRPC_PORT", default=6334),
+                "token": envload_str("QDRANT_API_KEY", default=""),
+            },
+            "smind": envload_path("SMIND_CFG"),
+            "graphs": envload_path("GRAPH_PATH"),
         }
     else:
         print(f"loading config file: {config_path}")

@@ -118,19 +118,22 @@ dockerpush:
 	./sh/dockerpush.sh
 
 install:
-	PYTHON=$(PYTHON) ./sh/install.sh
+	PYTHON=$(PYTHON) REQUIREMENTS_PATH=$(REQUIREMENTS_PATH) ./sh/install.sh
 
 install-api:
-	PYTHON=$(PYTHON) MODE=api ./sh/install.sh
+	PYTHON=$(PYTHON) MODE=api REQUIREMENTS_PATH=$(REQUIREMENTS_PATH) ./sh/install.sh
 
 install-worker:
-	PYTHON=$(PYTHON) MODE=worker ./sh/install.sh
+	PYTHON=$(PYTHON) MODE=worker REQUIREMENTS_PATH=$(REQUIREMENTS_PATH) ./sh/install.sh
 
 requirements-check:
 	PYTHON=$(PYTHON) ./sh/requirements_check.sh $(FILE)
 
 requirements-complete:
 	PYTHON=$(PYTHON) ./sh/requirements_complete.sh $(FILE)
+
+uuid:
+	python -c "import uuid; print(f'{uuid.uuid4().hex}')"
 
 name:
 	git describe --tags --match `git tag --merged | sort -rV | head -n 1`

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
 if ! make -s git-check ; then

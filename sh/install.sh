@@ -20,11 +20,39 @@ fi
 
 ${PYTHON} -m pip install --progress-bar off --upgrade pip
 if [ -z "${MODE}" ]; then
-    ${PYTHON} -m pip install --progress-bar off --upgrade -r requirements.txt
+    REQUIREMENTS_PATH="${REQUIREMENTS_PATH:-requirements.txt}"
+    ${PYTHON} -m pip install --progress-bar off --upgrade -r "${REQUIREMENTS_PATH}"
+
+    source deploy/devmode.conf
+    if [ ! -z "${DEVMODE}" ]; then
+        echo "library dev mode active"
+
+        QUICK_SERVER_PATH="../quick_server"
+        REDIPY_PATH="../redipy"
+        SMIND_PATH="../scattermind"
+        if [ ! -d "${QUICK_SERVER_PATH}" ]; then
+            echo "please clone quick_server to ${QUICK_SERVER_PATH}" >&2
+            exit 4
+        fi
+        if [ ! -d "${REDIPY_PATH}" ]; then
+            echo "please clone redipy to ${REDIPY_PATH}" >&2
+            exit 5
+        fi
+        if [ ! -d "${SMIND_PATH}" ]; then
+            echo "please clone scattermind to ${SMIND_PATH}" >&2
+            exit 6
+        fi
+        ${PYTHON} -m pip uninstall -y quick-server redipy scattermind
+        ${PYTHON} -m pip install --upgrade -e "${QUICK_SERVER_PATH}"
+        ${PYTHON} -m pip install --upgrade -e "${REDIPY_PATH}"
+        ${PYTHON} -m pip install --upgrade -e "${SMIND_PATH}"
+    fi
 elif [ "${MODE}" = "api" ]; then
-    ${PYTHON} -m pip install --progress-bar off --no-cache-dir --upgrade -r requirements.api.txt
+    REQUIREMENTS_PATH="${REQUIREMENTS_PATH:-requirements.api.txt}"
+    ${PYTHON} -m pip install --progress-bar off --no-cache-dir --upgrade -r "${REQUIREMENTS_PATH}"
 elif [ "${MODE}" = "worker" ]; then
-    ${PYTHON} -m pip install --progress-bar off --no-cache-dir --upgrade -r requirements.worker.txt
+    REQUIREMENTS_PATH="${REQUIREMENTS_PATH:-requirements.worker.txt}"
+    ${PYTHON} -m pip install --progress-bar off --no-cache-dir --upgrade -r "${REQUIREMENTS_PATH}"
 else
     echo "invalid mode ${MODE}" >&2
     exit 2
@@ -63,5 +91,6 @@ fi
 
 if [ -z "${MODE}" ] || [ "${MODE}" = "api" ]; then
     echo "initializing spacy"
+    # FIXME potentially use xx_ent_wiki_sm (https://spacy.io/models/xx)?
     ${PYTHON} -m spacy download en_core_web_sm
 fi

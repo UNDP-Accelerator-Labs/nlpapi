@@ -27,7 +27,8 @@ pylint~=3.0.0
 python-dateutil~=2.8.0
 pytz>=2023.3
 qdrant-client~=1.7.0
-quick-server~=0.8.0
+quick-server~=0.9.0
+redipy~=0.5.0
 requests==2.31.0
 scattermind~=0.3.0
 scikit-learn==1.2.0

@@ -3,7 +3,7 @@
     "name": "redis",
     "cfg": {
       "host": "rmain",
-      "port": 6381,
+      "port": 6379,
       "passwd": "",
       "prefix": "nlpapi",
       "path": "rmain"
@@ -13,7 +13,7 @@
     "name": "redis",
     "cfg": {
       "host": "rcache",
-      "port": 6383,
+      "port": 6379,
       "passwd": "",
       "prefix": "nlpapi",
       "path": "rcache"
@@ -31,7 +31,7 @@
     "name": "redis",
     "cfg": {
       "host": "rdata",
-      "port": 6382,
+      "port": 6379,
       "passwd": "",
       "prefix": "nlpapi",
       "path": "rdata"
@@ -48,7 +48,7 @@
   },
   "readonly_access": {
     "name": "ram",
-    "scratch": "smind_cache/"
+    "scratch": "/smind_cache/"
   },
   "logger": {
     "listeners": [
