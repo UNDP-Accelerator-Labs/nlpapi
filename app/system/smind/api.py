@@ -113,11 +113,13 @@ def snippify_text(text: str, chunk_size: int) -> Iterable[str]:
     pos = 0
     content = text.strip()
     while pos < len(content):
-        cur = content[pos:pos + chunk_size].strip()
+        cur = content[pos:pos + chunk_size]
         if len(cur) < chunk_size:
+            cur = cur.strip()
             if cur:
                 yield cur
             break
+        cur = cur.strip()
         rpos = cur.rfind(" ")
         if rpos > 0:
             small = cur[0:rpos].strip()
