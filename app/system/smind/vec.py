@@ -9,6 +9,7 @@ from qdrant_client.models import (
     ScoredPoint,
     VectorParams,
 )
+from qdrant_openapi_client.exceptions import ResponseHandlingException
 
 from app.system.config import Config
 
@@ -93,7 +94,7 @@ def get_vec_stats(db: QdrantClient, name: str) -> VecDBStat | None:
             "name": name,
             "point_count": status.indexed_vectors_count,
         }
-    except UnexpectedResponse:
+    except (UnexpectedResponse, ResponseHandlingException):
         return None
 
 
