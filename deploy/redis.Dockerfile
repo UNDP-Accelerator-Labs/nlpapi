@@ -3,10 +3,10 @@ ARG PORT
 ARG CFG_FILE
 ARG REDIS_VERSION_FILE
 ARG REDIS_RUN_SCRIPT
-COPY "${CFG_FILE}" redis.conf
-COPY "${REDIS_VERSION_FILE}" redis.version
-COPY "${REDIS_RUN_SCRIPT}" run_redis.sh
+COPY "${CFG_FILE}" /app/redis.conf
+COPY "${REDIS_VERSION_FILE}" /app/redis.version
+COPY "${REDIS_RUN_SCRIPT}" /app/run_redis.sh
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 ENTRYPOINT ["/bin/sh", "-c"]
-CMD ["run_redis.sh"]
+CMD ["/app/run_redis.sh"]
