@@ -136,6 +136,7 @@ def setup(
     server.bind_proxy(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
 
+    # TODO: add tanuki
     # TODO: record each search term
     # TODO: deduplicate results (only one result for each document)
     # TODO: allow flushing of db
