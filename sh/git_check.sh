@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
 # see https://stackoverflow.com/a/2659808/20487202
