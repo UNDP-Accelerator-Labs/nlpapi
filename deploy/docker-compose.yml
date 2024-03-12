@@ -17,25 +17,25 @@ services:
     image: $DOCKER_RMAIN
     restart: always
     expose:
-      - '6381'
-    # volumes:
-    #   - ${WEBAPP_STORAGE_HOME}/rmain:/data
+      - '6379'
+    volumes:
+      - ${WEBAPP_STORAGE_HOME}/rmain:/data
   rdata:
     container_name: rdata
     image: $DOCKER_RDATA
     restart: always
     expose:
-      - '6382'
-    # volumes:
-    #   - ${WEBAPP_STORAGE_HOME}/rdata:/data
+      - '6379'
+    volumes:
+      - ${WEBAPP_STORAGE_HOME}/rdata:/data
   rcache:
     container_name: rcache
     image: $DOCKER_RCACHE
     restart: always
     expose:
-      - '6383'
-    # volumes:
-    #   - ${WEBAPP_STORAGE_HOME}/rcache:/data
+      - '6379'
+    volumes:
+      - ${WEBAPP_STORAGE_HOME}/rcache:/data
   worker:
     deploy:
       mode: replicated

@@ -170,7 +170,7 @@ echo "rmain:${REDIS_DOCKER_VERSION}" > buildtmp/rmain.version
 
 docker_build \
     "${IMAGE_BASE}-rmain:${REDIS_DOCKER_VERSION}" \
-    --build-arg "PORT=6381" \
+    --build-arg "PORT=6379" \
     --build-arg "CFG_FILE=${RMAIN_CFG}" \
     --build-arg "REDIS_VERSION_FILE=buildtmp/rmain.version" \
     --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
@@ -181,7 +181,7 @@ echo "rdata:${REDIS_DOCKER_VERSION}" > buildtmp/rdata.version
 
 docker_build \
     "${IMAGE_BASE}-rdata:${REDIS_DOCKER_VERSION}" \
-    --build-arg "PORT=6382" \
+    --build-arg "PORT=6379" \
     --build-arg "CFG_FILE=${RDATA_CFG}" \
     --build-arg "REDIS_VERSION_FILE=buildtmp/rdata.version" \
     --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
@@ -192,7 +192,7 @@ echo "rcache:${REDIS_DOCKER_VERSION}" > buildtmp/rcache.version
 
 docker_build \
     "${IMAGE_BASE}-rcache:${REDIS_DOCKER_VERSION}" \
-    --build-arg "PORT=6383" \
+    --build-arg "PORT=6379" \
     --build-arg "CFG_FILE=${RCACHE_CFG}" \
     --build-arg "REDIS_VERSION_FILE=buildtmp/rcache.version" \
     --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
