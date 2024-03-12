@@ -2,9 +2,11 @@ FROM redis:6.2-alpine
 ARG PORT
 ARG CFG_FILE
 ARG REDIS_VERSION_FILE
+ARG REDIS_RUN_SCRIPT
 COPY "${CFG_FILE}" redis.conf
 COPY "${REDIS_VERSION_FILE}" redis.version
+COPY "${REDIS_RUN_SCRIPT}" run_redis.sh
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 ENTRYPOINT ["/bin/sh", "-c"]
-CMD ["redis-server redis.conf --port ${PORT}"]
+CMD ["run_redis.sh"]

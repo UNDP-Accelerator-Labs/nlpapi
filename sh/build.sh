@@ -28,6 +28,7 @@ SMIND_GRS="buildtmp/graphs/"
 RMAIN_CFG="buildtmp/rmain.conf"
 RDATA_CFG="buildtmp/rdata.conf"
 RCACHE_CFG="buildtmp/rcache.conf"
+REDIS_RUN_SCRIPT="buildtmp/run_redis.sh"
 
 cp "deploy/redis/rmain.conf" "${RMAIN_CFG}"
 cp "deploy/redis/rdata.conf" "${RDATA_CFG}"
@@ -35,6 +36,7 @@ cp "deploy/redis/rcache.conf" "${RCACHE_CFG}"
 cp "deploy/redis.version" "${REDIS_VERSION_FILE}"
 cp "deploy/qdrant.version" "${QDRANT_VERSION_FILE}"
 cp "deploy/devmode.conf" "${DEVMODE_CONF_FILE}"
+cp "deploy/run_redis.sh" "${REDIS_RUN_SCRIPT}"
 cp "${SMIND_CONFIG}" "${SMIND_CFG}"
 cp -R "${SMIND_GRAPHS}" "${SMIND_GRS}"
 
@@ -171,6 +173,7 @@ docker_build \
     --build-arg "PORT=6381" \
     --build-arg "CFG_FILE=${RMAIN_CFG}" \
     --build-arg "REDIS_VERSION_FILE=buildtmp/rmain.version" \
+    --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
     -f deploy/redis.Dockerfile \
     .
 
@@ -181,6 +184,7 @@ docker_build \
     --build-arg "PORT=6382" \
     --build-arg "CFG_FILE=${RDATA_CFG}" \
     --build-arg "REDIS_VERSION_FILE=buildtmp/rdata.version" \
+    --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
     -f deploy/redis.Dockerfile \
     .
 
@@ -191,6 +195,7 @@ docker_build \
     --build-arg "PORT=6383" \
     --build-arg "CFG_FILE=${RCACHE_CFG}" \
     --build-arg "REDIS_VERSION_FILE=buildtmp/rcache.version" \
+    --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
     -f deploy/redis.Dockerfile \
     .
 
