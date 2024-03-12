@@ -1,2 +1,2 @@
 # update this version when the qdrant docker image changes
-QDRANT_DOCKER_VERSION=v0.0.1
+QDRANT_DOCKER_VERSION=v0.0.2

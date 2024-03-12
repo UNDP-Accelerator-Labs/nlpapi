@@ -8,8 +8,10 @@ services:
       - '6333'
       - '6334'
     volumes:
-      - ${WEBAPP_STORAGE_HOME}/qdrant:/qdrant/storage:z
+      - ${WEBAPP_STORAGE_HOME}/qdrant:/qdrant
     environment:
+      QDRANT__STORAGE__STORAGE_PATH: /qdrant/storage
+      QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/snapshots
       QDRANT__TELEMETRY_DISABLED: true
       # QDRANT__SERVICE__API_KEY: $QDRANT_API_TOKEN
   rmain:
