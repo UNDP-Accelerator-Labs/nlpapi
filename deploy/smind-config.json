@@ -48,7 +48,7 @@
   },
   "readonly_access": {
     "name": "ram",
-    "scratch": "smind_cache/"
+    "scratch": "/smind_cache/"
   },
   "logger": {
     "listeners": [
