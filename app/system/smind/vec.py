@@ -142,7 +142,7 @@ def build_db_name(
                 indexing_threshold=512*1024,
                 flush_interval_sec=60,
                 max_optimization_threads=4)
-            db.create_collection(
+            db.recreate_collection(
                 collection_name=name,
                 vectors_config=config,
                 optimizers_config=optimizers,
