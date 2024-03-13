@@ -33,6 +33,7 @@ dpush() {
     # else
     #     echo "${URL} already exists"
     # fi
+    sleep 1
 }
 
 dpush "worker" "${IMAGE_TAG}"

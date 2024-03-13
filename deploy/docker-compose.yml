@@ -43,6 +43,7 @@ services:
       mode: replicated
       replicas: 2
     image: $DOCKER_WORKER
+    restart: always
     depends_on:
       - rmain
       - rdata
@@ -56,6 +57,7 @@ services:
   api:
     container_name: api
     image: $DOCKER_API
+    restart: always
     depends_on:
       - qdrant
       - rmain
