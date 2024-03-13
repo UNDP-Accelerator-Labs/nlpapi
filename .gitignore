@@ -33,3 +33,4 @@ deploy/default.env
 **/.ipynb_checkpoints
 __pycache__
 /docker-compose.yml
+/queries.txt

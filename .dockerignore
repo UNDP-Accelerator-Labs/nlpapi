@@ -11,3 +11,4 @@ test*.json
 *.log
 *.csv
 requirements.docker.txt
+queries.txt
