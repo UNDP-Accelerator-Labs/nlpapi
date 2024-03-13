@@ -141,6 +141,12 @@ def setup(
     # TODO: deduplicate results (only one result for each document)
     # TODO: allow flushing of db
     # FIXME: make proxy forwarding work with qdrant dashboard
+    # TODO: caching
+    # TODO: filtering
+    # TODO: infinite scroll
+    # TODO: score threshold
+    # TODO: add date module
+    # TODO: node claim stats
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
