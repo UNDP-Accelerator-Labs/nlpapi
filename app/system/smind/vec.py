@@ -114,7 +114,8 @@ def build_db_name(
         *,
         distance_fn: DistanceFn,
         embed_size: int,
-        db: QdrantClient) -> str:
+        db: QdrantClient,
+        force_clear: bool) -> str:
     name = f"{ensure_valid_name(name)}-{distance_fn}"
     if db is not None:
         if distance_fn == "dot":
@@ -127,11 +128,8 @@ def build_db_name(
             distance = Distance.MANHATTAN
         else:
             raise ValueError(f"invalid distance name: {distance_fn}")
-        try:
-            status = db.get_collection(collection_name=name)
-            print(f"load {name}: {status.status}\n{status}")
-        except (UnexpectedResponse, ResponseHandlingException):
-            print(traceback.format_exc())
+
+        def recreate() -> None:
             print(f"create {name} size={embed_size} distance={distance}")
             config = VectorParams(
                 size=embed_size,
@@ -150,6 +148,16 @@ def build_db_name(
                 vectors_config=config,
                 optimizers_config=optimizers,
                 on_disk_payload=True)
+
+        if force_clear:
+            recreate()
+        else:
+            try:
+                status = db.get_collection(collection_name=name)
+                print(f"load {name}: {status.status}\n{status}")
+            except (UnexpectedResponse, ResponseHandlingException):
+                print(traceback.format_exc())
+                recreate()
     return name
 
 

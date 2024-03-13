@@ -22,6 +22,12 @@ StatsResponse = TypedDict('StatsResponse', {
     "vecdbs": list[VecDBStat],
     "queues": list[QueueStat],
 })
+ClearResponse = TypedDict('ClearResponse', {
+    "clear_rmain": bool,
+    "clear_rdata": bool,
+    "clear_rcache": bool,
+    "clear_vecdb": bool,
+})
 AddEmbed = TypedDict('AddEmbed', {
     "snippets": int,
     "failed": int,

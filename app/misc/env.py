@@ -17,16 +17,17 @@ EnvStr = Literal[
     "LOGIN_DB_SCHEMA",
     "LOGIN_DB_USERNAME",
     "OPENCAGE_API",
-    "QDRANT_API_KEY",
     "QDRANT__TELEMETRY_DISABLED",
+    "QDRANT_API_KEY",
     "QDRANT_HOST",
+    "TANUKI",
     "WRITE_TOKEN",
 ]
 EnvInt = Literal[
     "LOGIN_DB_PORT",
     "PORT",
-    "QDRANT_REST_PORT",
     "QDRANT_GRPC_PORT",
+    "QDRANT_REST_PORT",
 ]
 
 

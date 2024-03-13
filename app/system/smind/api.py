@@ -6,10 +6,11 @@ import traceback
 import unicodedata
 from collections.abc import Iterable
 from html import unescape
-from typing import cast, TypedDict, TypeVar
+from typing import cast, Literal, TypedDict, TypeVar
 
-import redis
+import redis as redis_lib
 from gemma import tokenizer
+from redipy import Redis
 from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
@@ -25,8 +26,38 @@ T = TypeVar('T')
 QueueStat = TypedDict('QueueStat', {
     "id": str,
     "name": str,
-    "count": int,
+    "queue_length": int,
+    "listeners": int,
 })
+
+
+def clear_redis(
+        config_fname: str,
+        redis_name: Literal["rmain", "rdata", "rcache"]) -> None:
+    with open(config_fname, "rb") as fin:
+        config_obj = json.load(fin)
+    if redis_name == "rmain":
+        if config_obj["client_pool"]["name"] != "redis":
+            raise ValueError(
+                "client_pool is not redis: "
+                f"{config_obj['client_pool']['name']}")
+        cfg = config_obj["client_pool"]["cfg"]
+    elif redis_name == "rcache":
+        if config_obj["data_store"]["name"] != "redis":
+            raise ValueError(
+                "data_store is not redis: "
+                f"{config_obj['data_store']['name']}")
+        cfg = config_obj["data_store"]["cfg"]
+    elif redis_name == "rdata":
+        if config_obj["queue_pool"]["name"] != "redis":
+            raise ValueError(
+                "queue_pool is not redis: "
+                f"{config_obj['queue_pool']['name']}")
+        cfg = config_obj["queue_pool"]["cfg"]
+    else:
+        raise ValueError(f"invalid redis_name: {redis_name}")
+    redis = Redis(cfg=cfg)
+    redis.flushall()
 
 
 def load_smind(config_fname: str) -> ScattermindAPI:
@@ -60,11 +91,12 @@ def get_queue_stats(smind: ScattermindAPI) -> list[QueueStat]:
             {
                 "id": stat["id"].to_parseable(),
                 "name": stat["name"].get(),
-                "count": stat["count"],
+                "queue_length": stat["queue_length"],
+                "listeners": stat["listeners"],
             }
             for stat in smind.get_queue_stats()
         ]
-    except redis.ConnectionError:
+    except redis_lib.ConnectionError:
         print(traceback.format_exc())
         return []
 

@@ -1,6 +1,7 @@
 # pylint: disable=unused-argument
 import sys
 import threading
+import traceback
 import uuid
 from typing import Any, TypedDict
 
@@ -13,6 +14,7 @@ from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
 from app.api.response_types import (
     AddEmbed,
+    ClearResponse,
     QueryEmbed,
     StatsResponse,
     VersionResponse,
@@ -31,6 +33,7 @@ from app.system.location.response import GeoOutput, GeoQuery
 
 # from app.system.ops.ops import get_ops
 from app.system.smind.api import (
+    clear_redis,
     get_queue_stats,
     get_text_results_immediate,
     load_graph,
@@ -119,19 +122,26 @@ def setup(
 
     vec_db = get_vec_client(config)
 
-    smind = load_smind(config["smind"])
+    smind_config = config["smind"]
+    smind = load_smind(smind_config)
     graph_embed = load_graph(config, smind, "graph_embed.json")
 
     articles_ns, articles_input, articles_output, articles_size = graph_embed
     if articles_size is None:
         raise ValueError(f"graph {graph_embed} as variable shape")
-    articles_main = build_db_name(
-        "articles_main",
-        distance_fn="dot",
-        db=vec_db,
-        embed_size=articles_size)
+
+    def get_vec_db(force_clear: bool) -> str:
+        return build_db_name(
+            "articles_main",
+            distance_fn="dot",
+            db=vec_db,
+            embed_size=articles_size,
+            force_clear=force_clear)
+
+    articles_main = get_vec_db(force_clear=False)
 
     write_token = envload_str("WRITE_TOKEN")
+    tanuki_token = envload_str("TANUKI")  # the nuke key
 
     vec_cfg = config["vector"]
     server.bind_proxy(
@@ -177,7 +187,16 @@ def setup(
         if token is None:
             raise KeyError("'write_access' not set")
         if write_token != token:
-            raise ValueError("invalid write_access token!")
+            raise ValueError("invalid 'write_access' token!")
+        return okay
+
+    def verify_tanuki(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        req_tanuki = rargs.get("post", {}).get("tanuki")
+        if req_tanuki is None:
+            raise KeyError("'tanuki' not set")
+        if tanuki_token != req_tanuki:
+            raise ValueError("invalid 'tanuki'!")
         return okay
 
     def verify_input(
@@ -240,6 +259,48 @@ def setup(
 
     # # # SECURE # # #
     server.add_middleware(verify_token)
+
+    # *** system ***
+
+    @server.json_post(f"{prefix}/clear")
+    @server.middleware(verify_write)
+    @server.middleware(verify_tanuki)
+    def _post_clear(_req: QSRH, rargs: ReqArgs) -> ClearResponse:
+        args = rargs["post"]
+        clear_rmain = bool(args["clear_rmain"])
+        clear_rdata = bool(args["clear_rdata"])
+        clear_rcache = bool(args["clear_rcache"])
+        clear_vecdb = bool(args["clear_vecdb"])
+        if clear_rmain:
+            try:
+                clear_redis(smind_config, "rmain")
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                clear_rmain = False
+        if clear_rdata:
+            try:
+                clear_redis(smind_config, "rdata")
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                clear_rdata = False
+        if clear_rcache:
+            try:
+                clear_redis(smind_config, "rcache")
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                clear_rcache = False
+        if clear_vecdb:
+            try:
+                get_vec_db(force_clear=True)
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                clear_vecdb = False
+        return {
+            "clear_rmain": clear_rmain,
+            "clear_rdata": clear_rdata,
+            "clear_rcache": clear_rcache,
+            "clear_vecdb": clear_vecdb,
+        }
 
     # *** embeddings ***
 
