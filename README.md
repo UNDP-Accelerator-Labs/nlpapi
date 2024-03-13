@@ -32,11 +32,12 @@ python -m app.system --init-location
 ```
 Or to create tables for all APIs via:
 ```
-python -m app.system --init-db
+CONFIG_PATH=myconfig.json python -m app.system --init-db
 ```
 
 The first time you will get an error that the config file is missing.
 It will create a config file for you. Locate it and fill in all correct values.
+You can also specify a config file path via `CONFIG_PATH` (see above).
 
 Once the config file and the tables are created run:
 ```

@@ -14,11 +14,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog=f"python -m {python_module()}",
         description="Initialize subsystems.")
-    # parser.add_argument(
-    #     "--init-db",
-    #     default=False,
-    #     action="store_true",
-    #     help="create all tables")
+    parser.add_argument(
+        "--init-db",
+        default=False,
+        action="store_true",
+        help="create all tables")
     parser.add_argument(
         "--init-query",
         default=False,
@@ -35,12 +35,9 @@ def parse_args() -> argparse.Namespace:
 def run() -> None:
     args = parse_args()
     config = get_config()
-    # if args.init_db:
-    #     ops = get_ops("db", config)
-    #     ops.init()
-    if args.init_query:
+    if args.init_query or args.init_db:
         create_query_log(DBConnector(config["db"]))
-    if args.init_location:
+    if args.init_location or args.init_db:
         create_location_tables(DBConnector(config["db"]))
 
 

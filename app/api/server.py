@@ -38,6 +38,7 @@ from app.system.smind.api import (
     normalize_text,
     snippify_text,
 )
+from app.system.smind.log import log_query
 from app.system.smind.vec import (
     add_embed,
     build_db_name,
@@ -299,6 +300,7 @@ def setup(
             input_field=articles_input,
             output_field=articles_output,
             output_sample=[1.0])[0]
+        log_query(db, input_str)
         if embed is None:
             return {
                 "hits": [],

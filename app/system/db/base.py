@@ -118,6 +118,7 @@ class QueryLog(Base):  # pylint: disable=too-few-public-methods
         nullable=False)
     access_date = sa.Column(
         sa.String(DATE_STRING_LEN),
+        primary_key=True,
         nullable=False)
     access_count = sa.Column(
         sa.Integer,
