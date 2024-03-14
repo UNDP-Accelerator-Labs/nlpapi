@@ -184,27 +184,36 @@ def get_text_results_immediate(
             })
         print(f"enqueue task {task_id} '{text}'")
         lookup[task_id] = ix
+    sent_tasks = list(lookup.keys())
     res: dict[int, T] = {}
-    for tid, resp in smind.wait_for(list(lookup.keys()), timeout=60):
-        if resp["error"] is not None:
-            error = resp["error"]
-            print(f"{error['code']} ({error['ctx']}): {error['message']}")
-            print("\n".join(error["traceback"]))
-        result = resp["result"]
-        if result is not None:
-            if output_field in ("text", "tags"):
-                output: T = cast(T, tensor_to_str(result[output_field]))
-            else:
-                output = cast(T, list(result[output_field].cpu().tolist()))
-            if not isinstance(output, type(output_sample)):
-                raise ValueError(
-                    "output does not match sample. "
-                    f"output={output} sample={output_sample} "
-                    f"{type(output)}<:{type(output_sample)}")
-            curix = lookup[tid]
-            res[curix] = output
-        print(
-            f"retrieved task {tid} ({resp['ns']}) {resp['status']} "
-            f"{resp['duration']}s retry={resp['retries']}")
-        smind.clear_task(tid)
+    tids: list[TaskId] = []
+    success = False
+    try:
+        for tid, resp in smind.wait_for(sent_tasks, timeout=60):
+            if resp["error"] is not None:
+                error = resp["error"]
+                print(f"{error['code']} ({error['ctx']}): {error['message']}")
+                print("\n".join(error["traceback"]))
+            result = resp["result"]
+            if result is not None:
+                if output_field in ("text", "tags"):
+                    output: T = cast(T, tensor_to_str(result[output_field]))
+                else:
+                    output = cast(T, list(result[output_field].cpu().tolist()))
+                if not isinstance(output, type(output_sample)):
+                    raise ValueError(
+                        "output does not match sample. "
+                        f"output={output} sample={output_sample} "
+                        f"{type(output)}<:{type(output_sample)}")
+                curix = lookup[tid]
+                res[curix] = output
+            print(
+                f"retrieved task {tid} ({resp['ns']}) {resp['status']} "
+                f"{resp['duration']}s retry={resp['retries']}")
+            tids.append(tid)
+        success = True
+    finally:
+        tasks = tids if success else sent_tasks
+        for tid in tasks:
+            smind.clear_task(tid)
     return [res.get(ix, None) for ix in range(len(texts))]
