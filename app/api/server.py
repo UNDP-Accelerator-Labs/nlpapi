@@ -1,4 +1,5 @@
 # pylint: disable=unused-argument
+import hmac
 import sys
 import threading
 import traceback
@@ -147,8 +148,6 @@ def setup(
     server.bind_proxy(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
 
-    # TODO: add tanuki
-    # TODO: record each search term
     # TODO: deduplicate results (only one result for each document)
     # TODO: allow flushing of db
     # FIXME: make proxy forwarding work with qdrant dashboard
@@ -186,7 +185,7 @@ def setup(
         token = rargs.get("post", {}).get("write_access")
         if token is None:
             raise KeyError("'write_access' not set")
-        if write_token != token:
+        if not hmac.compare_digest(write_token, token):
             raise ValueError("invalid 'write_access' token!")
         return okay
 
@@ -195,7 +194,7 @@ def setup(
         req_tanuki = rargs.get("post", {}).get("tanuki")
         if req_tanuki is None:
             raise KeyError("'tanuki' not set")
-        if tanuki_token != req_tanuki:
+        if not hmac.compare_digest(tanuki_token, req_tanuki):
             raise ValueError("invalid 'tanuki'!")
         return okay
 
