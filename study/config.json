@@ -38,6 +38,9 @@
     },
     "check_assertions": false
   },
+  "graph_cache": {
+    "name": "nocache"
+  },
   "strategy": {
     "node": {
       "name": "dedicated"
