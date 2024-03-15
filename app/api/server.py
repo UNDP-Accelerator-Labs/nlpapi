@@ -157,6 +157,9 @@ def setup(
     # TODO: score threshold
     # TODO: add date module
     # TODO: node claim stats
+    # TODO: remove excess points when updating
+    # TODO: potentially separate meta data storage
+    # TODO: have a staging db
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:

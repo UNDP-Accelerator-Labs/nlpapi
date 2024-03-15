@@ -7,7 +7,7 @@ from collections.abc import Iterator
 import torch
 from gemma.config import get_config_for_2b, get_config_for_7b
 from gemma.model import GemmaForCausalLM
-from scattermind.system.base import NodeId
+from scattermind.system.base import GraphId, NodeId
 from scattermind.system.client.client import ComputeTask
 from scattermind.system.graph.graph import Graph
 from scattermind.system.graph.node import Node
@@ -49,7 +49,11 @@ class GemmaModelNode(Node):
         super().__init__(kind, graph, node_id)
         self._model: GemmaForCausalLM | None = None
 
-    def do_is_pure(self, graph: Graph, queue_pool: QueuePool) -> bool:
+    def do_is_pure(
+            self,
+            graph: Graph,
+            queue_pool: QueuePool,
+            pure_cache: dict[GraphId, bool]) -> bool:
         return True
 
     def get_input_format(self) -> DataFormatJSON:

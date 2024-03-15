@@ -189,7 +189,7 @@ def get_text_results_immediate(
     tids: list[TaskId] = []
     success = False
     try:
-        for tid, resp in smind.wait_for(sent_tasks, timeout=60):
+        for tid, resp in smind.wait_for(sent_tasks, timeout=300):
             if resp["error"] is not None:
                 error = resp["error"]
                 print(f"{error['code']} ({error['ctx']}): {error['message']}")
