@@ -188,7 +188,7 @@ def get_text_results_immediate(
             {
                 input_field: text,
             })
-        print(f"enqueue task {task_id} '{text}'")
+        print(f"enqueue task {task_id} ({len(text)})")
         lookup[task_id] = ix
     sent_tasks = list(lookup.keys())
     res: dict[int, T] = {}

@@ -1,4 +1,3 @@
-import json
 import traceback
 import uuid
 from typing import Literal, TypedDict
@@ -199,7 +198,6 @@ def add_embed(
         for key, value in chunk["meta"].items():
             payload[f"meta:{key}"] = value
         print(f"insert {point_id} ({len(chunk['embed'])})")
-        print(json.dumps(payload, indent=2, sort_keys=True))
         return PointStruct(
             id=f"{uuid.uuid5(QDRANT_UUID, point_id)}",
             vector=chunk["embed"],
