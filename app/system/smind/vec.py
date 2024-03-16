@@ -196,7 +196,7 @@ def add_embed(
             "snippet": chunk["snippet"],
         }
         for key, value in chunk["meta"].items():
-            payload[f"meta:{key}"] = value
+            payload[f"meta.{key}"] = value
         print(f"insert {point_id} ({len(chunk['embed'])})")
         return PointStruct(
             id=f"{uuid.uuid5(QDRANT_UUID, point_id)}",
@@ -243,9 +243,9 @@ def query_embed(
             for meta_key, meta_values in filter_meta.items():
                 if not meta_values:
                     continue
-                print(f"add filter: meta:{meta_key} in {meta_values}")
+                print(f"add filter: meta.{meta_key} in {meta_values}")
                 conds.append(FieldCondition(
-                    key=f"meta:{meta_key}",
+                    key=f"meta.{meta_key}",
                     match=MatchAny(any=meta_values)))
         query_filter = Filter(must=conds)
     hits = db.search(
