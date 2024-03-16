@@ -38,6 +38,14 @@ services:
       - '6379'
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rcache:/data
+  rbody:
+    container_name: rbody
+    image: $DOCKER_RBODY
+    restart: always
+    expose:
+      - '6379'
+    volumes:
+      - ${WEBAPP_STORAGE_HOME}/rbody:/data
   worker:
     deploy:
       mode: replicated
@@ -48,10 +56,12 @@ services:
       - rmain
       - rdata
       - rcache
+      - rbody
     links:
       - rmain
       - rdata
       - rcache
+      - rbody
     volumes:
       - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
   api:
@@ -63,6 +73,7 @@ services:
       - rmain
       - rdata
       - rcache
+      - rbody
     ports:
       - '8080:8080'
     environment:
@@ -75,5 +86,6 @@ services:
       - rmain
       - rdata
       - rcache
+      - rbody
     volumes:
       - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache

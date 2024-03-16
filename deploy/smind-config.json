@@ -12,11 +12,11 @@
   "data_store": {
     "name": "redis",
     "cfg": {
-      "host": "rcache",
+      "host": "rbody",
       "port": 6379,
       "passwd": "",
       "prefix": "nlpapi",
-      "path": "rcache"
+      "path": "rbody"
     },
     "mode": "size"
   },
@@ -39,7 +39,14 @@
     "check_assertions": false
   },
   "graph_cache": {
-    "name": "nocache"
+    "name": "redis",
+    "cfg": {
+      "host": "rcache",
+      "port": 6379,
+      "passwd": "",
+      "prefix": "nlpapi",
+      "path": "rcache"
+    }
   },
   "strategy": {
     "node": {

@@ -41,6 +41,7 @@ dpush "api" "${IMAGE_TAG}"
 dpush "rmain" "${REDIS_DOCKER_VERSION}"
 dpush "rdata" "${REDIS_DOCKER_VERSION}"
 dpush "rcache" "${REDIS_DOCKER_VERSION}"
+dpush "rbody" "${REDIS_DOCKER_VERSION}"
 
 QDRANT_BASE="qdrant/qdrant:v1.8.0"
 docker pull --platform linux/amd64 "${QDRANT_BASE}"

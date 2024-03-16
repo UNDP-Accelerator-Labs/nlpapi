@@ -4,7 +4,7 @@ import sys
 import threading
 import traceback
 import uuid
-from typing import Any, TypedDict
+from typing import Any, get_args, Literal, TypeAlias, TypedDict
 
 from quick_server import create_server, QuickServer
 from quick_server import QuickServerRequestHandler as QSRH
@@ -54,8 +54,12 @@ from app.system.smind.vec import (
 )
 
 
+DBName: TypeAlias = Literal["main", "test"]
+
+
 MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
 MAX_LINKS = 20
+DBS: tuple[DBName] = get_args(DBName)
 
 
 VersionDict = TypedDict('VersionDict', {
@@ -131,15 +135,16 @@ def setup(
     if articles_size is None:
         raise ValueError(f"graph {graph_embed} as variable shape")
 
-    def get_vec_db(force_clear: bool) -> str:
+    def get_vec_db(name: DBName, force_clear: bool) -> str:
         return build_db_name(
-            "articles_main",
+            f"articles_{name}",
             distance_fn="dot",
             db=vec_db,
             embed_size=articles_size,
             force_clear=force_clear)
 
-    articles_main = get_vec_db(force_clear=False)
+    articles_main = get_vec_db("main", force_clear=False)
+    articles_test = get_vec_db("test", force_clear=False)
 
     write_token = envload_str("WRITE_TOKEN")
     tanuki_token = envload_str("TANUKI")  # the nuke key
@@ -234,9 +239,12 @@ def setup(
     @server.middleware(verify_readonly)
     def _get_stats(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
         vecdbs: list[VecDBStat] = []
-        articles_stats = get_vec_stats(vec_db, articles_main)
-        if articles_stats is not None:
-            vecdbs.append(articles_stats)
+        articles_main_stats = get_vec_stats(vec_db, articles_main)
+        if articles_main_stats is not None:
+            vecdbs.append(articles_main_stats)
+        articles_test_stats = get_vec_stats(vec_db, articles_test)
+        if articles_test_stats is not None:
+            vecdbs.append(articles_test_stats)
         return {
             "vecdbs": vecdbs,
             "queues": get_queue_stats(smind),
@@ -272,7 +280,9 @@ def setup(
         clear_rmain = bool(args["clear_rmain"])
         clear_rdata = bool(args["clear_rdata"])
         clear_rcache = bool(args["clear_rcache"])
-        clear_vecdb = bool(args["clear_vecdb"])
+        clear_rbody = bool(args["clear_rbody"])
+        clear_vecdb_main = bool(args["clear_vecdb_main"])
+        clear_vecdb_test = bool(args["clear_vecdb_test"])
         if clear_rmain:
             try:
                 clear_redis(smind_config, "rmain")
@@ -291,17 +301,31 @@ def setup(
             except Exception:  # pylint: disable=broad-except
                 print(traceback.format_exc())
                 clear_rcache = False
-        if clear_vecdb:
+        if clear_rbody:
             try:
-                get_vec_db(force_clear=True)
+                clear_redis(smind_config, "rbody")
             except Exception:  # pylint: disable=broad-except
                 print(traceback.format_exc())
-                clear_vecdb = False
+                clear_rbody = False
+        if clear_vecdb_main:
+            try:
+                get_vec_db("main", force_clear=True)
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                clear_vecdb_main = False
+        if clear_vecdb_test:
+            try:
+                get_vec_db("test", force_clear=True)
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                clear_vecdb_test = False
         return {
             "clear_rmain": clear_rmain,
             "clear_rdata": clear_rdata,
             "clear_rcache": clear_rcache,
-            "clear_vecdb": clear_vecdb,
+            "clear_rbody": clear_rbody,
+            "clear_vecdb_main": clear_vecdb_main,
+            "clear_vecdb_test": clear_vecdb_test,
         }
 
     # *** embeddings ***
@@ -313,6 +337,13 @@ def setup(
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
+        db = args["db"]
+        if db == "main":
+            articles = articles_main
+        elif db == "test":
+            articles = articles_test
+        else:
+            raise ValueError(f"db ({db}) must be one of {DBS}")
         base = args["base"]
         doc_id = int(args["doc_id"])
         url = args["url"]
@@ -338,7 +369,7 @@ def setup(
             for chunk_id, (snippet, embed) in enumerate(zip(snippets, embeds))
             if embed is not None
         ]
-        count = add_embed(vec_db, articles_main, embed_chunks)
+        count = add_embed(vec_db, articles, embed_chunks)
         failed = sum(1 if embed is None else 0 for embed in embed_chunks)
         return {
             "snippets": count,
@@ -352,6 +383,13 @@ def setup(
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
+        db = args["db"]
+        if db == "main":
+            articles = articles_main
+        elif db == "test":
+            articles = articles_test
+        else:
+            raise ValueError(f"db ({db}) must be one of {DBS}")
         offset: int | None = int(args.get("offset", 0))
         if offset == 0:
             offset = None
@@ -370,7 +408,7 @@ def setup(
                 "status": "error",
             }
         hits = query_embed(
-            vec_db, articles_main, embed, offset=offset, limit=limit)
+            vec_db, articles, embed, offset=offset, limit=limit)
         return {
             "hits": hits,
             "status": "ok",

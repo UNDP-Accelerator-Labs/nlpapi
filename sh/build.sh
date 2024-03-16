@@ -28,11 +28,13 @@ SMIND_GRS="buildtmp/graphs/"
 RMAIN_CFG="buildtmp/rmain.conf"
 RDATA_CFG="buildtmp/rdata.conf"
 RCACHE_CFG="buildtmp/rcache.conf"
+RBODY_CFG="buildtmp/rbody.conf"
 REDIS_RUN_SCRIPT="buildtmp/run_redis.sh"
 
 cp "deploy/redis/rmain.conf" "${RMAIN_CFG}"
 cp "deploy/redis/rdata.conf" "${RDATA_CFG}"
 cp "deploy/redis/rcache.conf" "${RCACHE_CFG}"
+cp "deploy/redis/rbody.conf" "${RBODY_CFG}"
 cp "deploy/redis.version" "${REDIS_VERSION_FILE}"
 cp "deploy/qdrant.version" "${QDRANT_VERSION_FILE}"
 cp "deploy/devmode.conf" "${DEVMODE_CONF_FILE}"
@@ -210,6 +212,17 @@ docker_build \
     -f deploy/redis.Dockerfile \
     .
 
+echo "rbody:${REDIS_DOCKER_VERSION}" > buildtmp/rbody.version
+
+docker_build \
+    "${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" \
+    --build-arg "PORT=6379" \
+    --build-arg "CFG_FILE=${RBODY_CFG}" \
+    --build-arg "REDIS_VERSION_FILE=buildtmp/rbody.version" \
+    --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
+    -f deploy/redis.Dockerfile \
+    .
+
 if [ ! -z "${DEV}" ]; then
     DOCKER_COMPOSE_OUT="docker-compose.dev.yml"
 else
@@ -223,6 +236,7 @@ echo "DOCKER_API=${IMAGE_BASE}-api:${IMAGE_TAG}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_RMAIN=${IMAGE_BASE}-rmain:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_RDATA=${IMAGE_BASE}-rdata:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_RCACHE=${IMAGE_BASE}-rcache:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
+echo "DOCKER_RBODY=${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> "${DEFAULT_ENV_FILE}"
 

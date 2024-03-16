@@ -27,7 +27,8 @@
       ],
       "vmap": {
         "tags": "node_0:tags"
-      }
+      },
+      "cache": true
     }
   ],
   "entry": "auto_tag"

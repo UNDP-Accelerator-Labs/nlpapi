@@ -33,7 +33,7 @@ QueueStat = TypedDict('QueueStat', {
 
 def clear_redis(
         config_fname: str,
-        redis_name: Literal["rmain", "rdata", "rcache"]) -> None:
+        redis_name: Literal["rmain", "rdata", "rcache", "rbody"]) -> None:
     with open(config_fname, "rb") as fin:
         config_obj = json.load(fin)
     if redis_name == "rmain":
@@ -43,6 +43,12 @@ def clear_redis(
                 f"{config_obj['client_pool']['name']}")
         cfg = config_obj["client_pool"]["cfg"]
     elif redis_name == "rcache":
+        if config_obj["graph_cache"]["name"] != "redis":
+            raise ValueError(
+                "graph_cache is not redis: "
+                f"{config_obj['graph_cache']['name']}")
+        cfg = config_obj["graph_cache"]["cfg"]
+    elif redis_name == "rbody":
         if config_obj["data_store"]["name"] != "redis":
             raise ValueError(
                 "data_store is not redis: "

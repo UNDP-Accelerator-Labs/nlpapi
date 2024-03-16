@@ -26,7 +26,9 @@ ClearResponse = TypedDict('ClearResponse', {
     "clear_rmain": bool,
     "clear_rdata": bool,
     "clear_rcache": bool,
-    "clear_vecdb": bool,
+    "clear_rbody": bool,
+    "clear_vecdb_main": bool,
+    "clear_vecdb_test": bool,
 })
 AddEmbed = TypedDict('AddEmbed', {
     "snippets": int,

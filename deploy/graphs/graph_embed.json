@@ -25,7 +25,8 @@
       ],
       "vmap": {
         "embed": "node_0:embed"
-      }
+      },
+      "cache": true
     }
   ],
   "entry": "embed_sbert"
