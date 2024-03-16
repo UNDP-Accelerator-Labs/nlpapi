@@ -150,17 +150,15 @@ def setup(
     tanuki_token = envload_str("TANUKI")  # the nuke key
 
     vec_cfg = config["vector"]
+    # FIXME: make proxy forwarding work with qdrant dashboard
     server.bind_proxy(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
 
     # TODO: deduplicate results (only one result for each document)
-    # FIXME: make proxy forwarding work with qdrant dashboard
     # TODO: filtering
     # TODO: infinite scroll
     # TODO: score threshold
     # TODO: add date module
-    # TODO: remove excess points when updating
-    # TODO: potentially separate meta data storage
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
@@ -365,10 +363,11 @@ def setup(
             for chunk_id, (snippet, embed) in enumerate(zip(snippets, embeds))
             if embed is not None
         ]
-        count = add_embed(vec_db, articles, embed_chunks)
-        failed = sum(1 if embed is None else 0 for embed in embed_chunks)
+        prev_count, new_count = add_embed(vec_db, articles, embed_chunks)
+        failed = sum(1 if embed is None else 0 for embed in embeds)
         return {
-            "snippets": count,
+            "previous": prev_count,
+            "snippets": new_count,
             "failed": failed,
         }
 

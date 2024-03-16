@@ -31,6 +31,7 @@ ClearResponse = TypedDict('ClearResponse', {
     "clear_vecdb_test": bool,
 })
 AddEmbed = TypedDict('AddEmbed', {
+    "previous": int,
     "snippets": int,
     "failed": int,
 })

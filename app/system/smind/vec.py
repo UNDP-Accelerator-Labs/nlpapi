@@ -10,6 +10,10 @@ from qdrant_client.http.exceptions import (
 )
 from qdrant_client.models import (
     Distance,
+    FieldCondition,
+    Filter,
+    FilterSelector,
+    MatchValue,
     OptimizersConfig,
     PointStruct,
     ScoredPoint,
@@ -161,10 +165,25 @@ def build_db_name(
     return name
 
 
-def add_embed(db: QdrantClient, name: str, chunks: list[EmbedChunk]) -> int:
+def add_embed(
+        db: QdrantClient,
+        name: str,
+        chunks: list[EmbedChunk]) -> tuple[int, int]:
+    # TODO: potentially separate meta data storage
     print(f"add_embed {name} {len(chunks)} items")
-    if not chunks:
-        return 0
+    base = None
+    doc_id = None
+    for chunk in chunks:
+        if base is None:
+            base = chunk["base"]
+        elif base != chunk["base"]:
+            raise ValueError("all chunks must be from the same document")
+        if doc_id is None:
+            doc_id = chunk["doc_id"]
+        elif doc_id != chunk["doc_id"]:
+            raise ValueError("all chunks must be from the same document")
+    if base is None or doc_id is None:
+        return (0, 0)
 
     def convert_chunk(chunk: EmbedChunk) -> PointStruct:
         point_id = f"{chunk['base']}:{chunk['doc_id']}:{chunk['chunk_id']}"
@@ -184,10 +203,22 @@ def add_embed(db: QdrantClient, name: str, chunks: list[EmbedChunk]) -> int:
             vector=chunk["embed"],
             payload=payload)
 
+    filter_docs = Filter(
+        must=[
+            FieldCondition(key="base", match=MatchValue(value=base)),
+            FieldCondition(key="doc_id", match=MatchValue(value=doc_id)),
+        ])
+    count_res = db.count(
+        collection_name=name,
+        count_filter=filter_docs,
+        exact=True)
+    db.delete(
+        collection_name=name,
+        points_selector=FilterSelector(filter=filter_docs))
     db.upsert(
         collection_name=name,
         points=[convert_chunk(chunk) for chunk in chunks])
-    return len(chunks)
+    return (count_res.count, len(chunks))
 
 
 def query_embed(
