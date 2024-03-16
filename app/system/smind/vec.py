@@ -241,6 +241,9 @@ def query_embed(
                 FieldCondition(key="base", match=MatchAny(any=filter_base)))
         if filter_meta is not None:
             for meta_key, meta_values in filter_meta.items():
+                if not meta_values:
+                    continue
+                print(f"add filter: meta:{meta_key} in {meta_values}")
                 conds.append(FieldCondition(
                     key=f"meta:{meta_key}",
                     match=MatchAny(any=meta_values)))
