@@ -329,13 +329,13 @@ def setup(
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
-        db = args["db"]
-        if db == "main":
+        vdb_str = args["db"]
+        if vdb_str == "main":
             articles = articles_main
-        elif db == "test":
+        elif vdb_str == "test":
             articles = articles_test
         else:
-            raise ValueError(f"db ({db}) must be one of {DBS}")
+            raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
         base = args["base"]
         doc_id = int(args["doc_id"])
         url = args["url"]
@@ -376,13 +376,13 @@ def setup(
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
-        db = args["db"]
-        if db == "main":
+        vdb_str = args["db"]
+        if vdb_str == "main":
             articles = articles_main
-        elif db == "test":
+        elif vdb_str == "test":
             articles = articles_test
         else:
-            raise ValueError(f"db ({db}) must be one of {DBS}")
+            raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
         score_threshold = maybe_float(args.get("score_threshold"))
         filter_base = maybe_list(args.get("filter_base"))
         filter_meta: dict[str, list[str]] | None = None
