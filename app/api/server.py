@@ -154,17 +154,13 @@ def setup(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
 
     # TODO: deduplicate results (only one result for each document)
-    # TODO: allow flushing of db
     # FIXME: make proxy forwarding work with qdrant dashboard
-    # TODO: caching
     # TODO: filtering
     # TODO: infinite scroll
     # TODO: score threshold
     # TODO: add date module
-    # TODO: node claim stats
     # TODO: remove excess points when updating
     # TODO: potentially separate meta data storage
-    # TODO: have a staging db
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
