@@ -54,7 +54,7 @@ services:
   worker:
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 3
     image: $DOCKER_WORKER
     pull_policy: always
     restart: always
