@@ -9,10 +9,12 @@ from qdrant_client.http.exceptions import (
     UnexpectedResponse,
 )
 from qdrant_client.models import (
+    Condition,
     Distance,
     FieldCondition,
     Filter,
     FilterSelector,
+    MatchAny,
     MatchValue,
     OptimizersConfig,
     PointStruct,
@@ -227,13 +229,31 @@ def query_embed(
         embed: list[float],
         *,
         limit: int,
-        offset: int | None = None) -> list[ResultChunk]:
+        offset: int | None,
+        score_threshold: float | None,
+        filter_base: list[str] | None,
+        filter_meta: dict[str, list[str]] | None) -> list[ResultChunk]:
+    # TODO: maybe use grouping
     print(f"query {name} offset={offset} limit={limit}")
+    query_filter = None
+    if filter_base is not None or filter_meta is not None:
+        conds: list[Condition] = []
+        if filter_base is not None:
+            conds.append(
+                FieldCondition(key="base", match=MatchAny(any=filter_base)))
+        if filter_meta is not None:
+            for meta_key, meta_values in filter_meta.items():
+                conds.append(FieldCondition(
+                    key=f"meta:{meta_key}",
+                    match=MatchAny(any=meta_values)))
+        query_filter = Filter(must=conds)
     hits = db.search(
         collection_name=name,
         query_vector=embed,
         offset=offset,
-        limit=limit)
+        limit=limit,
+        score_threshold=score_threshold,
+        query_filter=query_filter)
 
     def convert_chunk(hit: ScoredPoint) -> ResultChunk:
         payload = hit.payload

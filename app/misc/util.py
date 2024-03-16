@@ -147,6 +147,12 @@ def to_list(value: Any) -> list[Any]:
     return value
 
 
+def maybe_list(value: Any) -> list[Any] | None:
+    if value is None:
+        return None
+    return to_list(value)
+
+
 def is_int(value: Any) -> bool:
     try:
         int(value)
@@ -161,6 +167,12 @@ def is_float(value: Any) -> bool:
         return True
     except (ValueError, TypeError):
         return False
+
+
+def maybe_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
 
 
 def is_json(value: str) -> bool:

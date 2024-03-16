@@ -21,7 +21,7 @@ from app.api.response_types import (
     VersionResponse,
 )
 from app.misc.env import envload_int, envload_str
-from app.misc.util import get_time_str
+from app.misc.util import get_time_str, maybe_float, maybe_list, to_list
 from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
@@ -155,9 +155,7 @@ def setup(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
 
     # TODO: deduplicate results (only one result for each document)
-    # TODO: filtering
     # TODO: infinite scroll
-    # TODO: score threshold
     # TODO: add date module
 
     def verify_token(
@@ -385,6 +383,15 @@ def setup(
             articles = articles_test
         else:
             raise ValueError(f"db ({db}) must be one of {DBS}")
+        score_threshold = maybe_float(args.get("score_threshold"))
+        filter_base = maybe_list(args.get("filter_base"))
+        filter_meta: dict[str, list[str]] | None = None
+        filters = args.get("filters")
+        if filters is not None:
+            filter_meta = {
+                key: to_list(value)
+                for key, value in filters.items()
+            }
         offset: int | None = int(args.get("offset", 0))
         if offset == 0:
             offset = None
@@ -403,7 +410,14 @@ def setup(
                 "status": "error",
             }
         hits = query_embed(
-            vec_db, articles, embed, offset=offset, limit=limit)
+            vec_db,
+            articles,
+            embed,
+            offset=offset,
+            limit=limit,
+            score_threshold=score_threshold,
+            filter_base=filter_base,
+            filter_meta=filter_meta)
         return {
             "hits": hits,
             "status": "ok",
