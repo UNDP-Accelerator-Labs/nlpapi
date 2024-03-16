@@ -31,8 +31,6 @@ from app.system.language.pipeline import extract_language
 from app.system.location.forwardgeo import OpenCageFormat
 from app.system.location.pipeline import extract_locations, extract_opencage
 from app.system.location.response import GeoOutput, GeoQuery
-
-# from app.system.ops.ops import get_ops
 from app.system.smind.api import (
     clear_redis,
     get_queue_stats,
@@ -123,7 +121,6 @@ def setup(
 
     config = get_config()
     db = DBConnector(config["db"])
-    # ops = get_ops("db", config)
 
     vec_db = get_vec_client(config)
 
@@ -241,23 +238,6 @@ def setup(
             "vecdbs": vecdbs,
             "queues": get_queue_stats(smind),
         }
-
-    # # *** sources ***
-    #
-    # @server.json_post(f"{prefix}/source")
-    # def _post_source(_req: QSRH, rargs: ReqArgs) -> SourceResponse:
-    #     args = rargs["post"]
-    #     source = f"{args['source']}"
-    #     ops.add_source(source)
-    #     return {
-    #         "source": source,
-    #     }
-    #
-    # @server.json_get(f"{prefix}/source")
-    # def _get_source(_req: QSRH, _rargs: ReqArgs) -> SourceListResponse:
-    #     return {
-    #         "sources": ops.get_sources(),
-    #     }
 
     # # # SECURE # # #
     server.add_middleware(verify_token)

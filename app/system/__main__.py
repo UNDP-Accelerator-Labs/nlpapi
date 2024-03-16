@@ -7,9 +7,6 @@ from app.system.location.pipeline import create_location_tables
 from app.system.smind.log import create_query_log
 
 
-# from app.system.ops.ops import get_ops
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog=f"python -m {python_module()}",

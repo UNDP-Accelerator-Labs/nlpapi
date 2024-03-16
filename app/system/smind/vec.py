@@ -1,3 +1,4 @@
+import re
 import traceback
 import uuid
 from typing import Literal, TypedDict
@@ -25,6 +26,9 @@ from app.system.config import Config
 
 
 QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
+
+
+KEY_REGEX = re.compile(r"^[a-b_]+$")
 
 
 VecDBStat = TypedDict('VecDBStat', {
@@ -196,7 +200,9 @@ def add_embed(
             "snippet": chunk["snippet"],
         }
         for key, value in chunk["meta"].items():
-            payload[f"meta.{key}"] = value
+            if KEY_REGEX.fullmatch(key) is None:
+                raise ValueError(f"key '{key}' is not valid as meta key")
+            payload[f"meta_{key}"] = value
         print(f"insert {point_id} ({len(chunk['embed'])})")
         return PointStruct(
             id=f"{uuid.uuid5(QDRANT_UUID, point_id)}",
@@ -212,13 +218,16 @@ def add_embed(
         collection_name=name,
         count_filter=filter_docs,
         exact=True)
-    db.delete(
-        collection_name=name,
-        points_selector=FilterSelector(filter=filter_docs))
+    prev_count = count_res.count
+    new_count = len(chunks)
+    if prev_count > new_count:
+        db.delete(
+            collection_name=name,
+            points_selector=FilterSelector(filter=filter_docs))
     db.upsert(
         collection_name=name,
         points=[convert_chunk(chunk) for chunk in chunks])
-    return (count_res.count, len(chunks))
+    return (prev_count, new_count)
 
 
 def query_embed(
