@@ -3,6 +3,7 @@ services:
   qdrant:
     container_name: qdrant
     image: $DOCKER_QDRANT
+    pull_policy: always
     restart: always
     expose:
       - '6333'
@@ -17,6 +18,7 @@ services:
   rmain:
     container_name: rmain
     image: $DOCKER_RMAIN
+    pull_policy: always
     restart: always
     expose:
       - '6379'
@@ -25,6 +27,7 @@ services:
   rdata:
     container_name: rdata
     image: $DOCKER_RDATA
+    pull_policy: always
     restart: always
     expose:
       - '6379'
@@ -33,6 +36,7 @@ services:
   rcache:
     container_name: rcache
     image: $DOCKER_RCACHE
+    pull_policy: always
     restart: always
     expose:
       - '6379'
@@ -41,6 +45,7 @@ services:
   rbody:
     container_name: rbody
     image: $DOCKER_RBODY
+    pull_policy: always
     restart: always
     expose:
       - '6379'
@@ -51,6 +56,7 @@ services:
       mode: replicated
       replicas: 2
     image: $DOCKER_WORKER
+    pull_policy: always
     restart: always
     depends_on:
       - rmain
@@ -67,6 +73,7 @@ services:
   api:
     container_name: api
     image: $DOCKER_API
+    pull_policy: always
     restart: always
     depends_on:
       - qdrant
