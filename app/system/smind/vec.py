@@ -159,7 +159,7 @@ def build_db_name(
         else:
             try:
                 status = db.get_collection(collection_name=name)
-                print(f"load {name}: {status.status}\n{status}")
+                print(f"load {name}: {status.status}")
             except (UnexpectedResponse, ResponseHandlingException):
                 print(traceback.format_exc())
                 recreate()
