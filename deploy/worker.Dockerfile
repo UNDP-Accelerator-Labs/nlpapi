@@ -23,4 +23,4 @@ COPY "${SMIND_CONFIG}" smind-config.json
 COPY "${SMIND_GRAPHS}" graphs/
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD ["/bin/bash", "-l", "-c", "python -m scattermind --config smind-config.json healthcheck"]
 ENTRYPOINT ["/bin/bash", "-l", "-c"]
-CMD ["python -m scattermind --config smind-config.json worker --graph graphs/"]
+CMD ["python -m scattermind --version-file version.txt --config smind-config.json worker --graph graphs/"]
