@@ -261,7 +261,7 @@ def query_embed(
         assert payload is not None
         meta = {}
         for key, value in payload.items():
-            meta_key = key.removeprefix("meta:")
+            meta_key = key.removeprefix("meta.")
             if meta_key == key:
                 continue
             meta[meta_key] = value
