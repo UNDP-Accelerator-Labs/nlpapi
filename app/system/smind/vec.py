@@ -29,6 +29,20 @@ QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
 
 
 KEY_REGEX = re.compile(r"[a-z_]+")
+META_PREFIX = "meta_"
+
+
+def convert_meta_key(key: str) -> str:
+    if KEY_REGEX.fullmatch(key) is None:
+        raise ValueError(f"key '{key}' is not valid as meta key")
+    return f"{META_PREFIX}{key}"
+
+
+def unconvert_meta_key(key: str) -> str | None:
+    res = key.removeprefix(META_PREFIX)
+    if res == key:
+        return None
+    return res
 
 
 VecDBStat = TypedDict('VecDBStat', {
@@ -200,9 +214,7 @@ def add_embed(
             "snippet": chunk["snippet"],
         }
         for key, value in chunk["meta"].items():
-            if KEY_REGEX.fullmatch(key) is None:
-                raise ValueError(f"key '{key}' is not valid as meta key")
-            payload[f"meta_{key}"] = value
+            payload[convert_meta_key(key)] = value
         print(f"insert {point_id} ({len(chunk['embed'])})")
         return PointStruct(
             id=f"{uuid.uuid5(QDRANT_UUID, point_id)}",
@@ -252,9 +264,11 @@ def query_embed(
             for meta_key, meta_values in filter_meta.items():
                 if not meta_values:
                     continue
-                print(f"add filter: meta.{meta_key} in {meta_values}")
+                print(
+                    f"add filter: {convert_meta_key(meta_key)} "
+                    f"in {meta_values}")
                 conds.append(FieldCondition(
-                    key=f"meta.{meta_key}",
+                    key=convert_meta_key(meta_key),
                     match=MatchAny(any=meta_values)))
         query_filter = Filter(must=conds)
     hits = db.search(
@@ -270,8 +284,8 @@ def query_embed(
         assert payload is not None
         meta = {}
         for key, value in payload.items():
-            meta_key = key.removeprefix("meta.")
-            if meta_key == key:
+            meta_key = unconvert_meta_key(key)
+            if meta_key is None:
                 continue
             meta[meta_key] = value
         return {
