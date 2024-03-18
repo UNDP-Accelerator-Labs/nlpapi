@@ -317,6 +317,7 @@ def setup(
             "clear_rdata": clear_rdata,
             "clear_rcache": clear_rcache,
             "clear_rbody": clear_rbody,
+            "clear_vecdb_all": clear_vecdb_all,
             "clear_vecdb_main": clear_vecdb_main,
             "clear_vecdb_test": clear_vecdb_test,
         }
