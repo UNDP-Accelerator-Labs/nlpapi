@@ -203,7 +203,7 @@ def build_db_name(
             data_name = get_db_name(name, is_vec=False)
             db.recreate_collection(
                 collection_name=data_name,
-                vectors_config={},
+                vectors_config=VectorParams(size=1, distance=distance),
                 on_disk_payload=True)
 
         if force_clear:
@@ -264,7 +264,7 @@ def add_embed(
         points=[
             PointStruct(
                 id=main_uuid,
-                vector=[],
+                vector=[1.0],
                 payload=main_payload),
         ])
     if update_meta_only:
