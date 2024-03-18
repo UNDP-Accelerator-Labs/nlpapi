@@ -147,9 +147,12 @@ def setup(
     tanuki_token = envload_str("TANUKI")  # the nuke key
 
     vec_cfg = config["vector"]
-    # FIXME: make proxy forwarding work with qdrant dashboard
     server.bind_proxy(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
+    # FIXME: fix for https://github.com/qdrant/qdrant-web-ui/issues/94
+    server.bind_proxy(
+        "/dashboard/",
+        f"http://{vec_cfg['host']}:{vec_cfg['port']}/dashboard/")
 
     # TODO: deduplicate results (only one result for each document)
     # TODO: infinite scroll
