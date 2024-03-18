@@ -29,7 +29,7 @@ from app.system.config import Config
 QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
 
 
-KEY_REGEX = re.compile(r"[a-z_]+")
+KEY_REGEX = re.compile(r"[a-z_0-9]+")
 META_PREFIX = "meta_"
 FORBIDDEN_META = ["base"]
 
