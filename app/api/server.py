@@ -45,9 +45,12 @@ from app.system.smind.vec import (
     add_embed,
     build_db_name,
     EmbedChunk,
+    EmbedMain,
+    FORBIDDEN_META,
     get_vec_client,
     get_vec_stats,
     query_embed,
+    vec_flushall,
     VecDBStat,
 )
 
@@ -140,6 +143,10 @@ def setup(
             embed_size=articles_size,
             force_clear=force_clear)
 
+    chunk_size = 600
+    chunk_padding = 10
+    default_hit_limit = 3
+
     articles_main = get_vec_db("main", force_clear=False)
     articles_test = get_vec_db("test", force_clear=False)
 
@@ -152,10 +159,9 @@ def setup(
     # FIXME: fix for https://github.com/qdrant/qdrant-web-ui/issues/94
     server.bind_proxy(
         "/dashboard/",
-        f"http://{vec_cfg['host']}:{vec_cfg['port']}/dashboard/")
+        f"http://{vec_cfg['host']}:{vec_cfg['port']}/dashboard")
 
     # TODO: deduplicate results (only one result for each document)
-    # TODO: infinite scroll
     # TODO: add date module
 
     def verify_token(
@@ -231,12 +237,11 @@ def setup(
     @server.middleware(verify_readonly)
     def _get_stats(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
         vecdbs: list[VecDBStat] = []
-        articles_main_stats = get_vec_stats(vec_db, articles_main)
-        if articles_main_stats is not None:
-            vecdbs.append(articles_main_stats)
-        articles_test_stats = get_vec_stats(vec_db, articles_test)
-        if articles_test_stats is not None:
-            vecdbs.append(articles_test_stats)
+        for articles in [articles_main, articles_test]:
+            for is_vec in [False, True]:
+                articles_stats = get_vec_stats(vec_db, articles, is_vec=is_vec)
+                if articles_stats is not None:
+                    vecdbs.append(articles_stats)
         return {
             "vecdbs": vecdbs,
             "queues": get_queue_stats(smind),
@@ -258,6 +263,11 @@ def setup(
         clear_rbody = bool(args["clear_rbody"])
         clear_vecdb_main = bool(args["clear_vecdb_main"])
         clear_vecdb_test = bool(args["clear_vecdb_test"])
+        clear_vecdb_all = bool(args["clear_vecdb_all"])
+        if clear_vecdb_all and (not clear_vecdb_main or not clear_vecdb_test):
+            raise ValueError(
+                "clear_vecdb_all must have "
+                "clear_vecdb_main and clear_vecdb_test")
         if clear_rmain:
             try:
                 clear_redis(smind_config, "rmain")
@@ -282,6 +292,14 @@ def setup(
             except Exception:  # pylint: disable=broad-except
                 print(traceback.format_exc())
                 clear_rbody = False
+        if clear_vecdb_all:
+            try:
+                vec_flushall(vec_db)
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                clear_vecdb_all = False
+                clear_vecdb_main = False
+                clear_vecdb_test = False
         if clear_vecdb_main:
             try:
                 get_vec_db("main", force_clear=True)
@@ -323,7 +341,11 @@ def setup(
         doc_id = int(args["doc_id"])
         url = args["url"]
         meta = args.get("meta", {})
-        snippets = list(snippify_text(input_str, 600))
+        update_meta_only = bool(args.get("update_meta_only", False))
+        snippets = list(snippify_text(
+            input_str,
+            chunk_size=chunk_size,
+            chunk_padding=chunk_padding))
         embeds = get_text_results_immediate(
             snippets,
             smind=smind,
@@ -331,20 +353,27 @@ def setup(
             input_field=graph_embed[1],
             output_field=graph_embed[2],
             output_sample=[1.0])
+        embed_main: EmbedMain = {
+            "base": base,
+            "doc_id": doc_id,
+            "url": url,
+            "meta": meta,
+        }
         embed_chunks: list[EmbedChunk] = [
             {
-                "base": base,
-                "doc_id": doc_id,
                 "chunk_id": chunk_id,
                 "embed": embed,
                 "snippet": snippet,
-                "url": url,
-                "meta": meta,
             }
             for chunk_id, (snippet, embed) in enumerate(zip(snippets, embeds))
             if embed is not None
         ]
-        prev_count, new_count = add_embed(vec_db, articles, embed_chunks)
+        prev_count, new_count = add_embed(
+            vec_db,
+            name=articles,
+            data=embed_main,
+            chunks=embed_chunks,
+            update_meta_only=update_meta_only)
         failed = sum(1 if embed is None else 0 for embed in embeds)
         return {
             "previous": prev_count,
@@ -367,18 +396,21 @@ def setup(
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
         score_threshold = maybe_float(args.get("score_threshold"))
-        filter_base = maybe_list(args.get("filter_base"))
+        filter_base: list[str] | None = None
         filter_meta: dict[str, list[str]] | None = None
         filters = args.get("filters")
         if filters is not None:
             filter_meta = {
                 key: to_list(value)
                 for key, value in filters.items()
+                if key not in FORBIDDEN_META
             }
+            filter_base = maybe_list(filters.get("base", None))
         offset: int | None = int(args.get("offset", 0))
         if offset == 0:
             offset = None
         limit = int(args["limit"])
+        hit_limit = int(args.get("hit_limit", default_hit_limit))
         embed = get_text_results_immediate(
             [input_str],
             smind=smind,
@@ -398,6 +430,7 @@ def setup(
             embed,
             offset=offset,
             limit=limit,
+            hit_limit=hit_limit,
             score_threshold=score_threshold,
             filter_base=filter_base,
             filter_meta=filter_meta)

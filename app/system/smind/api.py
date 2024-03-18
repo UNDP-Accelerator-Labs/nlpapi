@@ -147,9 +147,12 @@ def normalize_text(text: str) -> str:
     return clean(strip_html(text))
 
 
-def snippify_text(text: str, chunk_size: int) -> Iterable[str]:
+def snippify_text(
+        text: str, *, chunk_size: int, chunk_padding: int) -> Iterable[str]:
     pos = 0
     content = text.strip()
+    if not content:
+        return
     while pos < len(content):
         cur = content[pos:pos + chunk_size]
         if len(cur) < chunk_size:
@@ -158,7 +161,7 @@ def snippify_text(text: str, chunk_size: int) -> Iterable[str]:
                 yield cur
             break
         cur = cur.strip()
-        rpos = cur.rfind(" ")
+        rpos = cur.rfind(" ", 0, -chunk_padding)
         if rpos > 0:
             small = cur[0:rpos].strip()
             if small:
@@ -181,6 +184,8 @@ def get_text_results_immediate(
         input_field: str,
         output_field: str,
         output_sample: T) -> list[T | None]:
+    if not texts:
+        return []
     lookup: dict[TaskId, int] = {}
     for ix, text in enumerate(texts):
         task_id = smind.enqueue_task(
