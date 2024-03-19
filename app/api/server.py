@@ -21,7 +21,7 @@ from app.api.response_types import (
     VersionResponse,
 )
 from app.misc.env import envload_int, envload_str
-from app.misc.util import get_time_str, maybe_float, maybe_list, to_list
+from app.misc.util import get_time_str, maybe_float, to_list
 from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
@@ -46,7 +46,6 @@ from app.system.smind.vec import (
     build_db_name,
     EmbedChunk,
     EmbedMain,
-    FORBIDDEN_META,
     get_vec_client,
     get_vec_stats,
     query_embed,
@@ -402,16 +401,12 @@ def setup(
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
         score_threshold = maybe_float(args.get("score_threshold"))
-        filter_base: list[str] | None = None
-        filter_meta: dict[str, list[str]] | None = None
         filters = args.get("filters")
         if filters is not None:
-            filter_meta = {
+            filters = {
                 key: to_list(value)
                 for key, value in filters.items()
-                if key not in FORBIDDEN_META
             }
-            filter_base = maybe_list(filters.get("base", None))
         offset: int | None = int(args.get("offset", 0))
         if offset == 0:
             offset = None
@@ -438,8 +433,7 @@ def setup(
             limit=limit,
             hit_limit=hit_limit,
             score_threshold=score_threshold,
-            filter_base=filter_base,
-            filter_meta=filter_meta)
+            filters=filters)
         return {
             "hits": hits,
             "status": "ok",

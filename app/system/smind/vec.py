@@ -17,6 +17,7 @@ from qdrant_client.models import (
     MatchAny,
     MatchValue,
     OptimizersConfig,
+    Payload,
     PointGroup,
     PointStruct,
     Record,
@@ -250,8 +251,15 @@ def add_embed(
         "base": data["base"],
         "url": data["url"],
     }
+    point_payload_template: dict[str, str | int | bool] = {
+        "doc_id": data["doc_id"],
+        "base": data["base"],
+        "url": data["url"],
+    }
     for key, value in data["meta"].items():
-        main_payload[convert_meta_key(key)] = value
+        meta_key = convert_meta_key(key)
+        main_payload[meta_key] = value
+        point_payload_template[meta_key] = value
 
     def convert_chunk(chunk: EmbedChunk) -> PointStruct:
         point_id = f"{main_id}:{chunk['chunk_id']}"
@@ -260,6 +268,7 @@ def add_embed(
             REF_KEY: main_id,
             "vector_id": point_id,
             "snippet": chunk["snippet"],
+            **point_payload_template,
         }
         print(f"insert {point_id} ({len(chunk['embed'])})")
         return PointStruct(
@@ -299,6 +308,17 @@ def add_embed(
     return (prev_count, new_count)
 
 
+def get_filter(filters: dict[str, list[str]]) -> Filter:
+    conds: list[Condition] = []
+    for key, values in filters.items():
+        if not values:
+            continue
+        if key not in FORBIDDEN_META:
+            key = convert_meta_key(key)
+        conds.append(FieldCondition(key=key, match=MatchAny(any=values)))
+    return Filter(must=conds)
+
+
 def query_embed(
         db: QdrantClient,
         name: str,
@@ -308,28 +328,12 @@ def query_embed(
         limit: int,
         hit_limit: int,
         score_threshold: float | None,
-        filter_base: list[str] | None,
-        filter_meta: dict[str, list[str]] | None) -> list[ResultChunk]:
+        filters: dict[str, list[str]] | None) -> list[ResultChunk]:
     print(f"query {name} offset={offset} limit={limit}")
-    query_filter = None
-    if filter_base is not None or filter_meta is not None:
-        conds: list[Condition] = []
-        if filter_base:
-            conds.append(
-                FieldCondition(key="base", match=MatchAny(any=filter_base)))
-        if filter_meta is not None:
-            for meta_key, meta_values in filter_meta.items():
-                if not meta_values:
-                    continue
-                print(
-                    f"add filter: {convert_meta_key(meta_key)} "
-                    f"in {meta_values}")
-                conds.append(FieldCondition(
-                    key=convert_meta_key(meta_key),
-                    match=MatchAny(any=meta_values)))
-        query_filter = Filter(must=conds)
+    query_filter = None if filters is None else get_filter(filters)
     vec_name = get_db_name(name, is_vec=True)
     data_name = get_db_name(name, is_vec=False)
+    # FIXME make search work on lookup (data instead of vec)
     hits = db.search_groups(
         collection_name=vec_name,
         query_vector=embed,
@@ -340,8 +344,22 @@ def query_embed(
         query_filter=query_filter,
         with_lookup=WithLookup(collection=data_name, with_payload=True))
 
+    def fill_meta(payload: Payload) -> dict[str, str | int | bool]:
+        meta = {}
+        for key, value in payload.items():
+            meta_key = unconvert_meta_key(key)
+            if meta_key is None:
+                continue
+            meta[meta_key] = value
+        return meta
+
     def convert_chunk(group: PointGroup) -> ResultChunk:
+        ref_id = f"{group.id}"
         score = None
+        meta = None
+        base = None
+        doc_id = None
+        url = None
         snippets = []
         for hit in group.hits:
             if score is None:
@@ -349,42 +367,55 @@ def query_embed(
             hit_payload = hit.payload
             assert hit_payload is not None
             snippets.append(hit_payload["snippet"])
+            # FIXME: try avoid storing meta data in vec points
+            if meta is None:
+                meta = fill_meta(hit_payload)
+            if base is None:
+                base = hit_payload["base"]
+            if doc_id is None:
+                doc_id = hit_payload["doc_id"]
+            if url is None:
+                url = hit_payload["url"]
         assert score is not None
         lookup: Record | ScoredPoint | None = group.lookup
-        if lookup is None:
-            filter_cur = Filter(
-                must=[
-                    FieldCondition(
-                        key=REF_KEY, match=MatchValue(value=group.id)),
-                ])
-            lookups = db.search(
-                data_name, DUMMY_VEC, query_filter=filter_cur, limit=1)
-            if not lookups:
-                return {
-                    REF_KEY: f"{group.id}",
-                    "score": score,
-                    "base": "?",
-                    "doc_id": -1,
-                    "snippets": snippets,
-                    "url": "?",
-                    "meta": {},
-                }
-            lookup = lookups[0]
-        payload = lookup.payload
-        assert payload is not None
-        meta = {}
-        for key, value in payload.items():
-            meta_key = unconvert_meta_key(key)
-            if meta_key is None:
-                continue
-            meta[meta_key] = value
+        # FIXME: figure out why lookup does not work
+        if meta is None or base is None or doc_id is None or url is None:
+            if lookup is None:
+                filter_cur = Filter(
+                    must=[
+                        FieldCondition(
+                            key=REF_KEY, match=MatchValue(value=group.id)),
+                    ])
+                lookups = db.search(
+                    data_name, DUMMY_VEC, query_filter=filter_cur, limit=1)
+                if not lookups:
+                    return {
+                        REF_KEY: ref_id,
+                        "score": score,
+                        "base": "?" if base is None else base,
+                        "doc_id": -1 if doc_id is None else doc_id,
+                        "snippets": snippets,
+                        "url": "?" if url is None else url,
+                        "meta": {} if meta is None else meta,
+                    }
+                lookup = lookups[0]
+            data_payload = lookup.payload
+            assert data_payload is not None
+            if meta is None:
+                meta = fill_meta(data_payload)
+            if base is None:
+                base = data_payload["base"]
+            if doc_id is None:
+                doc_id = data_payload["doc_id"]
+            if url is None:
+                url = data_payload["url"]
         return {
-            REF_KEY: payload[REF_KEY],
+            REF_KEY: ref_id,
             "score": score,
-            "base": payload["base"],
-            "doc_id": payload["doc_id"],
+            "base": base,
+            "doc_id": doc_id,
             "snippets": snippets,
-            "url": payload["url"],
+            "url": url,
             "meta": meta,
         }
 
