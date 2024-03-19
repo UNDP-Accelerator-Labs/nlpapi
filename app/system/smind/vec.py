@@ -20,8 +20,6 @@ from qdrant_client.models import (
     Payload,
     PointGroup,
     PointStruct,
-    Record,
-    ScoredPoint,
     VectorParams,
     WithLookup,
 )
@@ -211,8 +209,9 @@ def build_db_name(
                 vectors_config=VectorParams(size=1, distance=distance),
                 on_disk_payload=True)
 
-            db.delete_payload_index(data_name, REF_KEY)
-            db.create_payload_index(data_name, REF_KEY, "keyword")
+            # FIXME: what index to create?
+            # db.delete_payload_index(data_name, REF_KEY)
+            # db.create_payload_index(data_name, REF_KEY, "keyword")
 
         if not force_clear:
             need_create = False
@@ -256,15 +255,9 @@ def add_embed(
         "base": data["base"],
         "url": data["url"],
     }
-    point_payload_template: dict[str, str | int | bool] = {
-        "doc_id": data["doc_id"],
-        "base": data["base"],
-        "url": data["url"],
-    }
     for key, value in data["meta"].items():
         meta_key = convert_meta_key(key)
         main_payload[meta_key] = value
-        point_payload_template[meta_key] = value
 
     def convert_chunk(chunk: EmbedChunk) -> PointStruct:
         point_id = f"{main_id}:{chunk['chunk_id']}"
@@ -273,7 +266,6 @@ def add_embed(
             REF_KEY: main_uuid,
             "vector_id": point_id,
             "snippet": chunk["snippet"],
-            **point_payload_template,
         }
         print(f"insert {point_id} ({len(chunk['embed'])})")
         return PointStruct(
@@ -290,6 +282,8 @@ def add_embed(
                 vector=DUMMY_VEC,
                 payload=main_payload),
         ])
+    if update_meta_only:
+        return (0, 0)
     vec_name = get_db_name(name, is_vec=True)
     filter_docs = Filter(
         must=[
@@ -300,16 +294,14 @@ def add_embed(
         count_filter=filter_docs,
         exact=True)
     prev_count = count_res.count
-    if update_meta_only:
-        db.set_payload(
-            collection_name=vec_name,
-            payload=point_payload_template,
-            points=FilterSelector(filter=filter_docs))
-        return (prev_count, prev_count)
     if prev_count > new_count or new_count == 0:
         db.delete(
             collection_name=vec_name,
             points_selector=FilterSelector(filter=filter_docs))
+        if new_count == 0:
+            db.delete(
+                collection_name=data_name,
+                points_selector=FilterSelector(filter=filter_docs))
     if chunks:
         db.upsert(
             collection_name=vec_name,
@@ -358,7 +350,6 @@ def query_embed(
     query_filter = None if filters is None else get_filter(filters)
     vec_name = get_db_name(name, is_vec=True)
     data_name = get_db_name(name, is_vec=False)
-    # FIXME make search work on lookup (data instead of vec)
     hits = db.search_groups(
         collection_name=vec_name,
         query_vector=embed,
@@ -379,13 +370,7 @@ def query_embed(
         return meta
 
     def convert_chunk(group: PointGroup) -> ResultChunk:
-        ref_id = f"{group.id}"
         score = None
-        meta = None
-        base = None
-        doc_id = None
-        main_id = None
-        url = None
         snippets = []
         for hit in group.hits:
             if score is None:
@@ -393,57 +378,18 @@ def query_embed(
             hit_payload = hit.payload
             assert hit_payload is not None
             snippets.append(hit_payload["snippet"])
-            # FIXME: try avoid storing meta data in vec points
-            if meta is None:
-                meta = fill_meta(hit_payload)
-            if base is None:
-                base = hit_payload["base"]
-            if doc_id is None:
-                doc_id = hit_payload["doc_id"]
-            if url is None:
-                url = hit_payload["url"]
         assert score is not None
-        lookup: Record | ScoredPoint | None = group.lookup
-        # FIXME: figure out why lookup does not work
-        if (True  # pylint: disable=condition-evals-to-constant
-                or meta is None
-                or base is None
-                or doc_id is None
-                or url is None):
-            real_lookup = True
-            if lookup is None:
-                filter_cur = Filter(
-                    must=[
-                        FieldCondition(
-                            key=REF_KEY, match=MatchValue(value=ref_id)),
-                    ])
-                lookups = db.search(
-                    data_name, DUMMY_VEC, query_filter=filter_cur, limit=1)
-                if not lookups:
-                    return {
-                        "main_id": "?",
-                        "score": score,
-                        "base": "?" if base is None else base,
-                        "doc_id": -1 if doc_id is None else doc_id,
-                        "snippets": snippets,
-                        "url": "?" if url is None else url,
-                        "meta": {} if meta is None else meta,
-                    }
-                lookup = lookups[0]
-                real_lookup = False
-            data_payload = lookup.payload
-            assert data_payload is not None
-            if meta is None:
-                meta = fill_meta(data_payload)
-            # if base is None:
-            base = f"{data_payload['base']}{'*' if real_lookup else ':('}"
-            if doc_id is None:
-                doc_id = data_payload['doc_id']
-            if url is None:
-                url = data_payload["url"]
-            main_id = data_payload["main_id"]
+        lookup = group.lookup
+        assert lookup is not None
+        data_payload = lookup.payload
+        assert data_payload is not None
+        meta = fill_meta(data_payload)
+        base = data_payload['base']
+        doc_id = data_payload['doc_id']
+        url = data_payload["url"]
+        main_id = data_payload["main_id"]
         return {
-            "main_id": ref_id if main_id is None else main_id,
+            "main_id": main_id,
             "score": score,
             "base": base,
             "doc_id": doc_id,
