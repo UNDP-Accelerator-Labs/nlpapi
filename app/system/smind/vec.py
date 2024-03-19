@@ -27,6 +27,7 @@ from app.system.config import Config
 
 
 QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
+REF_KEY: Literal["main_id"] = "main_id"
 
 
 KEY_REGEX = re.compile(r"[a-z_0-9]+")
@@ -47,9 +48,6 @@ def unconvert_meta_key(key: str) -> str | None:
     if res == key:
         return None
     return res
-
-
-REF_KEY = "main_uuid"
 
 
 VecDBStat = TypedDict('VecDBStat', {
@@ -198,27 +196,35 @@ def build_db_name(
                 optimizers_config=optimizers,
                 on_disk_payload=True)
 
-            db.create_payload_index(vec_name, REF_KEY, "keyword")
-
             data_name = get_db_name(name, is_vec=False)
             db.recreate_collection(
                 collection_name=data_name,
                 vectors_config=VectorParams(size=1, distance=distance),
                 on_disk_payload=True)
 
-        if force_clear:
-            recreate()
-        else:
+            db.delete_payload_index(data_name, REF_KEY)
+            db.create_payload_index(data_name, REF_KEY, "keyword")
+
+        if not force_clear:
+            need_create = False
             try:
                 vec_name = get_db_name(name, is_vec=True)
-                status = db.get_collection(collection_name=vec_name)
-                print(f"load {name}: {status.status}")
+                if db.collection_exists(collection_name=vec_name):
+                    vec_status = db.get_collection(collection_name=vec_name)
+                    print(f"load {vec_name}: {vec_status.status}")
+                else:
+                    need_create = True
                 data_name = get_db_name(name, is_vec=False)
-                status = db.get_collection(collection_name=data_name)
-                print(f"load {name}: {status.status}")
+                if db.collection_exists(collection_name=data_name):
+                    data_status = db.get_collection(collection_name=data_name)
+                    print(f"load {data_name}: {data_status.status}")
+                else:
+                    need_create = True
             except (UnexpectedResponse, ResponseHandlingException):
                 print(traceback.format_exc())
-                recreate()
+                need_create = True
+        if force_clear or need_create:
+            recreate()
     return name
 
 
@@ -236,7 +242,7 @@ def add_embed(
     main_id = f"{data['base']}:{data['doc_id']}"
     main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
     main_payload = {
-        "main_id": main_id,
+        REF_KEY: main_id,
         "doc_id": data["doc_id"],
         "base": data["base"],
         "url": data["url"],
@@ -248,7 +254,7 @@ def add_embed(
         point_id = f"{main_id}:{chunk['chunk_id']}"
         point_uuid = f"{uuid.uuid5(QDRANT_UUID, point_id)}"
         point_payload = {
-            REF_KEY: main_uuid,
+            REF_KEY: main_id,
             "vector_id": point_id,
             "snippet": chunk["snippet"],
         }
@@ -271,7 +277,7 @@ def add_embed(
         return (0, 0)
     filter_docs = Filter(
         must=[
-            FieldCondition(key=REF_KEY, match=MatchValue(value=main_uuid)),
+            FieldCondition(key=REF_KEY, match=MatchValue(value=main_id)),
         ])
     vec_name = get_db_name(name, is_vec=True)
     count_res = db.count(
@@ -352,7 +358,7 @@ def query_embed(
                 continue
             meta[meta_key] = value
         return {
-            "main_id": payload["main_id"],
+            REF_KEY: payload[REF_KEY],
             "score": score,
             "base": payload["base"],
             "doc_id": payload["doc_id"],

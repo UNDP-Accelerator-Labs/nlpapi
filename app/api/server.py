@@ -161,7 +161,6 @@ def setup(
         "/dashboard/",
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/dashboard")
 
-    # TODO: deduplicate results (only one result for each document)
     # TODO: add date module
 
     def verify_token(
