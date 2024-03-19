@@ -359,10 +359,10 @@ def setup(
         # fill language if missing
         if "language" not in meta_obj and not update_meta_only:
             lang_res = extract_language(db, input_str, user)
-            meta_obj["language"] = [
+            meta_obj["language"] = sorted({
                 lang_obj["lang"]
                 for lang_obj in lang_res["languages"]
-            ]
+            })
         # fill iso3 if missing
         if "iso3" not in meta_obj and not update_meta_only:
             geo_obj: GeoQuery = {
@@ -375,11 +375,11 @@ def setup(
             }
             geo_out = extract_locations(db, geo_obj, user)
             if geo_out["status"] != "invalid":
-                meta_obj["iso3"] = [
+                meta_obj["iso3"] = sorted({
                     geo_entity["location"]["country"]
                     for geo_entity in geo_out["entities"]
                     if geo_entity["location"] is not None
-                ]
+                })
         # compute embedding
         snippets = list(snippify_text(
             input_str,
