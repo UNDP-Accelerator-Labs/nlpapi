@@ -160,6 +160,12 @@ def setup(
     server.bind_proxy(
         "/dashboard/",
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/dashboard")
+    server.bind_proxy(
+        "/collections/",
+        f"http://{vec_cfg['host']}:{vec_cfg['port']}/collections")
+    server.bind_proxy(
+        "/cluster/",
+        f"http://{vec_cfg['host']}:{vec_cfg['port']}/cluster")
 
     # TODO: add date module
 

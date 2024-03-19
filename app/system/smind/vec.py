@@ -30,6 +30,7 @@ from app.system.config import Config
 
 QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
 REF_KEY: Literal["main_id"] = "main_id"
+DUMMY_VEC: list[float] = [1.0]
 
 
 KEY_REGEX = re.compile(r"[a-z_0-9]+")
@@ -272,7 +273,7 @@ def add_embed(
         points=[
             PointStruct(
                 id=main_uuid,
-                vector=[1.0],
+                vector=DUMMY_VEC,
                 payload=main_payload),
         ])
     if update_meta_only:
@@ -357,7 +358,7 @@ def query_embed(
                         key=REF_KEY, match=MatchValue(value=group.id)),
                 ])
             lookups = db.search(
-                data_name, [1], query_filter=filter_cur, limit=1)
+                data_name, DUMMY_VEC, query_filter=filter_cur, limit=1)
             if not lookups:
                 return {
                     REF_KEY: f"{group.id}",
