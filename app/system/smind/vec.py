@@ -348,6 +348,16 @@ def query_embed(
             snippets.append(hit_payload["snippet"])
         assert score is not None
         lookup = group.lookup
+        if lookup is None:
+            return {
+                REF_KEY: group.id,
+                "score": score,
+                "base": "?",
+                "doc_id": "?",
+                "snippets": snippets,
+                "url": "?",
+                "meta": {},
+            }
         assert lookup is not None
         payload = lookup.payload
         assert payload is not None
