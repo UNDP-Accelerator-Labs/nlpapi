@@ -34,6 +34,7 @@ from app.system.location.response import GeoOutput, GeoQuery
 from app.system.smind.api import (
     clear_redis,
     get_queue_stats,
+    get_redis,
     get_text_results_immediate,
     load_graph,
     load_smind,
@@ -48,7 +49,7 @@ from app.system.smind.vec import (
     EmbedMain,
     get_vec_client,
     get_vec_stats,
-    query_embed,
+    query_embed_emu_filters,
     stat_embed,
     StatEmbed,
     vec_flushall,
@@ -132,15 +133,17 @@ def setup(
     smind = load_smind(smind_config)
     graph_embed = load_graph(config, smind, "graph_embed.json")
 
-    articles_ns, articles_input, articles_output, articles_size = graph_embed
-    if articles_size is None:
+    articles_ns, articles_input, articles_output, m_articles_size = graph_embed
+    if m_articles_size is None:
         raise ValueError(f"graph {graph_embed} as variable shape")
+    articles_size = m_articles_size
 
     def get_vec_db(name: DBName, force_clear: bool) -> str:
         return build_db_name(
             f"articles_{name}",
             distance_fn="dot",
             db=vec_db,
+            redis=qdrant_redis,
             embed_size=articles_size,
             force_clear=force_clear)
 
@@ -150,6 +153,9 @@ def setup(
 
     articles_main = get_vec_db("main", force_clear=False)
     articles_test = get_vec_db("test", force_clear=False)
+
+    qdrant_redis = get_redis(
+        smind_config, redis_name="rmain", overwrite_prefix="qdrant")
 
     write_token = envload_str("WRITE_TOKEN")
     tanuki_token = envload_str("TANUKI")  # the nuke key
@@ -300,7 +306,7 @@ def setup(
                 clear_rbody = False
         if clear_vecdb_all:
             try:
-                vec_flushall(vec_db)
+                vec_flushall(vec_db, qdrant_redis)
             except Exception:  # pylint: disable=broad-except
                 print(traceback.format_exc())
                 clear_vecdb_all = False
@@ -404,6 +410,7 @@ def setup(
         # add embedding to vecdb
         prev_count, new_count = add_embed(
             vec_db,
+            qdrant_redis,
             name=articles,
             data=embed_main,
             chunks=embed_chunks,
@@ -432,7 +439,7 @@ def setup(
                 key: to_list(value)
                 for key, value in filters.items()
             }
-        return stat_embed(vec_db, articles, filters=filters)
+        return stat_embed(vec_db, qdrant_redis, articles, filters=filters)
 
     @server.json_post(f"{prefix}/query_embed")
     @server.middleware(verify_readonly)
@@ -440,7 +447,6 @@ def setup(
     def _post_query_embed(_req: QSRH, rargs: ReqArgs) -> QueryEmbed:
         args = rargs["post"]
         meta = rargs["meta"]
-        # FIXME handle empty input
         input_str: str = meta["input"]
         vdb_str = args["db"]
         if vdb_str == "main":
@@ -461,6 +467,8 @@ def setup(
             offset = None
         limit = int(args["limit"])
         hit_limit = int(args.get("hit_limit", default_hit_limit))
+        if not input_str:
+            pass  # FIXME handle empty input
         embed = get_text_results_immediate(
             [input_str],
             smind=smind,
@@ -474,7 +482,7 @@ def setup(
                 "hits": [],
                 "status": "error",
             }
-        hits = query_embed(
+        hits = query_embed_emu_filters(
             vec_db,
             articles,
             embed,

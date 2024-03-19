@@ -10,7 +10,7 @@ from typing import cast, Literal, TypedDict, TypeVar
 
 import redis as redis_lib
 from gemma import tokenizer
-from redipy import Redis
+from redipy import Redis, RedisConfig
 from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
@@ -31,9 +31,11 @@ QueueStat = TypedDict('QueueStat', {
 })
 
 
-def clear_redis(
+def get_redis(
         config_fname: str,
-        redis_name: Literal["rmain", "rdata", "rcache", "rbody"]) -> None:
+        *,
+        redis_name: Literal["rmain", "rdata", "rcache", "rbody"],
+        overwrite_prefix: str | None) -> Redis:
     with open(config_fname, "rb") as fin:
         config_obj = json.load(fin)
     if redis_name == "rmain":
@@ -41,7 +43,7 @@ def clear_redis(
             raise ValueError(
                 "client_pool is not redis: "
                 f"{config_obj['client_pool']['name']}")
-        cfg = config_obj["client_pool"]["cfg"]
+        cfg: RedisConfig = config_obj["client_pool"]["cfg"]
     elif redis_name == "rcache":
         if config_obj["graph_cache"]["name"] != "redis":
             raise ValueError(
@@ -62,7 +64,21 @@ def clear_redis(
         cfg = config_obj["queue_pool"]["cfg"]
     else:
         raise ValueError(f"invalid redis_name: {redis_name}")
-    redis = Redis(cfg=cfg)
+    if overwrite_prefix:
+        old_prefix = cfg.get("prefix")
+        if not old_prefix or old_prefix == overwrite_prefix:
+            raise ValueError(
+                f"cannot overwrite prefix {old_prefix} "
+                f"with {overwrite_prefix}")
+        cfg["prefix"] = overwrite_prefix
+    return Redis(cfg=cfg)
+
+
+def clear_redis(
+        config_fname: str,
+        redis_name: Literal["rmain", "rdata", "rcache", "rbody"]) -> None:
+    redis = get_redis(
+        config_fname, redis_name=redis_name, overwrite_prefix=None)
     redis.flushall()
 
 

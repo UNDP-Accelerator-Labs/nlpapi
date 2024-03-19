@@ -1,7 +1,9 @@
+import collections
 import re
 import traceback
 import uuid
-from typing import Literal, TypedDict
+from collections.abc import Callable
+from typing import cast, Literal, TypedDict
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.exceptions import (
@@ -23,6 +25,7 @@ from qdrant_client.models import (
     VectorParams,
     WithLookup,
 )
+from redipy import Redis
 
 from app.system.config import Config
 
@@ -36,25 +39,13 @@ KEY_REGEX = re.compile(r"[a-z_0-9]+")
 META_PREFIX = "meta_"
 FORBIDDEN_META = ["base"]
 
+FIELDS_PREFIX = "fields"
+
 
 StatEmbed = TypedDict('StatEmbed', {
-    "count": int,
+    "doc_count": int,
+    "fields": dict[str, dict[str, int]],
 })
-
-
-def convert_meta_key(key: str) -> str:
-    if KEY_REGEX.fullmatch(key) is None:
-        raise ValueError(f"key '{key}' is not valid as meta key")
-    if key in FORBIDDEN_META:
-        raise ValueError(f"key '{key}' cannot be one of {FORBIDDEN_META}")
-    return f"{META_PREFIX}{key}"
-
-
-def unconvert_meta_key(key: str) -> str | None:
-    res = key.removeprefix(META_PREFIX)
-    if res == key:
-        return None
-    return res
 
 
 VecDBStat = TypedDict('VecDBStat', {
@@ -85,7 +76,7 @@ EmbedMain = TypedDict('EmbedMain', {
     "doc_id": int,
     "base": str,
     "url": str,
-    "meta": dict[str, str | int | bool],
+    "meta": dict[str, list[str]],
 })
 
 
@@ -103,11 +94,26 @@ ResultChunk = TypedDict('ResultChunk', {
     "base": str,
     "url": str,
     "snippets": list[str],
-    "meta": dict[str, str | int | bool],
+    "meta": dict[str, list[str]],
 })
 
 
 FILE_PROTOCOL = "file://"
+
+
+def convert_meta_key(key: str) -> str:
+    if KEY_REGEX.fullmatch(key) is None:
+        raise ValueError(f"key '{key}' is not valid as meta key")
+    if key in FORBIDDEN_META:
+        raise ValueError(f"key '{key}' cannot be one of {FORBIDDEN_META}")
+    return f"{META_PREFIX}{key}"
+
+
+def unconvert_meta_key(key: str) -> str | None:
+    res = key.removeprefix(META_PREFIX)
+    if res == key:
+        return None
+    return res
 
 
 def ensure_valid_name(name: str) -> str:
@@ -137,9 +143,10 @@ def get_vec_client(config: Config) -> QdrantClient:
     return db
 
 
-def vec_flushall(db: QdrantClient) -> None:
+def vec_flushall(db: QdrantClient, redis: Redis) -> None:
     for collection in db.get_collections().collections:
         db.delete_collection(collection.name)
+    redis.flushall()
 
 
 def get_vec_stats(
@@ -168,6 +175,7 @@ def build_db_name(
         distance_fn: DistanceFn,
         embed_size: int,
         db: QdrantClient,
+        redis: Redis,
         force_clear: bool) -> str:
     name = f"{ensure_valid_name(name)}_{distance_fn}"
     if db is not None:
@@ -209,9 +217,11 @@ def build_db_name(
                 vectors_config=VectorParams(size=1, distance=distance),
                 on_disk_payload=True)
 
-            # FIXME: what index to create?
-            # db.delete_payload_index(data_name, REF_KEY)
-            # db.create_payload_index(data_name, REF_KEY, "keyword")
+            for key in redis.keys(match=f"{name}:*", block=False):
+                redis.delete(key)
+
+            db.delete_payload_index(data_name, "main_id")
+            db.create_payload_index(data_name, "main_id", "keyword")
 
         if not force_clear:
             need_create = False
@@ -238,6 +248,7 @@ def build_db_name(
 
 def add_embed(
         db: QdrantClient,
+        redis: Redis,
         *,
         name: str,
         data: EmbedMain,
@@ -247,15 +258,18 @@ def add_embed(
     if update_meta_only and new_count > 0:
         raise ValueError("'update_meta_only' requires chunks to be empty")
     print(f"add_embed {name} {new_count} items")
-    main_id = f"{data['base']}:{data['doc_id']}"
+    base = data["base"]
+    redis_base_key = f"{FIELDS_PREFIX}:base:{base}"
+    main_id = f"{base}:{data['doc_id']}"
     main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
     main_payload = {
         "main_id": main_id,
         "doc_id": data["doc_id"],
-        "base": data["base"],
+        "base": base,
         "url": data["url"],
     }
-    for key, value in data["meta"].items():
+    meta_obj = data["meta"]
+    for key, value in meta_obj.items():
         meta_key = convert_meta_key(key)
         main_payload[meta_key] = value
 
@@ -274,6 +288,34 @@ def add_embed(
             payload=point_payload)
 
     data_name = get_db_name(name, is_vec=False)
+    filter_data = Filter(
+        must=[
+            FieldCondition(key="main_id", match=MatchValue(value=main_id)),
+        ])
+    prev_data = db.search(
+        collection_name=data_name,
+        query_vector=DUMMY_VEC,
+        query_filter=filter_data)
+    meta_keys = set(meta_obj.keys())
+    prev_meta: dict[str, list[str]] | None = None
+    if len(prev_data):
+        prev_payload = prev_data[0].payload
+        assert prev_payload is not None
+        prev_meta = fill_meta(prev_payload)
+        meta_keys.update(prev_meta.keys())
+
+    with redis.pipeline() as pipe:
+        for meta_key in meta_keys:
+            cur_new = set(meta_obj.get(meta_key, []))
+            if prev_meta is None:
+                cur_old = set()
+            else:
+                cur_old = set(prev_meta.get(meta_key, []))
+            for val in cur_new.difference(cur_old):
+                pipe.sadd(f"{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
+            for val in cur_old.difference(cur_new):
+                pipe.srem(f"{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
+
     db.upsert(
         collection_name=data_name,
         points=[
@@ -299,14 +341,67 @@ def add_embed(
             collection_name=vec_name,
             points_selector=FilterSelector(filter=filter_docs))
         if new_count == 0:
+            redis.srem(redis_base_key, main_id)
             db.delete(
                 collection_name=data_name,
                 points_selector=FilterSelector(filter=filter_docs))
+    else:
+        redis.sadd(redis_base_key, main_id)
     if chunks:
         db.upsert(
             collection_name=vec_name,
             points=[convert_chunk(chunk) for chunk in chunks])
     return (prev_count, new_count)
+
+
+def stat_embed(
+        db: QdrantClient,
+        redis: Redis,
+        name: str,
+        *,
+        filters: dict[str, list[str]] | None) -> StatEmbed:
+    query_filter = None if filters is None else get_filter(filters)
+    data_name = get_db_name(name, is_vec=False)
+    count_res = db.count(
+        collection_name=data_name,
+        count_filter=query_filter,
+        exact=True)
+    fields: collections.defaultdict[str, dict[str, int]] = \
+        collections.defaultdict(dict)
+    if filters is None:
+        for key in redis.keys(match=f"{FIELDS_PREFIX}:*", block=False):
+            _, f_name, f_value = key.split(":", 2)
+            fields[f_name][f_value] = redis.scard(key)
+    else:
+        main_ids_data = db.search(
+            collection_name=data_name,
+            query_vector=DUMMY_VEC,
+            query_filter=query_filter,
+            with_payload=["main_id"])
+        main_ids = {
+            data.payload["main_id"]
+            for data in main_ids_data
+            if data.payload is not None
+        }
+        for key in redis.keys(match=f"{FIELDS_PREFIX}:*", block=False):
+            _, f_name, f_value = key.split(":", 2)
+            # FIXME use redis intersection function
+            f_count = len(main_ids.intersection(redis.smembers(key)))
+            fields[f_name][f_value] = f_count
+    return {
+        "doc_count": count_res.count,
+        "fields": fields,
+    }
+
+
+def fill_meta(payload: Payload) -> dict[str, list[str]]:
+    meta = {}
+    for key, value in payload.items():
+        meta_key = unconvert_meta_key(key)
+        if meta_key is None:
+            continue
+        meta[meta_key] = value
+    return meta
 
 
 def get_filter(filters: dict[str, list[str]]) -> Filter:
@@ -320,20 +415,70 @@ def get_filter(filters: dict[str, list[str]]) -> Filter:
     return Filter(must=conds)
 
 
-def stat_embed(
+def create_filter_fn(
+        filters: dict[str, list[str]] | None) -> Callable[[ResultChunk], bool]:
+    if filters is None:
+        return lambda _: True
+    filters_conv: dict[str, set[str]] = {
+        key: set(values)
+        for key, values in filters.items()
+        if values
+    }
+
+    def filter_fn(chunk: ResultChunk) -> bool:
+        for key, values in filters_conv.items():
+            if key in FORBIDDEN_META:
+                other_val: str | None = cast(dict, chunk).get(key)
+                if other_val is None:
+                    continue
+                other_vals: list[str] | None = [other_val]
+            else:
+                other_vals = chunk["meta"].get(key)
+            if other_vals is None:
+                continue
+            if values.isdisjoint(other_vals):
+                return False
+        return True
+
+    return filter_fn
+
+
+def query_embed_emu_filters(
         db: QdrantClient,
         name: str,
+        embed: list[float],
         *,
-        filters: dict[str, list[str]] | None) -> StatEmbed:
-    query_filter = None if filters is None else get_filter(filters)
-    data_name = get_db_name(name, is_vec=False)
-    count_res = db.count(
-        collection_name=data_name,
-        count_filter=query_filter,
-        exact=True)
-    return {
-        "count": count_res.count,
-    }
+        offset: int | None,
+        limit: int,
+        hit_limit: int,
+        score_threshold: float | None,
+        filters: dict[str, list[str]] | None) -> list[ResultChunk]:
+    real_offset = 0 if offset is None else offset
+    total_limit = real_offset + limit
+    filter_fn = create_filter_fn(filters)
+    cur_offset = 0
+    cur_limit = limit
+    cur_res: list[ResultChunk] = []
+    reached_end = False
+    while not reached_end and len(cur_res) < total_limit:
+        candidates = query_embed(
+            db,
+            name,
+            embed,
+            offset=cur_offset,
+            limit=cur_limit,
+            hit_limit=hit_limit,
+            score_threshold=score_threshold,
+            filters=None)
+        if len(candidates) < cur_limit:
+            reached_end = True
+        for cand in candidates:
+            if not filter_fn(cand):
+                continue
+            cur_res.append(cand)
+        cur_offset += cur_limit
+        cur_limit = min(10000, cur_limit * 2)
+    return cur_res[real_offset:total_limit]
 
 
 def query_embed(
@@ -346,7 +491,9 @@ def query_embed(
         hit_limit: int,
         score_threshold: float | None,
         filters: dict[str, list[str]] | None) -> list[ResultChunk]:
-    print(f"query {name} offset={offset} limit={limit}")
+    real_offset = 0 if offset is None else offset
+    total_limit = real_offset + limit
+    print(f"query {name} offset={real_offset} limit={total_limit}")
     query_filter = None if filters is None else get_filter(filters)
     vec_name = get_db_name(name, is_vec=True)
     data_name = get_db_name(name, is_vec=False)
@@ -354,20 +501,11 @@ def query_embed(
         collection_name=vec_name,
         query_vector=embed,
         group_by=REF_KEY,
-        limit=limit,
+        limit=total_limit,
         group_size=hit_limit,
         score_threshold=score_threshold,
         query_filter=query_filter,
         with_lookup=WithLookup(collection=data_name, with_payload=True))
-
-    def fill_meta(payload: Payload) -> dict[str, str | int | bool]:
-        meta = {}
-        for key, value in payload.items():
-            meta_key = unconvert_meta_key(key)
-            if meta_key is None:
-                continue
-            meta[meta_key] = value
-        return meta
 
     def convert_chunk(group: PointGroup) -> ResultChunk:
         score = None
@@ -384,8 +522,8 @@ def query_embed(
         data_payload = lookup.payload
         assert data_payload is not None
         meta = fill_meta(data_payload)
-        base = data_payload['base']
-        doc_id = data_payload['doc_id']
+        base = data_payload["base"]
+        doc_id = data_payload["doc_id"]
         url = data_payload["url"]
         main_id = data_payload["main_id"]
         return {
@@ -398,4 +536,7 @@ def query_embed(
             "meta": meta,
         }
 
-    return [convert_chunk(group) for group in hits.groups]
+    return [
+        convert_chunk(group)
+        for group in hits.groups[real_offset:total_limit]
+    ]
