@@ -67,7 +67,7 @@
         "show_debug": true
       }
     ],
-    "disable_events": ["debug"]
+    "disable_events": ["measure", "debug"]
   },
   "healthcheck": {
     "address_in": "worker",

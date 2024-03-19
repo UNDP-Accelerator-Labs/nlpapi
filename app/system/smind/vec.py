@@ -19,6 +19,8 @@ from qdrant_client.models import (
     OptimizersConfig,
     PointGroup,
     PointStruct,
+    Record,
+    ScoredPoint,
     VectorParams,
     WithLookup,
 )
@@ -347,18 +349,26 @@ def query_embed(
             assert hit_payload is not None
             snippets.append(hit_payload["snippet"])
         assert score is not None
-        lookup = group.lookup
+        lookup: Record | ScoredPoint | None = group.lookup
         if lookup is None:
-            return {
-                REF_KEY: f"{group.id}",
-                "score": score,
-                "base": "?",
-                "doc_id": -1,
-                "snippets": snippets,
-                "url": "?",
-                "meta": {},
-            }
-        assert lookup is not None
+            filter_cur = Filter(
+                must=[
+                    FieldCondition(
+                        key=REF_KEY, match=MatchValue(value=group.id)),
+                ])
+            lookups = db.search(
+                data_name, [1], query_filter=filter_cur, limit=1)
+            if not lookups:
+                return {
+                    REF_KEY: f"{group.id}",
+                    "score": score,
+                    "base": "?",
+                    "doc_id": -1,
+                    "snippets": snippets,
+                    "url": "?",
+                    "meta": {},
+                }
+            lookup = lookups[0]
         payload = lookup.payload
         assert payload is not None
         meta = {}
