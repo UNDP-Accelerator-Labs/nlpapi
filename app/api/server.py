@@ -138,6 +138,9 @@ def setup(
         raise ValueError(f"graph {graph_embed} as variable shape")
     articles_size = m_articles_size
 
+    qdrant_redis = get_redis(
+        smind_config, redis_name="rmain", overwrite_prefix="qdrant")
+
     def get_vec_db(name: DBName, force_clear: bool) -> str:
         return build_db_name(
             f"articles_{name}",
@@ -153,9 +156,6 @@ def setup(
 
     articles_main = get_vec_db("main", force_clear=False)
     articles_test = get_vec_db("test", force_clear=False)
-
-    qdrant_redis = get_redis(
-        smind_config, redis_name="rmain", overwrite_prefix="qdrant")
 
     write_token = envload_str("WRITE_TOKEN")
     tanuki_token = envload_str("TANUKI")  # the nuke key
