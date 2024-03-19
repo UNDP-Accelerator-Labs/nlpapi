@@ -350,10 +350,10 @@ def query_embed(
         lookup = group.lookup
         if lookup is None:
             return {
-                REF_KEY: group.id,
+                REF_KEY: f"{group.id}",
                 "score": score,
                 "base": "?",
-                "doc_id": "?",
+                "doc_id": -1,
                 "snippets": snippets,
                 "url": "?",
                 "meta": {},
