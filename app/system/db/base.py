@@ -7,6 +7,7 @@ from sqlalchemy.orm.decl_api import DeclarativeMeta
 
 COUNTRY_MAX_LEN = 5
 DATE_STRING_LEN = 10
+VEC_DB_NAME_LEN = 40
 
 
 def adapt_numpy_float64(numpy_float64: np.float64) -> AsIs:
@@ -104,6 +105,10 @@ class LocationUsers(Base):  # pylint: disable=too-few-public-methods
 class QueryLog(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "query_log"
 
+    vecdb = sa.Column(
+        sa.String(VEC_DB_NAME_LEN),
+        primary_key=True,
+        nullable=False)
     query = sa.Column(
         sa.Text(),
         primary_key=True,

@@ -58,6 +58,8 @@ services:
     image: $DOCKER_WORKER
     pull_policy: always
     restart: always
+    expose:
+      - '6380'
     depends_on:
       - rmain
       - rdata

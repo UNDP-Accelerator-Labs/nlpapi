@@ -419,7 +419,7 @@ def setup(
             input_field=articles_input,
             output_field=articles_output,
             output_sample=[1.0])[0]
-        log_query(db, input_str)
+        log_query(db, db_name=articles, text=input_str)
         if embed is None:
             return {
                 "hits": [],
