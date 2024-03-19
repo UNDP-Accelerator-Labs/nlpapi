@@ -49,6 +49,8 @@ from app.system.smind.vec import (
     get_vec_client,
     get_vec_stats,
     query_embed,
+    stat_embed,
+    StatEmbed,
     vec_flushall,
     VecDBStat,
 )
@@ -345,8 +347,34 @@ def setup(
         base = args["base"]
         doc_id = int(args["doc_id"])
         url = args["url"]
-        meta = args.get("meta", {})
+        meta_obj = args.get("meta", {})
         update_meta_only = bool(args.get("update_meta_only", False))
+        user: uuid.UUID = meta["user"]
+        # fill language if missing
+        if "language" not in meta_obj and not update_meta_only:
+            lang_res = extract_language(db, input_str, user)
+            meta_obj["language"] = [
+                lang_obj["lang"]
+                for lang_obj in lang_res["languages"]
+            ]
+        # fill iso3 if missing
+        if "iso3" not in meta_obj and not update_meta_only:
+            geo_obj: GeoQuery = {
+                "input": input_str,
+                "return_input": False,
+                "return_context": False,
+                "strategy": "top",
+                "language": "en",
+                "max_requests": 10,
+            }
+            geo_out = extract_locations(db, geo_obj, user)
+            if geo_out["status"] != "invalid":
+                meta_obj["iso3"] = [
+                    geo_entity["location"]["country"]
+                    for geo_entity in geo_out["entities"]
+                    if geo_entity["location"] is not None
+                ]
+        # compute embedding
         snippets = list(snippify_text(
             input_str,
             chunk_size=chunk_size,
@@ -362,7 +390,7 @@ def setup(
             "base": base,
             "doc_id": doc_id,
             "url": url,
-            "meta": meta,
+            "meta": meta_obj,
         }
         embed_chunks: list[EmbedChunk] = [
             {
@@ -373,6 +401,7 @@ def setup(
             for chunk_id, (snippet, embed) in enumerate(zip(snippets, embeds))
             if embed is not None
         ]
+        # add embedding to vecdb
         prev_count, new_count = add_embed(
             vec_db,
             name=articles,
@@ -386,12 +415,32 @@ def setup(
             "failed": failed,
         }
 
+    @server.json_post(f"{prefix}/stat_embed")
+    @server.middleware(verify_readonly)
+    def _post_stat_embed(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
+        args = rargs["post"]
+        vdb_str = args["db"]
+        if vdb_str == "main":
+            articles = articles_main
+        elif vdb_str == "test":
+            articles = articles_test
+        else:
+            raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
+        filters = args.get("filters")
+        if filters is not None:
+            filters = {
+                key: to_list(value)
+                for key, value in filters.items()
+            }
+        return stat_embed(vec_db, articles, filters=filters)
+
     @server.json_post(f"{prefix}/query_embed")
     @server.middleware(verify_readonly)
     @server.middleware(verify_input)
     def _post_query_embed(_req: QSRH, rargs: ReqArgs) -> QueryEmbed:
         args = rargs["post"]
         meta = rargs["meta"]
+        # FIXME handle empty input
         input_str: str = meta["input"]
         vdb_str = args["db"]
         if vdb_str == "main":

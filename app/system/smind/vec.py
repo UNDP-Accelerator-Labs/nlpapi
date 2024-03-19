@@ -30,13 +30,18 @@ from app.system.config import Config
 
 
 QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
-REF_KEY: Literal["main_id"] = "main_id"
+REF_KEY: Literal["main_uuid"] = "main_uuid"
 DUMMY_VEC: list[float] = [1.0]
 
 
 KEY_REGEX = re.compile(r"[a-z_0-9]+")
 META_PREFIX = "meta_"
 FORBIDDEN_META = ["base"]
+
+
+StatEmbed = TypedDict('StatEmbed', {
+    "count": int,
+})
 
 
 def convert_meta_key(key: str) -> str:
@@ -246,7 +251,7 @@ def add_embed(
     main_id = f"{data['base']}:{data['doc_id']}"
     main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
     main_payload = {
-        REF_KEY: main_id,
+        "main_id": main_id,
         "doc_id": data["doc_id"],
         "base": data["base"],
         "url": data["url"],
@@ -265,7 +270,7 @@ def add_embed(
         point_id = f"{main_id}:{chunk['chunk_id']}"
         point_uuid = f"{uuid.uuid5(QDRANT_UUID, point_id)}"
         point_payload = {
-            REF_KEY: main_id,
+            REF_KEY: main_uuid,
             "vector_id": point_id,
             "snippet": chunk["snippet"],
             **point_payload_template,
@@ -285,18 +290,22 @@ def add_embed(
                 vector=DUMMY_VEC,
                 payload=main_payload),
         ])
-    if update_meta_only:
-        return (0, 0)
+    vec_name = get_db_name(name, is_vec=True)
     filter_docs = Filter(
         must=[
-            FieldCondition(key=REF_KEY, match=MatchValue(value=main_id)),
+            FieldCondition(key=REF_KEY, match=MatchValue(value=main_uuid)),
         ])
-    vec_name = get_db_name(name, is_vec=True)
     count_res = db.count(
         collection_name=vec_name,
         count_filter=filter_docs,
         exact=True)
     prev_count = count_res.count
+    if update_meta_only:
+        db.set_payload(
+            collection_name=vec_name,
+            payload=point_payload_template,
+            points=FilterSelector(filter=filter_docs))
+        return (prev_count, prev_count)
     if prev_count > new_count or new_count == 0:
         db.delete(
             collection_name=vec_name,
@@ -317,6 +326,22 @@ def get_filter(filters: dict[str, list[str]]) -> Filter:
             key = convert_meta_key(key)
         conds.append(FieldCondition(key=key, match=MatchAny(any=values)))
     return Filter(must=conds)
+
+
+def stat_embed(
+        db: QdrantClient,
+        name: str,
+        *,
+        filters: dict[str, list[str]] | None) -> StatEmbed:
+    query_filter = None if filters is None else get_filter(filters)
+    data_name = get_db_name(name, is_vec=False)
+    count_res = db.count(
+        collection_name=data_name,
+        count_filter=query_filter,
+        exact=True)
+    return {
+        "count": count_res.count,
+    }
 
 
 def query_embed(
@@ -359,6 +384,7 @@ def query_embed(
         meta = None
         base = None
         doc_id = None
+        main_id = None
         url = None
         snippets = []
         for hit in group.hits:
@@ -379,18 +405,23 @@ def query_embed(
         assert score is not None
         lookup: Record | ScoredPoint | None = group.lookup
         # FIXME: figure out why lookup does not work
-        if meta is None or base is None or doc_id is None or url is None:
+        if (True  # pylint: disable=condition-evals-to-constant
+                or meta is None
+                or base is None
+                or doc_id is None
+                or url is None):
+            real_lookup = True
             if lookup is None:
                 filter_cur = Filter(
                     must=[
                         FieldCondition(
-                            key=REF_KEY, match=MatchValue(value=group.id)),
+                            key=REF_KEY, match=MatchValue(value=ref_id)),
                     ])
                 lookups = db.search(
                     data_name, DUMMY_VEC, query_filter=filter_cur, limit=1)
                 if not lookups:
                     return {
-                        REF_KEY: ref_id,
+                        "main_id": "?",
                         "score": score,
                         "base": "?" if base is None else base,
                         "doc_id": -1 if doc_id is None else doc_id,
@@ -399,18 +430,20 @@ def query_embed(
                         "meta": {} if meta is None else meta,
                     }
                 lookup = lookups[0]
+                real_lookup = False
             data_payload = lookup.payload
             assert data_payload is not None
             if meta is None:
                 meta = fill_meta(data_payload)
-            if base is None:
-                base = data_payload["base"]
+            # if base is None:
+            base = f"{data_payload['base']}{'*' if real_lookup else ':('}"
             if doc_id is None:
-                doc_id = data_payload["doc_id"]
+                doc_id = data_payload['doc_id']
             if url is None:
                 url = data_payload["url"]
+            main_id = data_payload["main_id"]
         return {
-            REF_KEY: ref_id,
+            "main_id": ref_id if main_id is None else main_id,
             "score": score,
             "base": base,
             "doc_id": doc_id,
