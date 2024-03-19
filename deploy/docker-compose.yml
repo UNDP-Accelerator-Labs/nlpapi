@@ -14,7 +14,7 @@ services:
       QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
       QDRANT__TELEMETRY_DISABLED: true
-      # QDRANT__SERVICE__API_KEY: $QDRANT_API_TOKEN
+      QDRANT__SERVICE__API_KEY: $QDRANT_API_TOKEN
   rmain:
     container_name: rmain
     image: $DOCKER_RMAIN
@@ -87,7 +87,7 @@ services:
       QDRANT_HOST: qdrant
       QDRANT_REST_PORT: 6333
       QDRANT_GRPC_PORT: 6334
-      # QDRANT_API_KEY: $QDRANT_API_TOKEN
+      QDRANT_API_KEY: $QDRANT_API_TOKEN
     links:
       - qdrant
       - rmain

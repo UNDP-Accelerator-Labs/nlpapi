@@ -50,7 +50,7 @@
   },
   "strategy": {
     "node": {
-      "name": "dedicated"
+      "name": "simple"
     },
     "queue": {
       "name": "simple"
