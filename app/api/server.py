@@ -187,13 +187,7 @@ def setup(
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/cluster")
 
     # TODO: add date module
-    # FIXME: [x] validate common fields
-    # FIXME: [x] normalize dates
     # FIXME: scattermind executors should use redis for heartbeat
-    # FIXME: [x] treat non-list fields correctly for stats
-    # FIXME: [x] allow lists and non-lists for meta fields
-    # FIXME: [x] adjust order for empty query
-    # FIXME: [x] add current time for missing date field
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:

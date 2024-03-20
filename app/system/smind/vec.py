@@ -579,6 +579,7 @@ def query_docs(
         filters: dict[str, list[str]] | None) -> list[ResultChunk]:
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
+    print(f"scroll {name} offset={real_offset} limit={total_limit}")
     data_name = get_db_name(name, is_vec=False)
     query_filter = None if filters is None else get_filter(filters)
     hits, _ = db.scroll(
