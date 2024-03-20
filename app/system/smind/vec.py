@@ -291,7 +291,6 @@ def add_embed(
     # FIXME: split in multiple calls using offset?
     prev_data, _ = db.scroll(
         collection_name=data_name,
-        query_vector=DUMMY_VEC,
         query_filter=filter_data,
         with_payload=True)
     meta_keys: set[str] = set(meta_obj.keys())
