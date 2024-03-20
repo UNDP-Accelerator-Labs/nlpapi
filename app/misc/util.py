@@ -265,6 +265,19 @@ def now() -> datetime:
     return datetime.now(timezone.utc).astimezone()
 
 
+def parse_time_str(time_str: str) -> datetime:
+    """
+    Parses an ISO formatted string representing a timestamp.
+
+    Args:
+        time_str (str): The string.
+
+    Returns:
+        datetime: The timestamp.
+    """
+    return datetime.fromisoformat(time_str)
+
+
 def fmt_time(when: datetime) -> str:
     """
     Formats a timestamp as ISO formatted string.

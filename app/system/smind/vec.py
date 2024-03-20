@@ -12,6 +12,8 @@ from qdrant_client.http.exceptions import (
 )
 from qdrant_client.models import (
     Condition,
+    DatetimeRange,
+    Direction,
     Distance,
     FieldCondition,
     Filter,
@@ -19,14 +21,17 @@ from qdrant_client.models import (
     MatchAny,
     MatchValue,
     OptimizersConfig,
+    OrderBy,
     Payload,
     PointGroup,
     PointStruct,
+    Record,
     VectorParams,
     WithLookup,
 )
 from redipy import Redis
 
+from app.misc.util import get_time_str, parse_time_str
 from app.system.config import Config
 
 
@@ -76,7 +81,7 @@ EmbedMain = TypedDict('EmbedMain', {
     "doc_id": int,
     "base": str,
     "url": str,
-    "meta": dict[str, list[str]],
+    "meta": dict[str, list[str] | str],
 })
 
 
@@ -94,7 +99,7 @@ ResultChunk = TypedDict('ResultChunk', {
     "base": str,
     "url": str,
     "snippets": list[str],
-    "meta": dict[str, list[str]],
+    "meta": dict[str, list[str] | str],
 })
 
 
@@ -262,16 +267,6 @@ def add_embed(
     redis_base_key = f"{FIELDS_PREFIX}:base:{base}"
     main_id = f"{base}:{data['doc_id']}"
     main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
-    main_payload = {
-        "main_id": main_id,
-        "doc_id": data["doc_id"],
-        "base": base,
-        "url": data["url"],
-    }
-    meta_obj = data["meta"]
-    for key, value in meta_obj.items():
-        meta_key = convert_meta_key(key)
-        main_payload[meta_key] = value
 
     def convert_chunk(chunk: EmbedChunk) -> PointStruct:
         point_id = f"{main_id}:{chunk['chunk_id']}"
@@ -287,34 +282,55 @@ def add_embed(
             vector=chunk["embed"],
             payload=point_payload)
 
+    meta_obj = data["meta"]
     data_name = get_db_name(name, is_vec=False)
     filter_data = Filter(
         must=[
             FieldCondition(key="main_id", match=MatchValue(value=main_id)),
         ])
-    prev_data = db.search(
+    # FIXME: split in multiple calls using offset?
+    prev_data, _ = db.scroll(
         collection_name=data_name,
         query_vector=DUMMY_VEC,
-        query_filter=filter_data)
-    meta_keys = set(meta_obj.keys())
-    prev_meta: dict[str, list[str]] | None = None
+        query_filter=filter_data,
+        with_payload=True)
+    meta_keys: set[str] = set(meta_obj.keys())
+    prev_meta: dict[str, list[str] | str] = {}
     if len(prev_data):
         prev_payload = prev_data[0].payload
         assert prev_payload is not None
         prev_meta = fill_meta(prev_payload)
         meta_keys.update(prev_meta.keys())
 
+    if "date" not in prev_meta and "date" not in meta_obj:
+        meta_obj["date"] = get_time_str()
+        meta_keys.add("date")
+
+    def get_vals(val: list[str] | str) -> set[str]:
+        if not val:
+            return set()
+        if isinstance(val, list):
+            return set(val)
+        return {val}
+
     with redis.pipeline() as pipe:
         for meta_key in meta_keys:
-            cur_new = set(meta_obj.get(meta_key, []))
-            if prev_meta is None:
-                cur_old = set()
-            else:
-                cur_old = set(prev_meta.get(meta_key, []))
+            cur_new = get_vals(meta_obj.get(meta_key, []))
+            cur_old = get_vals(prev_meta.get(meta_key, []))
             for val in cur_new.difference(cur_old):
                 pipe.sadd(f"{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
             for val in cur_old.difference(cur_new):
                 pipe.srem(f"{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
+
+    main_payload = {
+        "main_id": main_id,
+        "doc_id": data["doc_id"],
+        "base": base,
+        "url": data["url"],
+    }
+    for key, value in meta_obj.items():
+        meta_key = convert_meta_key(key)
+        main_payload[meta_key] = value
 
     db.upsert(
         collection_name=data_name,
@@ -373,9 +389,9 @@ def stat_embed(
             _, f_name, f_value = key.split(":", 2)
             fields[f_name][f_value] = redis.scard(key)
     else:
-        main_ids_data = db.search(
+        # FIXME: split in multiple calls using offset?
+        main_ids_data, _ = db.scroll(
             collection_name=data_name,
-            query_vector=DUMMY_VEC,
             query_filter=query_filter,
             with_payload=["main_id"])
         main_ids = {
@@ -394,7 +410,7 @@ def stat_embed(
     }
 
 
-def fill_meta(payload: Payload) -> dict[str, list[str]]:
+def fill_meta(payload: Payload) -> dict[str, list[str] | str]:
     meta = {}
     for key, value in payload.items():
         meta_key = unconvert_meta_key(key)
@@ -408,6 +424,15 @@ def get_filter(filters: dict[str, list[str]]) -> Filter:
     conds: list[Condition] = []
     for key, values in filters.items():
         if not values:
+            continue
+        if key == "date":
+            if len(values) != 2:
+                raise ValueError(
+                    f"date filter must be exactly two dates got {values}")
+            key = convert_meta_key(key)
+            dates = [parse_time_str(value) for value in values]
+            conds.append(FieldCondition(
+                key=key, range=DatetimeRange(gte=min(dates), lte=max(dates))))
             continue
         if key not in FORBIDDEN_META:
             key = convert_meta_key(key)
@@ -433,7 +458,11 @@ def create_filter_fn(
                     continue
                 other_vals: list[str] | None = [other_val]
             else:
-                other_vals = chunk["meta"].get(key)
+                vals = chunk["meta"].get(key)
+                if vals is None or isinstance(vals, list):
+                    other_vals = vals
+                else:
+                    other_vals = [vals]
             if other_vals is None:
                 continue
             if values.isdisjoint(other_vals):
@@ -539,4 +568,49 @@ def query_embed(
     return [
         convert_chunk(group)
         for group in hits.groups[real_offset:total_limit]
+    ]
+
+
+def query_docs(
+        db: QdrantClient,
+        name: str,
+        *,
+        offset: int | None,
+        limit: int,
+        filters: dict[str, list[str]] | None) -> list[ResultChunk]:
+    real_offset = 0 if offset is None else offset
+    total_limit = real_offset + limit
+    data_name = get_db_name(name, is_vec=False)
+    query_filter = None if filters is None else get_filter(filters)
+    hits, _ = db.scroll(
+        collection_name=data_name,
+        order_by=OrderBy(
+            key=convert_meta_key("date"),
+            direction=Direction.DESC),
+        offset=0,
+        limit=total_limit,
+        query_filter=query_filter,
+        with_payload=True)
+
+    def convert_hit(hit: Record) -> ResultChunk:
+        data_payload = hit.payload
+        assert data_payload is not None
+        meta = fill_meta(data_payload)
+        base = data_payload["base"]
+        doc_id = data_payload["doc_id"]
+        url = data_payload["url"]
+        main_id = data_payload["main_id"]
+        return {
+            "main_id": main_id,
+            "score": 1.0,
+            "base": base,
+            "doc_id": doc_id,
+            "snippets": [],
+            "url": url,
+            "meta": meta,
+        }
+
+    return [
+        convert_hit(hit)
+        for hit in hits[real_offset:total_limit]
     ]

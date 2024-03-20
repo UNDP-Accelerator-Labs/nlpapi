@@ -21,7 +21,13 @@ from app.api.response_types import (
     VersionResponse,
 )
 from app.misc.env import envload_int, envload_str
-from app.misc.util import get_time_str, maybe_float, to_list
+from app.misc.util import (
+    fmt_time,
+    get_time_str,
+    maybe_float,
+    parse_time_str,
+    to_list,
+)
 from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
@@ -49,12 +55,17 @@ from app.system.smind.vec import (
     EmbedMain,
     get_vec_client,
     get_vec_stats,
+    query_docs,
     query_embed_emu_filters,
     stat_embed,
     StatEmbed,
     vec_flushall,
     VecDBStat,
 )
+
+
+DocStatus: TypeAlias = Literal["public", "preview"]
+DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
 
 
 DBName: TypeAlias = Literal["main", "test"]
@@ -153,6 +164,7 @@ def setup(
     chunk_size = 600
     chunk_padding = 10
     default_hit_limit = 3
+    default_max_requests = 20
 
     articles_main = get_vec_db("main", force_clear=False)
     articles_test = get_vec_db("test", force_clear=False)
@@ -175,11 +187,13 @@ def setup(
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/cluster")
 
     # TODO: add date module
-    # FIXME: validate common fields
-    # FIXME: normalize dates
+    # FIXME: [x] validate common fields
+    # FIXME: [x] normalize dates
     # FIXME: scattermind executors should use redis for heartbeat
-    # FIXME: treat non-list fields correctly for stats
-    # FIXME: allow lists and non-lists for meta fields
+    # FIXME: [x] treat non-list fields correctly for stats
+    # FIXME: [x] allow lists and non-lists for meta fields
+    # FIXME: [x] adjust order for empty query
+    # FIXME: [x] add current time for missing date field
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
@@ -361,6 +375,15 @@ def setup(
         meta_obj = args.get("meta", {})
         update_meta_only = bool(args.get("update_meta_only", False))
         user: uuid.UUID = meta["user"]
+        # validate status
+        if "status" in meta_obj:
+            if meta_obj["status"] not in DOC_STATUS:
+                raise ValueError(
+                    f"status must be one of {DOC_STATUS} got "
+                    f"{meta_obj['status']}")
+        # validate date
+        if "date" in meta_obj:
+            meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
         # fill language if missing
         if "language" not in meta_obj and not update_meta_only:
             lang_res = extract_language(db, input_str, user)
@@ -368,6 +391,8 @@ def setup(
                 lang_obj["lang"]
                 for lang_obj in lang_res["languages"]
             })
+        elif "language" in meta_obj:
+            meta_obj["language"] = sorted(set(to_list(meta_obj["language"])))
         # fill iso3 if missing
         if "iso3" not in meta_obj and not update_meta_only:
             geo_obj: GeoQuery = {
@@ -376,7 +401,7 @@ def setup(
                 "return_context": False,
                 "strategy": "top",
                 "language": "en",
-                "max_requests": 10,
+                "max_requests": default_max_requests,
             }
             geo_out = extract_locations(db, geo_obj, user)
             if geo_out["status"] != "invalid":
@@ -385,6 +410,8 @@ def setup(
                     for geo_entity in geo_out["entities"]
                     if geo_entity["location"] is not None
                 })
+        elif "iso3" in meta_obj:
+            meta_obj["iso3"] = sorted(set(to_list(meta_obj["iso3"])))
         # compute embedding
         snippets = list(snippify_text(
             input_str,
@@ -460,7 +487,6 @@ def setup(
             articles = articles_test
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
-        score_threshold = maybe_float(args.get("score_threshold"))
         filters = args.get("filters")
         if filters is not None:
             filters = {
@@ -471,9 +497,19 @@ def setup(
         if offset == 0:
             offset = None
         limit = int(args["limit"])
-        hit_limit = int(args.get("hit_limit", default_hit_limit))
         if not input_str:
-            pass  # FIXME handle empty input
+            res = query_docs(
+                vec_db,
+                articles,
+                offset=offset,
+                limit=limit,
+                filters=filters)
+            return {
+                "hits": res,
+                "status": "ok",
+            }
+        hit_limit = int(args.get("hit_limit", default_hit_limit))
+        score_threshold = maybe_float(args.get("score_threshold"))
         embed = get_text_results_immediate(
             [input_str],
             smind=smind,
@@ -526,7 +562,7 @@ def setup(
             "return_context": args.get("return_context", True),
             "strategy": args.get("strategy", "top"),
             "language": args.get("language", "en"),
-            "max_requests": args.get("max_requests", 5),
+            "max_requests": args.get("max_requests", default_max_requests),
         }
         return extract_locations(db, obj, user)
 
