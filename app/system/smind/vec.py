@@ -3,7 +3,7 @@ import re
 import traceback
 import uuid
 from collections.abc import Callable
-from typing import cast, Literal, TypedDict
+from typing import cast, Literal, TypeAlias, TypedDict
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.exceptions import (
@@ -44,12 +44,15 @@ KEY_REGEX = re.compile(r"[a-z_0-9]+")
 META_PREFIX = "meta_"
 FORBIDDEN_META = ["base"]
 
+ExternalKey: TypeAlias = str
+InternalKey: TypeAlias = str
+
 FIELDS_PREFIX = "fields"
 
 
 StatEmbed = TypedDict('StatEmbed', {
     "doc_count": int,
-    "fields": dict[str, dict[str, int]],
+    "fields": dict[ExternalKey, dict[str, int]],
 })
 
 
@@ -81,7 +84,7 @@ EmbedMain = TypedDict('EmbedMain', {
     "doc_id": int,
     "base": str,
     "url": str,
-    "meta": dict[str, list[str] | str],
+    "meta": dict[ExternalKey, list[str] | str],
 })
 
 
@@ -99,14 +102,14 @@ ResultChunk = TypedDict('ResultChunk', {
     "base": str,
     "url": str,
     "snippets": list[str],
-    "meta": dict[str, list[str] | str],
+    "meta": dict[ExternalKey, list[str] | str],
 })
 
 
 FILE_PROTOCOL = "file://"
 
 
-def convert_meta_key(key: str) -> str:
+def convert_meta_key(key: ExternalKey) -> InternalKey:
     if KEY_REGEX.fullmatch(key) is None:
         raise ValueError(f"key '{key}' is not valid as meta key")
     if key in FORBIDDEN_META:
@@ -114,7 +117,7 @@ def convert_meta_key(key: str) -> str:
     return f"{META_PREFIX}{key}"
 
 
-def unconvert_meta_key(key: str) -> str | None:
+def unconvert_meta_key(key: InternalKey) -> ExternalKey | None:
     res = key.removeprefix(META_PREFIX)
     if res == key:
         return None
@@ -143,7 +146,7 @@ def get_vec_client(config: Config) -> QdrantClient:
             port=vec_db["port"],
             grpc_port=vec_db["grpc"],
             https=False,
-            # prefer_grpc=True,
+            prefer_grpc=True,
             api_key=token)
     return db
 
@@ -158,6 +161,8 @@ def get_vec_stats(
         db: QdrantClient, name: str, *, is_vec: bool) -> VecDBStat | None:
     try:
         db_name = get_db_name(name, is_vec=is_vec)
+        if not db.collection_exists(db_name):
+            return None
         status = db.get_collection(collection_name=db_name)
         count = db.count(collection_name=db_name)
         return {
@@ -228,6 +233,25 @@ def build_db_name(
             db.delete_payload_index(data_name, "main_id")
             db.create_payload_index(data_name, "main_id", "keyword")
 
+            db.delete_payload_index(data_name, "base")
+            db.create_payload_index(data_name, "base", "keyword")
+
+            date_key = convert_meta_key("date")
+            db.delete_payload_index(data_name, date_key)
+            db.create_payload_index(data_name, date_key, "datetime")
+
+            status_key = convert_meta_key("status")
+            db.delete_payload_index(data_name, status_key)
+            db.create_payload_index(data_name, status_key, "keyword")
+
+            language_key = convert_meta_key("language")
+            db.delete_payload_index(data_name, language_key)
+            db.create_payload_index(data_name, language_key, "keyword")
+
+            iso3_key = convert_meta_key("iso3")
+            db.delete_payload_index(data_name, iso3_key)
+            db.create_payload_index(data_name, iso3_key, "keyword")
+
         if not force_clear:
             need_create = False
             try:
@@ -293,8 +317,8 @@ def add_embed(
         collection_name=data_name,
         scroll_filter=filter_data,
         with_payload=True)
-    meta_keys: set[str] = set(meta_obj.keys())
-    prev_meta: dict[str, list[str] | str] = {}
+    meta_keys: set[ExternalKey] = set(meta_obj.keys())
+    prev_meta: dict[ExternalKey, list[str] | str] = {}
     if len(prev_data):
         prev_payload = prev_data[0].payload
         assert prev_payload is not None
@@ -312,13 +336,21 @@ def add_embed(
             return set(val)
         return {val}
 
+    def convert_val_for_redis(key: ExternalKey, val: str) -> str:
+        if key == "date":
+            dt = parse_time_str(val)
+            return dt.date().isoformat()
+        return val
+
     with redis.pipeline() as pipe:
         for meta_key in meta_keys:
             cur_new = get_vals(meta_obj.get(meta_key, []))
             cur_old = get_vals(prev_meta.get(meta_key, []))
             for val in cur_new.difference(cur_old):
+                val = convert_val_for_redis(meta_key, val)
                 pipe.sadd(f"{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
             for val in cur_old.difference(cur_new):
+                val = convert_val_for_redis(meta_key, val)
                 pipe.srem(f"{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
 
     main_payload = {
@@ -409,7 +441,7 @@ def stat_embed(
     }
 
 
-def fill_meta(payload: Payload) -> dict[str, list[str] | str]:
+def fill_meta(payload: Payload) -> dict[ExternalKey, list[str] | str]:
     meta = {}
     for key, value in payload.items():
         meta_key = unconvert_meta_key(key)
@@ -419,7 +451,7 @@ def fill_meta(payload: Payload) -> dict[str, list[str] | str]:
     return meta
 
 
-def get_filter(filters: dict[str, list[str]]) -> Filter:
+def get_filter(filters: dict[ExternalKey, list[str]]) -> Filter:
     conds: list[Condition] = []
     for key, values in filters.items():
         if not values:
@@ -440,10 +472,11 @@ def get_filter(filters: dict[str, list[str]]) -> Filter:
 
 
 def create_filter_fn(
-        filters: dict[str, list[str]] | None) -> Callable[[ResultChunk], bool]:
+        filters: dict[ExternalKey, list[str]] | None,
+        ) -> Callable[[ResultChunk], bool]:
     if filters is None:
         return lambda _: True
-    filters_conv: dict[str, set[str]] = {
+    filters_conv: dict[ExternalKey, set[str]] = {
         key: set(values)
         for key, values in filters.items()
         if values
@@ -480,7 +513,7 @@ def query_embed_emu_filters(
         limit: int,
         hit_limit: int,
         score_threshold: float | None,
-        filters: dict[str, list[str]] | None) -> list[ResultChunk]:
+        filters: dict[ExternalKey, list[str]] | None) -> list[ResultChunk]:
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     filter_fn = create_filter_fn(filters)
@@ -518,7 +551,7 @@ def query_embed(
         limit: int,
         hit_limit: int,
         score_threshold: float | None,
-        filters: dict[str, list[str]] | None) -> list[ResultChunk]:
+        filters: dict[ExternalKey, list[str]] | None) -> list[ResultChunk]:
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     print(f"query {name} offset={real_offset} limit={total_limit}")
@@ -576,7 +609,7 @@ def query_docs(
         *,
         offset: int | None,
         limit: int,
-        filters: dict[str, list[str]] | None) -> list[ResultChunk]:
+        filters: dict[ExternalKey, list[str]] | None) -> list[ResultChunk]:
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     print(f"scroll {name} offset={real_offset} limit={total_limit}")
