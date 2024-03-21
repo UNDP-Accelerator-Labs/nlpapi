@@ -184,7 +184,7 @@ def get_vec_stats(
         db: QdrantClient, name: str, *, is_vec: bool) -> VecDBStat | None:
     try:
         db_name = get_db_name(name, is_vec=is_vec)
-        if not retry_err(lambda: db.collection_exists(db_name, timeout=90)):
+        if not retry_err(lambda: db.collection_exists(db_name)):
             return None
         status = retry_err(
             lambda: db.get_collection(db_name, timeout=90))
@@ -296,7 +296,7 @@ def build_db_name(
         data_name = get_db_name(name, is_vec=False)
         need_create = False
         if retry_err(
-                lambda: db.collection_exists(vec_name, timeout=90),
+                lambda: db.collection_exists(vec_name),
                 max_retry=60,
                 sleep=5.0):
             vec_status = retry_err(
@@ -305,7 +305,7 @@ def build_db_name(
         else:
             need_create = True
         if retry_err(
-                lambda: db.collection_exists(data_name, timeout=90)):
+                lambda: db.collection_exists(data_name)):
             data_status = retry_err(
                 lambda: db.get_collection(data_name, timeout=90))
             print(f"load {data_name}: {data_status.status}")
