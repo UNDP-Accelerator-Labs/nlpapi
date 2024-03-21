@@ -51,6 +51,7 @@ ExternalKey: TypeAlias = str
 InternalKey: TypeAlias = str
 
 FIELDS_PREFIX = "fields"
+VEC_SEARCHABLE: list[ExternalKey] = ["base", "status"]
 
 
 StatEmbed = TypedDict('StatEmbed', {
@@ -256,6 +257,14 @@ def build_db_name(
             redis.delete(key)
 
     def recreate_index() -> None:
+        vec_name = get_db_name(name, is_vec=True)
+
+        for key_name in VEC_SEARCHABLE:
+            vec_key = convert_meta_key(key_name)
+            retry_err(
+                lambda key: db.delete_payload_index(vec_name, key), vec_key)
+            db.create_payload_index(vec_name, vec_key, "keyword", wait=False)
+
         data_name = get_db_name(name, is_vec=False)
 
         retry_err(lambda: db.delete_payload_index(data_name, "main_id"))
@@ -329,20 +338,6 @@ def add_embed(
     main_id = f"{base}:{data['doc_id']}"
     main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
 
-    def convert_chunk(chunk: EmbedChunk) -> PointStruct:
-        point_id = f"{main_id}:{chunk['chunk_id']}"
-        point_uuid = f"{uuid.uuid5(QDRANT_UUID, point_id)}"
-        point_payload = {
-            REF_KEY: main_uuid,
-            "vector_id": point_id,
-            "snippet": chunk["snippet"],
-        }
-        print(f"insert {point_id} ({len(chunk['embed'])})")
-        return PointStruct(
-            id=point_uuid,
-            vector=chunk["embed"],
-            payload=point_payload)
-
     meta_obj = data["meta"]
     data_name = get_db_name(name, is_vec=False)
     filter_data = Filter(
@@ -388,7 +383,7 @@ def add_embed(
                 val = convert_val_for_redis(meta_key, val)
                 pipe.srem(f"{name}:{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
 
-    main_payload = {
+    main_payload: dict[InternalKey, list[str] | str | int] = {
         "main_id": main_id,
         "doc_id": data["doc_id"],
         "base": base,
@@ -429,11 +424,39 @@ def add_embed(
                 timeout=180)
     else:
         redis.sadd(redis_base_key, main_id)
-    if chunks:
-        db.upsert(
-            vec_name,
-            points=[convert_chunk(chunk) for chunk in chunks],
-            timeout=300)
+
+    if not chunks:
+        return (prev_count, new_count)
+
+    vec_searchable: list[InternalKey] = [
+        convert_meta_key(key_name)
+        for key_name in VEC_SEARCHABLE
+    ]
+    vec_payload_template: dict[InternalKey, list[str] | str | int] = {
+        vec_name: main_payload[vec_name]
+        for vec_name in vec_searchable
+        if vec_name in main_payload
+    }
+
+    def convert_chunk(chunk: EmbedChunk) -> PointStruct:
+        point_id = f"{main_id}:{chunk['chunk_id']}"
+        point_uuid = f"{uuid.uuid5(QDRANT_UUID, point_id)}"
+        point_payload: dict[InternalKey, list[str] | str | int] = {
+            REF_KEY: main_uuid,
+            "vector_id": point_id,
+            "snippet": chunk["snippet"],
+            **vec_payload_template,
+        }
+        print(f"insert {point_id} ({len(chunk['embed'])})")
+        return PointStruct(
+            id=point_uuid,
+            vector=chunk["embed"],
+            payload=point_payload)
+
+    db.upsert(
+        vec_name,
+        points=[convert_chunk(chunk) for chunk in chunks],
+        timeout=300)
     return (prev_count, new_count)
 
 
@@ -443,7 +466,7 @@ def stat_embed(
         name: str,
         *,
         filters: dict[str, list[str]] | None) -> StatEmbed:
-    query_filter = None if filters is None else get_filter(filters)
+    query_filter = get_filter(filters, for_vec=False)
     data_name = get_db_name(name, is_vec=False)
     count_res = db.count(data_name, count_filter=query_filter, exact=True)
     fields: collections.defaultdict[str, dict[str, int]] = \
@@ -486,10 +509,17 @@ def fill_meta(payload: Payload) -> dict[ExternalKey, list[str] | str]:
     return meta
 
 
-def get_filter(filters: dict[ExternalKey, list[str]]) -> Filter:
+def get_filter(
+        filters: dict[ExternalKey, list[str]] | None,
+        *,
+        for_vec: bool) -> Filter | None:
+    if filters is None:
+        return None
     conds: list[Condition] = []
     for key, values in filters.items():
         if not values:
+            continue
+        if for_vec and key not in VEC_SEARCHABLE:
             continue
         if key == "date":
             if len(values) != 2:
@@ -514,7 +544,6 @@ def create_filter_fn(
     filters_conv: dict[ExternalKey, set[str]] = {
         key: set(values)
         for key, values in filters.items()
-        if values
     }
 
     def filter_fn(chunk: ResultChunk) -> bool:
@@ -552,6 +581,7 @@ def query_embed_emu_filters(
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     filter_fn = create_filter_fn(filters)
+    vec_filter = get_filter(filters, for_vec=True)
     cur_offset = 0
     cur_limit = limit
     cur_res: list[ResultChunk] = []
@@ -565,7 +595,7 @@ def query_embed_emu_filters(
             limit=cur_limit,
             hit_limit=hit_limit,
             score_threshold=score_threshold,
-            filters=None)
+            vec_filter=vec_filter)
         if len(candidates) < cur_limit:
             reached_end = True
         for cand in candidates:
@@ -587,11 +617,10 @@ def query_embed(
         limit: int,
         hit_limit: int,
         score_threshold: float | None,
-        filters: dict[ExternalKey, list[str]] | None) -> list[ResultChunk]:
+        vec_filter: Filter | None) -> list[ResultChunk]:
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     print(f"query {name} offset={real_offset} limit={total_limit}")
-    query_filter = None if filters is None else get_filter(filters)
     vec_name = get_db_name(name, is_vec=True)
     data_name = get_db_name(name, is_vec=False)
     hits = retry_err(
@@ -602,7 +631,7 @@ def query_embed(
             limit=total_limit,
             group_size=hit_limit,
             score_threshold=score_threshold,
-            query_filter=query_filter,
+            query_filter=vec_filter,
             with_lookup=WithLookup(collection=data_name, with_payload=True),
             timeout=300))
 
@@ -652,7 +681,7 @@ def query_docs(
     total_limit = real_offset + limit
     print(f"scroll {name} offset={real_offset} limit={total_limit}")
     data_name = get_db_name(name, is_vec=False)
-    query_filter = None if filters is None else get_filter(filters)
+    query_filter = get_filter(filters, for_vec=False)
     hits, _ = retry_err(
         lambda: db.scroll(
             data_name,
