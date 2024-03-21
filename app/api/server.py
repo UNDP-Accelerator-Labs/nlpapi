@@ -152,22 +152,23 @@ def setup(
     qdrant_redis = get_redis(
         smind_config, redis_name="rmain", overwrite_prefix="qdrant")
 
-    def get_vec_db(name: DBName, force_clear: bool) -> str:
+    def get_vec_db(name: DBName, force_clear: bool, force_index: bool) -> str:
         return build_db_name(
             f"articles_{name}",
             distance_fn="dot",
             db=vec_db,
             redis=qdrant_redis,
             embed_size=articles_size,
-            force_clear=force_clear)
+            force_clear=force_clear,
+            force_index=force_index)
 
     chunk_size = 600
     chunk_padding = 10
     default_hit_limit = 3
     default_max_requests = 20
 
-    articles_main = get_vec_db("main", force_clear=False)
-    articles_test = get_vec_db("test", force_clear=False)
+    articles_main = get_vec_db("main", force_clear=False, force_index=False)
+    articles_test = get_vec_db("test", force_clear=False, force_index=False)
 
     write_token = envload_str("WRITE_TOKEN")
     tanuki_token = envload_str("TANUKI")  # the nuke key
@@ -282,14 +283,16 @@ def setup(
     @server.middleware(verify_tanuki)
     def _post_clear(_req: QSRH, rargs: ReqArgs) -> ClearResponse:
         args = rargs["post"]
-        clear_rmain = bool(args["clear_rmain"])
-        clear_rdata = bool(args["clear_rdata"])
-        clear_rcache = bool(args["clear_rcache"])
-        clear_rbody = bool(args["clear_rbody"])
-        clear_rworker = bool(args["clear_rworker"])
-        clear_vecdb_main = bool(args["clear_vecdb_main"])
-        clear_vecdb_test = bool(args["clear_vecdb_test"])
-        clear_vecdb_all = bool(args["clear_vecdb_all"])
+        clear_rmain = bool(args.get("clear_rmain", False))
+        clear_rdata = bool(args.get("clear_rdata", False))
+        clear_rcache = bool(args.get("clear_rcache", False))
+        clear_rbody = bool(args.get("clear_rbody", False))
+        clear_rworker = bool(args.get("clear_rworker", False))
+        clear_vecdb_main = bool(args.get("clear_vecdb_main", False))
+        clear_vecdb_test = bool(args.get("clear_vecdb_test", False))
+        clear_vecdb_all = bool(args.get("clear_vecdb_all", False))
+        index_vecdb_main = bool(args.get("index_vecdb_main", False))
+        index_vecdb_test = bool(args.get("index_vecdb_test", False))
         if clear_vecdb_all and (not clear_vecdb_main or not clear_vecdb_test):
             raise ValueError(
                 "clear_vecdb_all must have "
@@ -334,16 +337,30 @@ def setup(
                 clear_vecdb_test = False
         if clear_vecdb_main:
             try:
-                get_vec_db("main", force_clear=True)
+                get_vec_db("main", force_clear=True, force_index=False)
+                index_vecdb_main = False
             except Exception:  # pylint: disable=broad-except
                 print(traceback.format_exc())
                 clear_vecdb_main = False
         if clear_vecdb_test:
             try:
-                get_vec_db("test", force_clear=True)
+                get_vec_db("test", force_clear=True, force_index=False)
+                index_vecdb_test = False
             except Exception:  # pylint: disable=broad-except
                 print(traceback.format_exc())
                 clear_vecdb_test = False
+        if index_vecdb_main:
+            try:
+                get_vec_db("main", force_clear=False, force_index=True)
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                index_vecdb_main = False
+        if index_vecdb_test:
+            try:
+                get_vec_db("test", force_clear=False, force_index=True)
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                index_vecdb_test = False
         return {
             "clear_rmain": clear_rmain,
             "clear_rdata": clear_rdata,
@@ -353,6 +370,8 @@ def setup(
             "clear_vecdb_all": clear_vecdb_all,
             "clear_vecdb_main": clear_vecdb_main,
             "clear_vecdb_test": clear_vecdb_test,
+            "index_vecdb_main": index_vecdb_main,
+            "index_vecdb_test": index_vecdb_test,
         }
 
     # *** embeddings ***

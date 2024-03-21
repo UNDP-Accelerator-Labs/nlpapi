@@ -45,7 +45,7 @@ DUMMY_VEC: list[float] = [1.0]
 
 KEY_REGEX = re.compile(r"[a-z_0-9]+")
 META_PREFIX = "meta_"
-FORBIDDEN_META = ["base"]
+FORBIDDEN_META = ["base", "main_id"]
 
 ExternalKey: TypeAlias = str
 InternalKey: TypeAlias = str
@@ -206,98 +206,102 @@ def build_db_name(
         embed_size: int,
         db: QdrantClient,
         redis: Redis,
-        force_clear: bool) -> str:
+        force_clear: bool,
+        force_index: bool) -> str:
     name = f"{ensure_valid_name(name)}_{distance_fn}"
-    if db is not None:
-        if distance_fn == "dot":
-            distance: Distance = Distance.DOT
-        elif distance_fn == "cos":
-            distance = Distance.COSINE
-        elif distance_fn == "euc":
-            distance = Distance.EUCLID
-        elif distance_fn == "man":
-            distance = Distance.MANHATTAN
+    if distance_fn == "dot":
+        distance: Distance = Distance.DOT
+    elif distance_fn == "cos":
+        distance = Distance.COSINE
+    elif distance_fn == "euc":
+        distance = Distance.EUCLID
+    elif distance_fn == "man":
+        distance = Distance.MANHATTAN
+    else:
+        raise ValueError(f"invalid distance name: {distance_fn}")
+
+    def recreate() -> None:
+        print(f"create {name} size={embed_size} distance={distance}")
+        vec_name = get_db_name(name, is_vec=True)
+        config = VectorParams(
+            size=embed_size,
+            distance=distance,
+            on_disk=True)
+        optimizers = OptimizersConfig(
+            deleted_threshold=0.2,
+            vacuum_min_vector_number=1000,
+            default_segment_number=0,
+            memmap_threshold=512*1024,
+            indexing_threshold=512*1024,
+            flush_interval_sec=60,
+            max_optimization_threads=4)
+        db.recreate_collection(
+            collection_name=vec_name,
+            vectors_config=config,
+            optimizers_config=optimizers,
+            on_disk_payload=True)
+
+        data_name = get_db_name(name, is_vec=False)
+        db.recreate_collection(
+            collection_name=data_name,
+            vectors_config=VectorParams(size=1, distance=distance),
+            on_disk_payload=True)
+
+        for key in redis.iter_keys(match=f"{name}:*"):
+            redis.delete(key)
+
+    def recreate_index() -> None:
+        db.delete_payload_index(data_name, "main_id")
+        db.create_payload_index(data_name, "main_id", "keyword")
+
+        db.delete_payload_index(data_name, "base")
+        db.create_payload_index(data_name, "base", "keyword")
+
+        date_key = convert_meta_key("date")
+        db.delete_payload_index(data_name, date_key)
+        db.create_payload_index(data_name, date_key, "datetime")
+
+        status_key = convert_meta_key("status")
+        db.delete_payload_index(data_name, status_key)
+        db.create_payload_index(data_name, status_key, "keyword")
+
+        language_key = convert_meta_key("language")
+        db.delete_payload_index(data_name, language_key)
+        db.create_payload_index(data_name, language_key, "keyword")
+
+        iso3_key = convert_meta_key("iso3")
+        db.delete_payload_index(data_name, iso3_key)
+        db.create_payload_index(data_name, iso3_key, "keyword")
+
+        doc_type_key = convert_meta_key("doc_type")
+        db.delete_payload_index(data_name, doc_type_key)
+        db.create_payload_index(data_name, doc_type_key, "keyword")
+
+    if not force_clear:
+        vec_name = get_db_name(name, is_vec=True)
+        data_name = get_db_name(name, is_vec=False)
+        need_create = False
+        if retry_err(
+                lambda: db.collection_exists(collection_name=vec_name),
+                max_retry=60,
+                sleep=5.0):
+            vec_status = retry_err(
+                lambda: db.get_collection(collection_name=vec_name))
+            print(f"load {vec_name}: {vec_status.status}")
         else:
-            raise ValueError(f"invalid distance name: {distance_fn}")
-
-        def recreate() -> None:
-            print(f"create {name} size={embed_size} distance={distance}")
-            vec_name = get_db_name(name, is_vec=True)
-            config = VectorParams(
-                size=embed_size,
-                distance=distance,
-                on_disk=True)
-            optimizers = OptimizersConfig(
-                deleted_threshold=0.2,
-                vacuum_min_vector_number=1000,
-                default_segment_number=0,
-                memmap_threshold=512*1024,
-                indexing_threshold=512*1024,
-                flush_interval_sec=60,
-                max_optimization_threads=4)
-            db.recreate_collection(
-                collection_name=vec_name,
-                vectors_config=config,
-                optimizers_config=optimizers,
-                on_disk_payload=True)
-
-            data_name = get_db_name(name, is_vec=False)
-            db.recreate_collection(
-                collection_name=data_name,
-                vectors_config=VectorParams(size=1, distance=distance),
-                on_disk_payload=True)
-
-            for key in redis.iter_keys(match=f"{name}:*"):
-                redis.delete(key)
-
-            db.delete_payload_index(data_name, "main_id")
-            db.create_payload_index(data_name, "main_id", "keyword")
-
-            db.delete_payload_index(data_name, "base")
-            db.create_payload_index(data_name, "base", "keyword")
-
-            date_key = convert_meta_key("date")
-            db.delete_payload_index(data_name, date_key)
-            db.create_payload_index(data_name, date_key, "datetime")
-
-            status_key = convert_meta_key("status")
-            db.delete_payload_index(data_name, status_key)
-            db.create_payload_index(data_name, status_key, "keyword")
-
-            language_key = convert_meta_key("language")
-            db.delete_payload_index(data_name, language_key)
-            db.create_payload_index(data_name, language_key, "keyword")
-
-            iso3_key = convert_meta_key("iso3")
-            db.delete_payload_index(data_name, iso3_key)
-            db.create_payload_index(data_name, iso3_key, "keyword")
-
-            doc_type_key = convert_meta_key("doc_type")
-            db.delete_payload_index(data_name, doc_type_key)
-            db.create_payload_index(data_name, doc_type_key, "keyword")
-
-        if not force_clear:
-            vec_name = get_db_name(name, is_vec=True)
-            data_name = get_db_name(name, is_vec=False)
-            need_create = False
-            if retry_err(
-                    lambda: db.collection_exists(collection_name=vec_name),
-                    max_retry=60,
-                    sleep=5.0):
-                vec_status = retry_err(
-                    lambda: db.get_collection(collection_name=vec_name))
-                print(f"load {vec_name}: {vec_status.status}")
-            else:
-                need_create = True
-            if retry_err(
-                    lambda: db.collection_exists(collection_name=data_name)):
-                data_status = retry_err(
-                    lambda: db.get_collection(collection_name=data_name))
-                print(f"load {data_name}: {data_status.status}")
-            else:
-                need_create = True
-        if force_clear or need_create:
-            recreate()
+            need_create = True
+        if retry_err(
+                lambda: db.collection_exists(collection_name=data_name)):
+            data_status = retry_err(
+                lambda: db.get_collection(collection_name=data_name))
+            print(f"load {data_name}: {data_status.status}")
+        else:
+            need_create = True
+    if force_clear or need_create:
+        recreate()
+        force_index = True
+    if force_index:
+        recreate_index()
     return name
 
 
@@ -342,7 +346,8 @@ def add_embed(
     prev_data, _ = db.scroll(
         collection_name=data_name,
         scroll_filter=filter_data,
-        with_payload=True)
+        with_payload=True,
+        timeout=90)
     meta_keys: set[ExternalKey] = set(meta_obj.keys())
     prev_meta: dict[ExternalKey, list[str] | str] = {}
     if len(prev_data):
@@ -452,7 +457,8 @@ def stat_embed(
         main_ids_data, _ = db.scroll(
             collection_name=data_name,
             scroll_filter=query_filter,
-            with_payload=["main_id"])
+            with_payload=["main_id"],
+            timeout=90)
         main_ids = {
             data.payload["main_id"]
             for data in main_ids_data
@@ -597,7 +603,8 @@ def query_embed(
             group_size=hit_limit,
             score_threshold=score_threshold,
             query_filter=query_filter,
-            with_lookup=WithLookup(collection=data_name, with_payload=True)))
+            with_lookup=WithLookup(collection=data_name, with_payload=True),
+            timeout=180))
 
     def convert_chunk(group: PointGroup) -> ResultChunk:
         score = None
@@ -654,7 +661,8 @@ def query_docs(
                 direction=Direction.DESC),
             limit=total_limit,
             scroll_filter=query_filter,
-            with_payload=True))
+            with_payload=True,
+            timeout=180))
 
     def convert_hit(hit: Record) -> ResultChunk:
         data_payload = hit.payload
