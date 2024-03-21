@@ -25,7 +25,7 @@
     "batch_size": 8,
     "sleep_on_idle": 0.1,
     "reclaim_sleep": 600.0,
-    "heartbeat": 30.0,
+    "heartbeat_time": 30.0,
     "cfg": {
       "host": "rmain",
       "port": 6379,
