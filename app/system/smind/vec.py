@@ -579,7 +579,7 @@ def query_embed_emu_filters(
                 continue
             cur_res.append(cand)
         cur_offset += cur_limit
-        cur_limit = min(10000, cur_limit * 2)
+        cur_limit = int(max(1, min(100, cur_limit * 1.2)))
     return cur_res[real_offset:total_limit]
 
 
