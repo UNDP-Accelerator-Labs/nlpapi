@@ -121,6 +121,12 @@ def convert_meta_key(key: ExternalKey) -> InternalKey:
     return f"{META_PREFIX}{key}"
 
 
+def maybe_convert_meta_key(key: ExternalKey) -> InternalKey:
+    if key in FORBIDDEN_META:
+        return key
+    return convert_meta_key(key)
+
+
 def unconvert_meta_key(key: InternalKey) -> ExternalKey | None:
     res = key.removeprefix(META_PREFIX)
     if res == key:
@@ -260,7 +266,7 @@ def build_db_name(
         vec_name = get_db_name(name, is_vec=True)
 
         for key_name in VEC_SEARCHABLE:
-            vec_key = convert_meta_key(key_name)
+            vec_key = maybe_convert_meta_key(key_name)
             retry_err(
                 lambda key: db.delete_payload_index(vec_name, key), vec_key)
             db.create_payload_index(vec_name, vec_key, "keyword", wait=False)
@@ -429,7 +435,7 @@ def add_embed(
         return (prev_count, new_count)
 
     vec_searchable: list[InternalKey] = [
-        convert_meta_key(key_name)
+        maybe_convert_meta_key(key_name)
         for key_name in VEC_SEARCHABLE
     ]
     vec_payload_template: dict[InternalKey, list[str] | str | int] = {
@@ -530,8 +536,7 @@ def get_filter(
             conds.append(FieldCondition(
                 key=key, range=DatetimeRange(gte=min(dates), lte=max(dates))))
             continue
-        if key not in FORBIDDEN_META:
-            key = convert_meta_key(key)
+        key = maybe_convert_meta_key(key)
         conds.append(FieldCondition(key=key, match=MatchAny(any=values)))
     return Filter(must=conds)
 
