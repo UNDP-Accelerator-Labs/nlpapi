@@ -3,7 +3,7 @@ import re
 import time
 import uuid
 from collections.abc import Callable
-from typing import cast, Literal, TypeAlias, TypedDict
+from typing import Any, cast, Literal, TypeAlias, TypedDict, TypeVar
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.exceptions import (
@@ -33,6 +33,9 @@ from redipy import Redis
 
 from app.misc.util import get_time_str, parse_time_str
 from app.system.config import Config
+
+
+T = TypeVar('T')
 
 
 QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
@@ -151,20 +154,37 @@ def get_vec_client(config: Config) -> QdrantClient:
     return db
 
 
+def retry_err(
+        call: Callable[..., T],
+        *args: Any,
+        max_retry: int = 3,
+        sleep: float = 0.1) -> T:
+    error = 0
+    while True:
+        try:
+            return call(*args)
+        except ResponseHandlingException:
+            error += 1
+            if error > max_retry:
+                raise
+            if sleep > 0.0:
+                time.sleep(sleep)
+
+
 def vec_flushall(db: QdrantClient, redis: Redis) -> None:
     redis.flushall()
-    for collection in db.get_collections().collections:
-        db.delete_collection(collection.name)
+    for collection in retry_err(lambda: db.get_collections().collections):
+        retry_err(db.delete_collection, collection.name)
 
 
 def get_vec_stats(
         db: QdrantClient, name: str, *, is_vec: bool) -> VecDBStat | None:
     try:
         db_name = get_db_name(name, is_vec=is_vec)
-        if not db.collection_exists(db_name):
+        if not retry_err(lambda: db.collection_exists(db_name)):
             return None
-        status = db.get_collection(collection_name=db_name)
-        count = db.count(collection_name=db_name)
+        status = retry_err(lambda: db.get_collection(collection_name=db_name))
+        count = retry_err(lambda: db.count(collection_name=db_name))
         return {
             "name": name,
             "db_name": db_name,
@@ -252,31 +272,30 @@ def build_db_name(
             db.delete_payload_index(data_name, iso3_key)
             db.create_payload_index(data_name, iso3_key, "keyword")
 
+            doc_type_key = convert_meta_key("doc_type")
+            db.delete_payload_index(data_name, doc_type_key)
+            db.create_payload_index(data_name, doc_type_key, "keyword")
+
         if not force_clear:
-            conn_error = 0
             vec_name = get_db_name(name, is_vec=True)
             data_name = get_db_name(name, is_vec=False)
-            while True:
-                need_create = False
-                try:
-                    if db.collection_exists(collection_name=vec_name):
-                        vec_status = db.get_collection(
-                            collection_name=vec_name)
-                        print(f"load {vec_name}: {vec_status.status}")
-                    else:
-                        need_create = True
-                    if db.collection_exists(collection_name=data_name):
-                        data_status = db.get_collection(
-                            collection_name=data_name)
-                        print(f"load {data_name}: {data_status.status}")
-                    else:
-                        need_create = True
-                    break
-                except (UnexpectedResponse, ResponseHandlingException):
-                    conn_error += 1
-                    if conn_error > 60:
-                        raise
-                    time.sleep(5.0)
+            need_create = False
+            if retry_err(
+                    lambda: db.collection_exists(collection_name=vec_name),
+                    max_retry=60,
+                    sleep=5.0):
+                vec_status = retry_err(
+                    lambda: db.get_collection(collection_name=vec_name))
+                print(f"load {vec_name}: {vec_status.status}")
+            else:
+                need_create = True
+            if retry_err(
+                    lambda: db.collection_exists(collection_name=data_name)):
+                data_status = retry_err(
+                    lambda: db.get_collection(collection_name=data_name))
+                print(f"load {data_name}: {data_status.status}")
+            else:
+                need_create = True
         if force_clear or need_create:
             recreate()
     return name
@@ -569,15 +588,16 @@ def query_embed(
     query_filter = None if filters is None else get_filter(filters)
     vec_name = get_db_name(name, is_vec=True)
     data_name = get_db_name(name, is_vec=False)
-    hits = db.search_groups(
-        collection_name=vec_name,
-        query_vector=embed,
-        group_by=REF_KEY,
-        limit=total_limit,
-        group_size=hit_limit,
-        score_threshold=score_threshold,
-        query_filter=query_filter,
-        with_lookup=WithLookup(collection=data_name, with_payload=True))
+    hits = retry_err(
+        lambda: db.search_groups(
+            collection_name=vec_name,
+            query_vector=embed,
+            group_by=REF_KEY,
+            limit=total_limit,
+            group_size=hit_limit,
+            score_threshold=score_threshold,
+            query_filter=query_filter,
+            with_lookup=WithLookup(collection=data_name, with_payload=True)))
 
     def convert_chunk(group: PointGroup) -> ResultChunk:
         score = None
@@ -626,14 +646,15 @@ def query_docs(
     print(f"scroll {name} offset={real_offset} limit={total_limit}")
     data_name = get_db_name(name, is_vec=False)
     query_filter = None if filters is None else get_filter(filters)
-    hits, _ = db.scroll(
-        collection_name=data_name,
-        order_by=OrderBy(
-            key=convert_meta_key("date"),
-            direction=Direction.DESC),
-        limit=total_limit,
-        scroll_filter=query_filter,
-        with_payload=True)
+    hits, _ = retry_err(
+        lambda: db.scroll(
+            collection_name=data_name,
+            order_by=OrderBy(
+                key=convert_meta_key("date"),
+                direction=Direction.DESC),
+            limit=total_limit,
+            scroll_filter=query_filter,
+            with_payload=True))
 
     def convert_hit(hit: Record) -> ResultChunk:
         data_payload = hit.payload
