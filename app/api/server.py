@@ -14,13 +14,7 @@ from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
 from app.api.response_types import StatsResponse, VersionResponse
 from app.misc.env import envload_int, envload_str
-from app.misc.util import (
-    fmt_time,
-    get_time_str,
-    maybe_float,
-    parse_time_str,
-    to_list,
-)
+from app.misc.util import get_time_str, maybe_float
 from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
@@ -29,38 +23,35 @@ from app.system.language.langdetect import LangResponse
 from app.system.language.pipeline import extract_language
 from app.system.location.forwardgeo import OpenCageFormat
 from app.system.location.pipeline import extract_locations, extract_opencage
-from app.system.location.response import GeoOutput, GeoQuery
+from app.system.location.response import (
+    DEFAULT_MAX_REQUESTS,
+    GeoOutput,
+    GeoQuery,
+)
 from app.system.smind.api import (
     get_queue_stats,
     get_redis,
-    get_text_results_immediate,
     load_graph,
     load_smind,
     normalize_text,
-    snippify_text,
 )
 from app.system.smind.search import (
     AddEmbed,
     ClearResponse,
+    DEFAULT_HIT_LIMIT,
     QueryEmbed,
+    vec_add,
     vec_clear,
+    vec_filter,
     vec_search,
 )
 from app.system.smind.vec import (
-    add_embed,
     build_db_name,
-    EmbedChunk,
-    EmbedMain,
     get_vec_client,
     get_vec_stats,
-    stat_embed,
     StatEmbed,
     VecDBStat,
 )
-
-
-DocStatus: TypeAlias = Literal["public", "preview"]
-DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
 
 
 DBName: TypeAlias = Literal["main", "test"]
@@ -157,11 +148,6 @@ def setup(
             force_clear=force_clear,
             force_index=force_index)
 
-    chunk_size = 600
-    chunk_padding = 10
-    default_hit_limit = 3
-    default_max_requests = 20
-
     articles_main = get_vec_db("main", force_clear=False, force_index=False)
     articles_test = get_vec_db("test", force_clear=False, force_index=False)
 
@@ -183,7 +169,6 @@ def setup(
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/cluster")
 
     # TODO: add date module
-    # FIXME: scattermind executors should use redis for heartbeat
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
@@ -279,7 +264,7 @@ def setup(
         filters["status"] = ["public"]  # NOTE: not logged in!
         offset: int = int(args.get("offset", 0))
         limit: int = int(args["limit"])
-        hit_limit: int = int(args.get("hit_limit", default_hit_limit))
+        hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
         score_threshold: float | None = maybe_float(
             args.get("score_threshold"))
         return vec_search(
@@ -355,84 +340,22 @@ def setup(
         meta_obj = args.get("meta", {})
         update_meta_only = bool(args.get("update_meta_only", False))
         user: uuid.UUID = meta["user"]
-        # validate status
-        if "status" in meta_obj:
-            if meta_obj["status"] not in DOC_STATUS:
-                raise ValueError(
-                    f"status must be one of {DOC_STATUS} got "
-                    f"{meta_obj['status']}")
-        # validate date
-        if "date" in meta_obj:
-            meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
-        # fill language if missing
-        if "language" not in meta_obj and not update_meta_only:
-            lang_res = extract_language(db, input_str, user)
-            meta_obj["language"] = sorted({
-                lang_obj["lang"]
-                for lang_obj in lang_res["languages"]
-            })
-        elif "language" in meta_obj:
-            meta_obj["language"] = sorted(set(to_list(meta_obj["language"])))
-        # fill iso3 if missing
-        if "iso3" not in meta_obj and not update_meta_only:
-            geo_obj: GeoQuery = {
-                "input": input_str,
-                "return_input": False,
-                "return_context": False,
-                "strategy": "top",
-                "language": "en",
-                "max_requests": default_max_requests,
-            }
-            geo_out = extract_locations(db, geo_obj, user)
-            if geo_out["status"] != "invalid":
-                meta_obj["iso3"] = sorted({
-                    geo_entity["location"]["country"]
-                    for geo_entity in geo_out["entities"]
-                    if geo_entity["location"] is not None
-                })
-        elif "iso3" in meta_obj:
-            meta_obj["iso3"] = sorted(set(to_list(meta_obj["iso3"])))
-        # compute embedding
-        snippets = list(snippify_text(
-            input_str,
-            chunk_size=chunk_size,
-            chunk_padding=chunk_padding))
-        embeds = get_text_results_immediate(
-            snippets,
-            smind=smind,
-            ns=graph_embed[0],
-            input_field=graph_embed[1],
-            output_field=graph_embed[2],
-            output_sample=[1.0])
-        embed_main: EmbedMain = {
-            "base": base,
-            "doc_id": doc_id,
-            "url": url,
-            "meta": meta_obj,
-        }
-        embed_chunks: list[EmbedChunk] = [
-            {
-                "chunk_id": chunk_id,
-                "embed": embed,
-                "snippet": snippet,
-            }
-            for chunk_id, (snippet, embed) in enumerate(zip(snippets, embeds))
-            if embed is not None
-        ]
-        # add embedding to vecdb
-        prev_count, new_count = add_embed(
+        return vec_add(
+            db,
             vec_db,
             qdrant_redis,
-            name=articles,
-            data=embed_main,
-            chunks=embed_chunks,
+            smind,
+            input_str,
+            articles=articles,
+            articles_ns=articles_ns,
+            articles_input=articles_input,
+            articles_output=articles_output,
+            user=user,
+            base=base,
+            doc_id=doc_id,
+            url=url,
+            meta_obj=meta_obj,
             update_meta_only=update_meta_only)
-        failed = sum(1 if embed is None else 0 for embed in embeds)
-        return {
-            "previous": prev_count,
-            "snippets": new_count,
-            "failed": failed,
-        }
 
     @server.json_post(f"{prefix}/stat_embed")
     @server.middleware(verify_readonly)
@@ -446,12 +369,11 @@ def setup(
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
         filters = args.get("filters")
-        if filters is not None:
-            filters = {
-                key: to_list(value)
-                for key, value in filters.items()
-            }
-        return stat_embed(vec_db, qdrant_redis, articles, filters=filters)
+        return vec_filter(
+            vec_db,
+            qdrant_redis,
+            articles=articles,
+            filters=filters)
 
     @server.json_post(f"{prefix}/query_embed")
     @server.middleware(verify_readonly)
@@ -470,7 +392,7 @@ def setup(
         filters: dict[str, list[str]] | None = args.get("filters")
         offset: int = int(args.get("offset", 0))
         limit: int = int(args["limit"])
-        hit_limit: int = int(args.get("hit_limit", default_hit_limit))
+        hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
         score_threshold: float | None = maybe_float(
             args.get("score_threshold"))
         return vec_search(
@@ -513,7 +435,7 @@ def setup(
             "return_context": args.get("return_context", True),
             "strategy": args.get("strategy", "top"),
             "language": args.get("language", "en"),
-            "max_requests": args.get("max_requests", default_max_requests),
+            "max_requests": args.get("max_requests", DEFAULT_MAX_REQUESTS),
         }
         return extract_locations(db, obj, user)
 

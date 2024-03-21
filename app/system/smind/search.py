@@ -1,19 +1,33 @@
 import traceback
-from typing import Literal, Protocol, TypedDict
+import uuid
+from typing import cast, get_args, Literal, Protocol, TypeAlias, TypedDict
 
 from qdrant_client import QdrantClient
 from redipy import Redis
 from scattermind.api.api import ScattermindAPI
 from scattermind.system.names import GNamespace
 
-from app.misc.util import to_list
+from app.misc.util import fmt_time, parse_time_str, to_list
 from app.system.db.db import DBConnector
-from app.system.smind.api import clear_redis, get_text_results_immediate
+from app.system.language.pipeline import extract_language
+from app.system.location.pipeline import extract_locations
+from app.system.location.response import DEFAULT_MAX_REQUESTS, GeoQuery
+from app.system.smind.api import (
+    clear_redis,
+    get_text_results_immediate,
+    snippify_text,
+)
 from app.system.smind.log import log_query
 from app.system.smind.vec import (
+    add_embed,
+    EmbedChunk,
+    EmbedMain,
+    ExternalKey,
     query_docs,
     query_embed_emu_filters,
     ResultChunk,
+    stat_embed,
+    StatEmbed,
     vec_flushall,
 )
 
@@ -48,6 +62,26 @@ QueryEmbed = TypedDict('QueryEmbed', {
     "hits": list[ResultChunk],
     "status": Literal["ok", "error"],
 })
+
+
+CHUNK_SIZE = 600
+CHUNK_PADDING = 10
+DEFAULT_HIT_LIMIT = 3
+
+
+DocStatus: TypeAlias = Literal["public", "preview"]
+DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
+
+
+FIXED_DOC_TYPES: dict[str, str] = {
+    "actionplan": "action plan",
+    "experiment": "experiment",
+    "solution": "solution",
+}
+REV_FIXED_DOC_TYPES: dict[str, str] = {
+    value: key
+    for key, value in FIXED_DOC_TYPES.items()
+}
 
 
 def vec_clear(
@@ -146,6 +180,118 @@ def vec_clear(
         "index_vecdb_main": index_vecdb_main,
         "index_vecdb_test": index_vecdb_test,
     }
+
+
+def vec_add(
+        db: DBConnector,
+        vec_db: QdrantClient,
+        qdrant_redis: Redis,
+        smind: ScattermindAPI,
+        input_str: str,
+        *,
+        articles: str,
+        articles_ns: GNamespace,
+        articles_input: str,
+        articles_output: str,
+        user: uuid.UUID,
+        base: str,
+        doc_id: int,
+        url: str,
+        meta_obj: dict[ExternalKey, list[str] | str],
+        update_meta_only: bool) -> AddEmbed:
+    # validate status
+    if "status" in meta_obj:
+        if meta_obj["status"] not in DOC_STATUS:
+            raise ValueError(
+                f"status must be one of {DOC_STATUS} got "
+                f"{meta_obj['status']}")
+    # validate date
+    if "date" in meta_obj:
+        meta_obj["date"] = fmt_time(parse_time_str(
+            cast(str, meta_obj["date"])))
+    # fill language if missing
+    if "language" not in meta_obj and not update_meta_only:
+        lang_res = extract_language(db, input_str, user)
+        meta_obj["language"] = sorted({
+            lang_obj["lang"]
+            for lang_obj in lang_res["languages"]
+        })
+    elif "language" in meta_obj:
+        meta_obj["language"] = sorted(set(to_list(meta_obj["language"])))
+    # fill iso3 if missing
+    if "iso3" not in meta_obj and not update_meta_only:
+        geo_obj: GeoQuery = {
+            "input": input_str,
+            "return_input": False,
+            "return_context": False,
+            "strategy": "top",
+            "language": "en",
+            "max_requests": DEFAULT_MAX_REQUESTS,
+        }
+        geo_out = extract_locations(db, geo_obj, user)
+        if geo_out["status"] != "invalid":
+            meta_obj["iso3"] = sorted({
+                geo_entity["location"]["country"]
+                for geo_entity in geo_out["entities"]
+                if geo_entity["location"] is not None
+            })
+    elif "iso3" in meta_obj:
+        meta_obj["iso3"] = sorted(set(to_list(meta_obj["iso3"])))
+    # compute embedding
+    snippets = list(snippify_text(
+        input_str,
+        chunk_size=CHUNK_SIZE,
+        chunk_padding=CHUNK_PADDING))
+    embeds = get_text_results_immediate(
+        snippets,
+        smind=smind,
+        ns=articles_ns,
+        input_field=articles_input,
+        output_field=articles_output,
+        output_sample=[1.0])
+    embed_main: EmbedMain = {
+        "base": base,
+        "doc_id": doc_id,
+        "url": url,
+        "meta": meta_obj,
+    }
+    embed_chunks: list[EmbedChunk] = [
+        {
+            "chunk_id": chunk_id,
+            "embed": embed,
+            "snippet": snippet,
+        }
+        for chunk_id, (snippet, embed) in enumerate(zip(snippets, embeds))
+        if embed is not None
+    ]
+    # add embedding to vecdb
+    prev_count, new_count = add_embed(
+        vec_db,
+        qdrant_redis,
+        name=articles,
+        data=embed_main,
+        chunks=embed_chunks,
+        update_meta_only=update_meta_only)
+    failed = sum(1 if embed is None else 0 for embed in embeds)
+    return {
+        "previous": prev_count,
+        "snippets": new_count,
+        "failed": failed,
+    }
+
+
+def vec_filter(
+        vec_db: QdrantClient,
+        qdrant_redis: Redis,
+        *,
+        articles: str,
+        filters: dict[str, list[str]] | None) -> StatEmbed:
+    if filters is not None:
+        filters = {
+            key: to_list(value)
+            for key, value in filters.items()
+        }
+    return stat_embed(vec_db, qdrant_redis, articles, filters=filters)
 
 
 def vec_search(

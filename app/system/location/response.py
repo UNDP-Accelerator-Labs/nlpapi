@@ -4,6 +4,9 @@ from app.system.location.strategy import Strategy
 from app.system.spacy import LanguageStr
 
 
+DEFAULT_MAX_REQUESTS = 20
+
+
 GeoStatus = Literal[
     "cache_hit",
     "cache_miss",
