@@ -187,8 +187,7 @@ def get_vec_stats(
             return None
         status = retry_err(
             lambda: db.get_collection(db_name))
-        count = retry_err(
-            lambda: db.count(db_name, timeout=90))
+        count = retry_err(lambda: db.count(db_name))
         return {
             "name": name,
             "db_name": db_name,
@@ -257,36 +256,36 @@ def build_db_name(
             redis.delete(key)
 
     def recreate_index() -> None:
-        db.delete_payload_index(data_name, "main_id", timeout=600)
+        db.delete_payload_index(data_name, "main_id")
         db.create_payload_index(
             data_name, "main_id", "keyword", timeout=600, wait=False)
 
-        db.delete_payload_index(data_name, "base", timeout=600)
+        db.delete_payload_index(data_name, "base")
         db.create_payload_index(
             data_name, "base", "keyword", timeout=600, wait=False)
 
         date_key = convert_meta_key("date")
-        db.delete_payload_index(data_name, date_key, timeout=600)
+        db.delete_payload_index(data_name, date_key)
         db.create_payload_index(
             data_name, date_key, "datetime", timeout=600, wait=False)
 
         status_key = convert_meta_key("status")
-        db.delete_payload_index(data_name, status_key, timeout=600)
+        db.delete_payload_index(data_name, status_key)
         db.create_payload_index(
             data_name, status_key, "keyword", timeout=600, wait=False)
 
         language_key = convert_meta_key("language")
-        db.delete_payload_index(data_name, language_key, timeout=600)
+        db.delete_payload_index(data_name, language_key)
         db.create_payload_index(
             data_name, language_key, "keyword", timeout=600, wait=False)
 
         iso3_key = convert_meta_key("iso3")
-        db.delete_payload_index(data_name, iso3_key, timeout=600)
+        db.delete_payload_index(data_name, iso3_key)
         db.create_payload_index(
             data_name, iso3_key, "keyword", timeout=600, wait=False)
 
         doc_type_key = convert_meta_key("doc_type")
-        db.delete_payload_index(data_name, doc_type_key, timeout=600)
+        db.delete_payload_index(data_name, doc_type_key)
         db.create_payload_index(
             data_name, doc_type_key, "keyword", timeout=600, wait=False)
 
@@ -423,11 +422,7 @@ def add_embed(
         must=[
             FieldCondition(key=REF_KEY, match=MatchValue(value=main_uuid)),
         ])
-    count_res = db.count(
-        vec_name,
-        count_filter=filter_docs,
-        exact=True,
-        timeout=180)
+    count_res = db.count(vec_name, count_filter=filter_docs, exact=True)
     prev_count = count_res.count
     if prev_count > new_count or new_count == 0:
         db.delete(
@@ -458,11 +453,7 @@ def stat_embed(
         filters: dict[str, list[str]] | None) -> StatEmbed:
     query_filter = None if filters is None else get_filter(filters)
     data_name = get_db_name(name, is_vec=False)
-    count_res = db.count(
-        data_name,
-        count_filter=query_filter,
-        exact=True,
-        timeout=90)
+    count_res = db.count(data_name, count_filter=query_filter, exact=True)
     fields: collections.defaultdict[str, dict[str, int]] = \
         collections.defaultdict(dict)
     if filters is None:
