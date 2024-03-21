@@ -1,5 +1,6 @@
 import collections
 import re
+import time
 import traceback
 import uuid
 from collections.abc import Callable
@@ -254,22 +255,31 @@ def build_db_name(
 
         if not force_clear:
             need_create = False
-            try:
-                vec_name = get_db_name(name, is_vec=True)
-                if db.collection_exists(collection_name=vec_name):
-                    vec_status = db.get_collection(collection_name=vec_name)
-                    print(f"load {vec_name}: {vec_status.status}")
-                else:
-                    need_create = True
-                data_name = get_db_name(name, is_vec=False)
-                if db.collection_exists(collection_name=data_name):
-                    data_status = db.get_collection(collection_name=data_name)
-                    print(f"load {data_name}: {data_status.status}")
-                else:
-                    need_create = True
-            except (UnexpectedResponse, ResponseHandlingException):
-                print(traceback.format_exc())
-                need_create = True
+            conn_error = 0
+            while True:
+                try:
+                    vec_name = get_db_name(name, is_vec=True)
+                    if db.collection_exists(collection_name=vec_name):
+                        vec_status = db.get_collection(
+                            collection_name=vec_name)
+                        print(f"load {vec_name}: {vec_status.status}")
+                    else:
+                        need_create = True
+                    data_name = get_db_name(name, is_vec=False)
+                    if db.collection_exists(collection_name=data_name):
+                        data_status = db.get_collection(
+                            collection_name=data_name)
+                        print(f"load {data_name}: {data_status.status}")
+                    else:
+                        need_create = True
+                    break
+                except (UnexpectedResponse, ResponseHandlingException):
+                    conn_error += 1
+                    if conn_error > 10:
+                        print(traceback.format_exc())
+                        need_create = True
+                        break
+                    time.sleep(10.0)
         if force_clear or need_create:
             recreate()
     return name
