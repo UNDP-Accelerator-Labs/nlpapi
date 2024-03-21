@@ -274,7 +274,7 @@ def build_db_name(
                     break
                 except (UnexpectedResponse, ResponseHandlingException):
                     conn_error += 1
-                    if conn_error > 18:
+                    if conn_error > 60:
                         raise
                     time.sleep(5.0)
         if force_clear or need_create:
