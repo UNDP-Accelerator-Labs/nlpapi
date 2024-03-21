@@ -256,57 +256,52 @@ def build_db_name(
             redis.delete(key)
 
     def recreate_index() -> None:
+        data_name = get_db_name(name, is_vec=False)
+
         db.delete_payload_index(data_name, "main_id")
-        db.create_payload_index(
-            data_name, "main_id", "keyword", timeout=600, wait=False)
+        db.create_payload_index(data_name, "main_id", "keyword", wait=False)
 
         db.delete_payload_index(data_name, "base")
-        db.create_payload_index(
-            data_name, "base", "keyword", timeout=600, wait=False)
+        db.create_payload_index(data_name, "base", "keyword", wait=False)
 
         date_key = convert_meta_key("date")
         db.delete_payload_index(data_name, date_key)
-        db.create_payload_index(
-            data_name, date_key, "datetime", timeout=600, wait=False)
+        db.create_payload_index(data_name, date_key, "datetime", wait=False)
 
         status_key = convert_meta_key("status")
         db.delete_payload_index(data_name, status_key)
-        db.create_payload_index(
-            data_name, status_key, "keyword", timeout=600, wait=False)
+        db.create_payload_index(data_name, status_key, "keyword", wait=False)
 
         language_key = convert_meta_key("language")
         db.delete_payload_index(data_name, language_key)
-        db.create_payload_index(
-            data_name, language_key, "keyword", timeout=600, wait=False)
+        db.create_payload_index(data_name, language_key, "keyword", wait=False)
 
         iso3_key = convert_meta_key("iso3")
         db.delete_payload_index(data_name, iso3_key)
-        db.create_payload_index(
-            data_name, iso3_key, "keyword", timeout=600, wait=False)
+        db.create_payload_index(data_name, iso3_key, "keyword", wait=False)
 
         doc_type_key = convert_meta_key("doc_type")
         db.delete_payload_index(data_name, doc_type_key)
-        db.create_payload_index(
-            data_name, doc_type_key, "keyword", timeout=600, wait=False)
+        db.create_payload_index(data_name, doc_type_key, "keyword", wait=False)
 
-    if not force_clear:
-        vec_name = get_db_name(name, is_vec=True)
-        data_name = get_db_name(name, is_vec=False)
+    if not force_clear and not force_index:
+        vec_name_read = get_db_name(name, is_vec=True)
+        data_name_read = get_db_name(name, is_vec=False)
         need_create = False
         if retry_err(
-                lambda: db.collection_exists(vec_name),
+                lambda: db.collection_exists(vec_name_read),
                 max_retry=60,
                 sleep=5.0):
             vec_status = retry_err(
-                lambda: db.get_collection(vec_name))
-            print(f"load {vec_name}: {vec_status.status}")
+                lambda: db.get_collection(vec_name_read))
+            print(f"load {vec_name_read}: {vec_status.status}")
         else:
             need_create = True
         if retry_err(
-                lambda: db.collection_exists(data_name)):
+                lambda: db.collection_exists(data_name_read)):
             data_status = retry_err(
-                lambda: db.get_collection(data_name))
-            print(f"load {data_name}: {data_status.status}")
+                lambda: db.get_collection(data_name_read))
+            print(f"load {data_name_read}: {data_status.status}")
         else:
             need_create = True
     if force_clear or need_create:
