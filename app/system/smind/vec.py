@@ -173,18 +173,23 @@ def retry_err(
 
 def vec_flushall(db: QdrantClient, redis: Redis) -> None:
     redis.flushall()
-    for collection in retry_err(lambda: db.get_collections().collections):
-        retry_err(db.delete_collection, collection.name)
+    for collection in retry_err(
+            lambda: db.get_collections(timeout=600).collections):
+        retry_err(
+            lambda name: db.delete_collection(name, timeout=600),
+            collection.name)
 
 
 def get_vec_stats(
         db: QdrantClient, name: str, *, is_vec: bool) -> VecDBStat | None:
     try:
         db_name = get_db_name(name, is_vec=is_vec)
-        if not retry_err(lambda: db.collection_exists(db_name)):
+        if not retry_err(lambda: db.collection_exists(db_name, timeout=90)):
             return None
-        status = retry_err(lambda: db.get_collection(collection_name=db_name))
-        count = retry_err(lambda: db.count(collection_name=db_name))
+        status = retry_err(
+            lambda: db.get_collection(db_name, timeout=90))
+        count = retry_err(
+            lambda: db.count(db_name, timeout=90))
         return {
             "name": name,
             "db_name": db_name,
@@ -236,64 +241,68 @@ def build_db_name(
             flush_interval_sec=60,
             max_optimization_threads=4)
         db.recreate_collection(
-            collection_name=vec_name,
+            vec_name,
             vectors_config=config,
             optimizers_config=optimizers,
-            on_disk_payload=True)
+            on_disk_payload=True,
+            timeout=600)
 
         data_name = get_db_name(name, is_vec=False)
         db.recreate_collection(
-            collection_name=data_name,
+            data_name,
             vectors_config=VectorParams(size=1, distance=distance),
-            on_disk_payload=True)
+            on_disk_payload=True,
+            timeout=600)
 
         for key in redis.iter_keys(match=f"{name}:*"):
             redis.delete(key)
 
     def recreate_index() -> None:
-        db.delete_payload_index(data_name, "main_id")
-        db.create_payload_index(data_name, "main_id", "keyword")
+        db.delete_payload_index(data_name, "main_id", timeout=600)
+        db.create_payload_index(data_name, "main_id", "keyword", timeout=600)
 
-        db.delete_payload_index(data_name, "base")
-        db.create_payload_index(data_name, "base", "keyword")
+        db.delete_payload_index(data_name, "base", timeout=600)
+        db.create_payload_index(data_name, "base", "keyword", timeout=600)
 
         date_key = convert_meta_key("date")
-        db.delete_payload_index(data_name, date_key)
-        db.create_payload_index(data_name, date_key, "datetime")
+        db.delete_payload_index(data_name, date_key, timeout=600)
+        db.create_payload_index(data_name, date_key, "datetime", timeout=600)
 
         status_key = convert_meta_key("status")
-        db.delete_payload_index(data_name, status_key)
-        db.create_payload_index(data_name, status_key, "keyword")
+        db.delete_payload_index(data_name, status_key, timeout=600)
+        db.create_payload_index(data_name, status_key, "keyword", timeout=600)
 
         language_key = convert_meta_key("language")
-        db.delete_payload_index(data_name, language_key)
-        db.create_payload_index(data_name, language_key, "keyword")
+        db.delete_payload_index(data_name, language_key, timeout=600)
+        db.create_payload_index(
+            data_name, language_key, "keyword", timeout=600)
 
         iso3_key = convert_meta_key("iso3")
-        db.delete_payload_index(data_name, iso3_key)
-        db.create_payload_index(data_name, iso3_key, "keyword")
+        db.delete_payload_index(data_name, iso3_key, timeout=600)
+        db.create_payload_index(data_name, iso3_key, "keyword", timeout=600)
 
         doc_type_key = convert_meta_key("doc_type")
-        db.delete_payload_index(data_name, doc_type_key)
-        db.create_payload_index(data_name, doc_type_key, "keyword")
+        db.delete_payload_index(data_name, doc_type_key, timeout=600)
+        db.create_payload_index(
+            data_name, doc_type_key, "keyword", timeout=600)
 
     if not force_clear:
         vec_name = get_db_name(name, is_vec=True)
         data_name = get_db_name(name, is_vec=False)
         need_create = False
         if retry_err(
-                lambda: db.collection_exists(collection_name=vec_name),
+                lambda: db.collection_exists(vec_name, timeout=90),
                 max_retry=60,
                 sleep=5.0):
             vec_status = retry_err(
-                lambda: db.get_collection(collection_name=vec_name))
+                lambda: db.get_collection(vec_name, timeout=90))
             print(f"load {vec_name}: {vec_status.status}")
         else:
             need_create = True
         if retry_err(
-                lambda: db.collection_exists(collection_name=data_name)):
+                lambda: db.collection_exists(data_name, timeout=90)):
             data_status = retry_err(
-                lambda: db.get_collection(collection_name=data_name))
+                lambda: db.get_collection(data_name, timeout=90))
             print(f"load {data_name}: {data_status.status}")
         else:
             need_create = True
@@ -344,7 +353,7 @@ def add_embed(
         ])
     # FIXME: split in multiple calls using offset?
     prev_data, _ = db.scroll(
-        collection_name=data_name,
+        data_name,
         scroll_filter=filter_data,
         with_payload=True,
         timeout=90)
@@ -395,13 +404,14 @@ def add_embed(
         main_payload[meta_key] = value
 
     db.upsert(
-        collection_name=data_name,
+        data_name,
         points=[
             PointStruct(
                 id=main_uuid,
                 vector=DUMMY_VEC,
                 payload=main_payload),
-        ])
+        ],
+        timeout=180)
     if update_meta_only:
         return (0, 0)
     vec_name = get_db_name(name, is_vec=True)
@@ -410,25 +420,29 @@ def add_embed(
             FieldCondition(key=REF_KEY, match=MatchValue(value=main_uuid)),
         ])
     count_res = db.count(
-        collection_name=vec_name,
+        vec_name,
         count_filter=filter_docs,
-        exact=True)
+        exact=True,
+        timeout=180)
     prev_count = count_res.count
     if prev_count > new_count or new_count == 0:
         db.delete(
-            collection_name=vec_name,
-            points_selector=FilterSelector(filter=filter_docs))
+            vec_name,
+            points_selector=FilterSelector(filter=filter_docs),
+            timeout=180)
         if new_count == 0:
             redis.srem(redis_base_key, main_id)
             db.delete(
-                collection_name=data_name,
-                points_selector=FilterSelector(filter=filter_docs))
+                data_name,
+                points_selector=FilterSelector(filter=filter_docs),
+                timeout=180)
     else:
         redis.sadd(redis_base_key, main_id)
     if chunks:
         db.upsert(
-            collection_name=vec_name,
-            points=[convert_chunk(chunk) for chunk in chunks])
+            vec_name,
+            points=[convert_chunk(chunk) for chunk in chunks],
+            timeout=300)
     return (prev_count, new_count)
 
 
@@ -441,9 +455,10 @@ def stat_embed(
     query_filter = None if filters is None else get_filter(filters)
     data_name = get_db_name(name, is_vec=False)
     count_res = db.count(
-        collection_name=data_name,
+        data_name,
         count_filter=query_filter,
-        exact=True)
+        exact=True,
+        timeout=90)
     fields: collections.defaultdict[str, dict[str, int]] = \
         collections.defaultdict(dict)
     if filters is None:
@@ -455,7 +470,7 @@ def stat_embed(
     else:
         # FIXME: split in multiple calls using offset?
         main_ids_data, _ = db.scroll(
-            collection_name=data_name,
+            data_name,
             scroll_filter=query_filter,
             with_payload=["main_id"],
             timeout=90)
@@ -596,7 +611,7 @@ def query_embed(
     data_name = get_db_name(name, is_vec=False)
     hits = retry_err(
         lambda: db.search_groups(
-            collection_name=vec_name,
+            vec_name,
             query_vector=embed,
             group_by=REF_KEY,
             limit=total_limit,
@@ -655,7 +670,7 @@ def query_docs(
     query_filter = None if filters is None else get_filter(filters)
     hits, _ = retry_err(
         lambda: db.scroll(
-            collection_name=data_name,
+            data_name,
             order_by=OrderBy(
                 key=convert_meta_key("date"),
                 direction=Direction.DESC),
