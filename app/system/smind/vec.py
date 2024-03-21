@@ -295,7 +295,7 @@ def add_embed(
         raise ValueError("'update_meta_only' requires chunks to be empty")
     print(f"add_embed {name} {new_count} items")
     base = data["base"]
-    redis_base_key = f"{FIELDS_PREFIX}:base:{base}"
+    redis_base_key = f"{name}:{FIELDS_PREFIX}:base:{base}"
     main_id = f"{base}:{data['doc_id']}"
     main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
 
@@ -355,10 +355,10 @@ def add_embed(
             cur_old = get_vals(prev_meta.get(meta_key, []))
             for val in cur_new.difference(cur_old):
                 val = convert_val_for_redis(meta_key, val)
-                pipe.sadd(f"{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
+                pipe.sadd(f"{name}:{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
             for val in cur_old.difference(cur_new):
                 val = convert_val_for_redis(meta_key, val)
-                pipe.srem(f"{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
+                pipe.srem(f"{name}:{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
 
     main_payload = {
         "main_id": main_id,
@@ -423,8 +423,8 @@ def stat_embed(
     fields: collections.defaultdict[str, dict[str, int]] = \
         collections.defaultdict(dict)
     if filters is None:
-        for key in redis.keys(match=f"{FIELDS_PREFIX}:*", block=False):
-            _, f_name, f_value = key.split(":", 2)
+        for key in redis.keys(match=f"{name}:{FIELDS_PREFIX}:*", block=False):
+            _, _, f_name, f_value = key.split(":", 3)
             fields[f_name][f_value] = redis.scard(key)
     else:
         # FIXME: split in multiple calls using offset?
@@ -437,8 +437,8 @@ def stat_embed(
             for data in main_ids_data
             if data.payload is not None
         }
-        for key in redis.keys(match=f"{FIELDS_PREFIX}:*", block=False):
-            _, f_name, f_value = key.split(":", 2)
+        for key in redis.keys(match=f"{name}:{FIELDS_PREFIX}:*", block=False):
+            _, _, f_name, f_value = key.split(":", 3)
             # FIXME use redis intersection function
             f_count = len(main_ids.intersection(redis.smembers(key)))
             fields[f_name][f_value] = f_count
