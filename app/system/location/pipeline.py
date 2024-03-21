@@ -63,8 +63,7 @@ def extract_opencage(db: DBConnector, text: str, user: UUID) -> OpenCageFormat:
             invalid=status_count["invalid"],
             ratelimit=status_count["ratelimit"],
             location_count=1,
-            location_length=total_length,
-        )
+            location_length=total_length)
         stmt = stmt.on_conflict_do_update(
             index_elements=[LocationUsers.userid],
             set_={
@@ -176,8 +175,7 @@ def extract_locations(
             invalid=status_count["invalid"],
             ratelimit=status_count["ratelimit"],
             location_count=1,
-            location_length=total_length,
-        )
+            location_length=total_length)
         stmt = stmt.on_conflict_do_update(
             index_elements=[LocationUsers.userid],
             set_={

@@ -15,8 +15,7 @@ def extract_language(
         stmt = db.upsert(LocationUsers).values(
             userid=user,
             language_count=1,
-            language_length=total_length,
-        )
+            language_length=total_length)
         stmt = stmt.on_conflict_do_update(
             index_elements=[LocationUsers.userid],
             set_={

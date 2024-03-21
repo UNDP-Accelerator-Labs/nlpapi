@@ -10,8 +10,7 @@ def log_query(db: DBConnector, *, db_name: str, text: str) -> None:
         stmt = db.upsert(QueryLog).values(
             vecdb=db_name,
             query=text,
-            access_date=date_str,
-        )
+            access_date=date_str)
         stmt = stmt.on_conflict_do_update(
             index_elements=[
                 QueryLog.vecdb,

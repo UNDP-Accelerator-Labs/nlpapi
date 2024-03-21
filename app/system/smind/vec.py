@@ -407,7 +407,7 @@ def add_embed(
                 vector=DUMMY_VEC,
                 payload=main_payload),
         ],
-        timeout=180)
+        wait=False)
     if update_meta_only:
         return (0, 0)
     vec_name = get_db_name(name, is_vec=True)
@@ -462,7 +462,7 @@ def add_embed(
     db.upsert(
         vec_name,
         points=[convert_chunk(chunk) for chunk in chunks],
-        timeout=300)
+        wait=False)
     return (prev_count, new_count)
 
 
