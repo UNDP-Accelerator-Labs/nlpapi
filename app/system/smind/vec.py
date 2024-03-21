@@ -158,7 +158,7 @@ def retry_err(
         call: Callable[..., T],
         *args: Any,
         max_retry: int = 3,
-        sleep: float = 0.1) -> T:
+        sleep: float = 3.0) -> T:
     error = 0
     while True:
         try:
@@ -258,30 +258,30 @@ def build_db_name(
     def recreate_index() -> None:
         data_name = get_db_name(name, is_vec=False)
 
-        db.delete_payload_index(data_name, "main_id")
+        retry_err(lambda: db.delete_payload_index(data_name, "main_id"))
         db.create_payload_index(data_name, "main_id", "keyword", wait=False)
 
-        db.delete_payload_index(data_name, "base")
+        retry_err(lambda: db.delete_payload_index(data_name, "base"))
         db.create_payload_index(data_name, "base", "keyword", wait=False)
 
         date_key = convert_meta_key("date")
-        db.delete_payload_index(data_name, date_key)
+        retry_err(lambda: db.delete_payload_index(data_name, date_key))
         db.create_payload_index(data_name, date_key, "datetime", wait=False)
 
         status_key = convert_meta_key("status")
-        db.delete_payload_index(data_name, status_key)
+        retry_err(lambda: db.delete_payload_index(data_name, status_key))
         db.create_payload_index(data_name, status_key, "keyword", wait=False)
 
         language_key = convert_meta_key("language")
-        db.delete_payload_index(data_name, language_key)
+        retry_err(lambda: db.delete_payload_index(data_name, language_key))
         db.create_payload_index(data_name, language_key, "keyword", wait=False)
 
         iso3_key = convert_meta_key("iso3")
-        db.delete_payload_index(data_name, iso3_key)
+        retry_err(lambda: db.delete_payload_index(data_name, iso3_key))
         db.create_payload_index(data_name, iso3_key, "keyword", wait=False)
 
         doc_type_key = convert_meta_key("doc_type")
-        db.delete_payload_index(data_name, doc_type_key)
+        retry_err(lambda: db.delete_payload_index(data_name, doc_type_key))
         db.create_payload_index(data_name, doc_type_key, "keyword", wait=False)
 
     need_create = False
@@ -574,6 +574,7 @@ def query_embed_emu_filters(
             cur_res.append(cand)
         cur_offset += cur_limit
         cur_limit = int(max(1, min(100, cur_limit * 1.2)))
+        # cur_limit = int(max(1, min(100, cur_limit * 2)))
     return cur_res[real_offset:total_limit]
 
 
@@ -603,7 +604,7 @@ def query_embed(
             score_threshold=score_threshold,
             query_filter=query_filter,
             with_lookup=WithLookup(collection=data_name, with_payload=True),
-            timeout=180))
+            timeout=300))
 
     def convert_chunk(group: PointGroup) -> ResultChunk:
         score = None
