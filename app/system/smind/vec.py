@@ -253,18 +253,18 @@ def build_db_name(
             db.create_payload_index(data_name, iso3_key, "keyword")
 
         if not force_clear:
-            need_create = False
             conn_error = 0
+            vec_name = get_db_name(name, is_vec=True)
+            data_name = get_db_name(name, is_vec=False)
             while True:
+                need_create = False
                 try:
-                    vec_name = get_db_name(name, is_vec=True)
                     if db.collection_exists(collection_name=vec_name):
                         vec_status = db.get_collection(
                             collection_name=vec_name)
                         print(f"load {vec_name}: {vec_status.status}")
                     else:
                         need_create = True
-                    data_name = get_db_name(name, is_vec=False)
                     if db.collection_exists(collection_name=data_name):
                         data_status = db.get_collection(
                             collection_name=data_name)
@@ -274,9 +274,9 @@ def build_db_name(
                     break
                 except (UnexpectedResponse, ResponseHandlingException):
                     conn_error += 1
-                    if conn_error > 10:
+                    if conn_error > 18:
                         raise
-                    time.sleep(10.0)
+                    time.sleep(5.0)
         if force_clear or need_create:
             recreate()
     return name
