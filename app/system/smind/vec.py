@@ -259,32 +259,37 @@ def build_db_name(
 
     def recreate_index() -> None:
         db.delete_payload_index(data_name, "main_id", timeout=600)
-        db.create_payload_index(data_name, "main_id", "keyword", timeout=600)
+        db.create_payload_index(
+            data_name, "main_id", "keyword", timeout=600, wait=False)
 
         db.delete_payload_index(data_name, "base", timeout=600)
-        db.create_payload_index(data_name, "base", "keyword", timeout=600)
+        db.create_payload_index(
+            data_name, "base", "keyword", timeout=600, wait=False)
 
         date_key = convert_meta_key("date")
         db.delete_payload_index(data_name, date_key, timeout=600)
-        db.create_payload_index(data_name, date_key, "datetime", timeout=600)
+        db.create_payload_index(
+            data_name, date_key, "datetime", timeout=600, wait=False)
 
         status_key = convert_meta_key("status")
         db.delete_payload_index(data_name, status_key, timeout=600)
-        db.create_payload_index(data_name, status_key, "keyword", timeout=600)
+        db.create_payload_index(
+            data_name, status_key, "keyword", timeout=600, wait=False)
 
         language_key = convert_meta_key("language")
         db.delete_payload_index(data_name, language_key, timeout=600)
         db.create_payload_index(
-            data_name, language_key, "keyword", timeout=600)
+            data_name, language_key, "keyword", timeout=600, wait=False)
 
         iso3_key = convert_meta_key("iso3")
         db.delete_payload_index(data_name, iso3_key, timeout=600)
-        db.create_payload_index(data_name, iso3_key, "keyword", timeout=600)
+        db.create_payload_index(
+            data_name, iso3_key, "keyword", timeout=600, wait=False)
 
         doc_type_key = convert_meta_key("doc_type")
         db.delete_payload_index(data_name, doc_type_key, timeout=600)
         db.create_payload_index(
-            data_name, doc_type_key, "keyword", timeout=600)
+            data_name, doc_type_key, "keyword", timeout=600, wait=False)
 
     if not force_clear:
         vec_name = get_db_name(name, is_vec=True)
