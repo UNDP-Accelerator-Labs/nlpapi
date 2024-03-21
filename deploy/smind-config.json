@@ -21,11 +21,18 @@
     "mode": "size"
   },
   "executor_manager": {
-    "name": "thread",
+    "name": "redis",
     "batch_size": 8,
-    "parallelism": 1,
     "sleep_on_idle": 0.1,
-    "reclaim_sleep": 600.0
+    "reclaim_sleep": 600.0,
+    "heartbeat": 30.0,
+    "cfg": {
+      "host": "rmain",
+      "port": 6379,
+      "passwd": "",
+      "prefix": "heartbeat",
+      "path": "rmain"
+    }
   },
   "queue_pool": {
     "name": "redis",
