@@ -27,6 +27,7 @@ ClearResponse = TypedDict('ClearResponse', {
     "clear_rdata": bool,
     "clear_rcache": bool,
     "clear_rbody": bool,
+    "clear_rworker": bool,
     "clear_vecdb_all": bool,
     "clear_vecdb_main": bool,
     "clear_vecdb_test": bool,

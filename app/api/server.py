@@ -286,6 +286,7 @@ def setup(
         clear_rdata = bool(args["clear_rdata"])
         clear_rcache = bool(args["clear_rcache"])
         clear_rbody = bool(args["clear_rbody"])
+        clear_rworker = bool(args["clear_rworker"])
         clear_vecdb_main = bool(args["clear_vecdb_main"])
         clear_vecdb_test = bool(args["clear_vecdb_test"])
         clear_vecdb_all = bool(args["clear_vecdb_all"])
@@ -317,6 +318,12 @@ def setup(
             except Exception:  # pylint: disable=broad-except
                 print(traceback.format_exc())
                 clear_rbody = False
+        if clear_rworker:
+            try:
+                clear_redis(smind_config, "rworker")
+            except Exception:  # pylint: disable=broad-except
+                print(traceback.format_exc())
+                clear_rworker = False
         if clear_vecdb_all:
             try:
                 vec_flushall(vec_db, qdrant_redis)
@@ -342,6 +349,7 @@ def setup(
             "clear_rdata": clear_rdata,
             "clear_rcache": clear_rcache,
             "clear_rbody": clear_rbody,
+            "clear_rworker": clear_rworker,
             "clear_vecdb_all": clear_vecdb_all,
             "clear_vecdb_main": clear_vecdb_main,
             "clear_vecdb_test": clear_vecdb_test,

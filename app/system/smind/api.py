@@ -14,6 +14,7 @@ from redipy import Redis, RedisConfig
 from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
+from scattermind.system.config.loader import ConfigJSON
 from scattermind.system.names import GNamespace
 from scattermind.system.torch_util import tensor_to_str
 
@@ -21,6 +22,9 @@ from app.system.config import Config
 
 
 T = TypeVar('T')
+
+
+PseudoRedisName = Literal["rmain", "rdata", "rcache", "rbody", "rworker"]
 
 
 QueueStat = TypedDict('QueueStat', {
@@ -34,10 +38,10 @@ QueueStat = TypedDict('QueueStat', {
 def get_redis(
         config_fname: str,
         *,
-        redis_name: Literal["rmain", "rdata", "rcache", "rbody"],
+        redis_name: PseudoRedisName,
         overwrite_prefix: str | None) -> Redis:
     with open(config_fname, "rb") as fin:
-        config_obj = json.load(fin)
+        config_obj = cast(ConfigJSON, json.load(fin))
     if redis_name == "rmain":
         if config_obj["client_pool"]["name"] != "redis":
             raise ValueError(
@@ -62,6 +66,12 @@ def get_redis(
                 "queue_pool is not redis: "
                 f"{config_obj['queue_pool']['name']}")
         cfg = config_obj["queue_pool"]["cfg"]
+    elif redis_name == "rworker":
+        if config_obj["executor_manager"]["name"] != "redis":
+            raise ValueError(
+                "executor_manager is not redis: "
+                f"{config_obj['executor_manager']['name']}")
+        cfg = config_obj["executor_manager"]["cfg"]
     else:
         raise ValueError(f"invalid redis_name: {redis_name}")
     if overwrite_prefix:
@@ -74,9 +84,7 @@ def get_redis(
     return Redis(cfg=cfg)
 
 
-def clear_redis(
-        config_fname: str,
-        redis_name: Literal["rmain", "rdata", "rcache", "rbody"]) -> None:
+def clear_redis(config_fname: str, redis_name: PseudoRedisName) -> None:
     redis = get_redis(
         config_fname, redis_name=redis_name, overwrite_prefix=None)
     redis.flushall()
