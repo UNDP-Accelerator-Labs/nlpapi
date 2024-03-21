@@ -353,7 +353,7 @@ def add_embed(
         for meta_key in meta_keys:
             cur_new = get_vals(meta_obj.get(meta_key, []))
             cur_old = get_vals(prev_meta.get(meta_key, []))
-            for val in cur_new.difference(cur_old):
+            for val in cur_new:
                 val = convert_val_for_redis(meta_key, val)
                 pipe.sadd(f"{name}:{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
             for val in cur_old.difference(cur_new):
