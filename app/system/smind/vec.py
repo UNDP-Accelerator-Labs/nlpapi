@@ -284,10 +284,10 @@ def build_db_name(
         db.delete_payload_index(data_name, doc_type_key)
         db.create_payload_index(data_name, doc_type_key, "keyword", wait=False)
 
+    need_create = False
     if not force_clear and not force_index:
         vec_name_read = get_db_name(name, is_vec=True)
         data_name_read = get_db_name(name, is_vec=False)
-        need_create = False
         if retry_err(
                 lambda: db.collection_exists(vec_name_read),
                 max_retry=60,
