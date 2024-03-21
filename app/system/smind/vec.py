@@ -173,8 +173,7 @@ def retry_err(
 
 def vec_flushall(db: QdrantClient, redis: Redis) -> None:
     redis.flushall()
-    for collection in retry_err(
-            lambda: db.get_collections(timeout=600).collections):
+    for collection in retry_err(lambda: db.get_collections().collections):
         retry_err(
             lambda name: db.delete_collection(name, timeout=600),
             collection.name)
@@ -187,7 +186,7 @@ def get_vec_stats(
         if not retry_err(lambda: db.collection_exists(db_name)):
             return None
         status = retry_err(
-            lambda: db.get_collection(db_name, timeout=90))
+            lambda: db.get_collection(db_name))
         count = retry_err(
             lambda: db.count(db_name, timeout=90))
         return {
@@ -300,14 +299,14 @@ def build_db_name(
                 max_retry=60,
                 sleep=5.0):
             vec_status = retry_err(
-                lambda: db.get_collection(vec_name, timeout=90))
+                lambda: db.get_collection(vec_name))
             print(f"load {vec_name}: {vec_status.status}")
         else:
             need_create = True
         if retry_err(
                 lambda: db.collection_exists(data_name)):
             data_status = retry_err(
-                lambda: db.get_collection(data_name, timeout=90))
+                lambda: db.get_collection(data_name))
             print(f"load {data_name}: {data_status.status}")
         else:
             need_create = True
