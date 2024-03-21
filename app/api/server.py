@@ -2,7 +2,6 @@
 import hmac
 import sys
 import threading
-import traceback
 import uuid
 from typing import Any, get_args, Literal, TypeAlias, TypedDict
 
@@ -13,13 +12,7 @@ from quick_server import ReqArgs, ReqNext, Response
 from app.api.mod import Module
 from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
-from app.api.response_types import (
-    AddEmbed,
-    ClearResponse,
-    QueryEmbed,
-    StatsResponse,
-    VersionResponse,
-)
+from app.api.response_types import StatsResponse, VersionResponse
 from app.misc.env import envload_int, envload_str
 from app.misc.util import (
     fmt_time,
@@ -38,7 +31,6 @@ from app.system.location.forwardgeo import OpenCageFormat
 from app.system.location.pipeline import extract_locations, extract_opencage
 from app.system.location.response import GeoOutput, GeoQuery
 from app.system.smind.api import (
-    clear_redis,
     get_queue_stats,
     get_redis,
     get_text_results_immediate,
@@ -47,7 +39,13 @@ from app.system.smind.api import (
     normalize_text,
     snippify_text,
 )
-from app.system.smind.log import log_query
+from app.system.smind.search import (
+    AddEmbed,
+    ClearResponse,
+    QueryEmbed,
+    vec_clear,
+    vec_search,
+)
 from app.system.smind.vec import (
     add_embed,
     build_db_name,
@@ -55,11 +53,8 @@ from app.system.smind.vec import (
     EmbedMain,
     get_vec_client,
     get_vec_stats,
-    query_docs,
-    query_embed_emu_filters,
     stat_embed,
     StatEmbed,
-    vec_flushall,
     VecDBStat,
 )
 
@@ -273,6 +268,35 @@ def setup(
             "queues": get_queue_stats(smind),
         }
 
+    @server.json_post(f"{prefix}/search")
+    @server.middleware(verify_readonly)
+    @server.middleware(verify_input)
+    def _post_search(_req: QSRH, rargs: ReqArgs) -> QueryEmbed:
+        args = rargs["post"]
+        meta = rargs["meta"]
+        input_str: str = meta["input"]
+        filters: dict[str, list[str]] = args.get("filters", {})
+        filters["status"] = ["public"]  # NOTE: not logged in!
+        offset: int = int(args.get("offset", 0))
+        limit: int = int(args["limit"])
+        hit_limit: int = int(args.get("hit_limit", default_hit_limit))
+        score_threshold: float | None = maybe_float(
+            args.get("score_threshold"))
+        return vec_search(
+            db,
+            vec_db,
+            smind,
+            input_str,
+            articles=articles_main,
+            articles_ns=articles_ns,
+            articles_input=articles_input,
+            articles_output=articles_output,
+            filters=filters,
+            offset=offset,
+            limit=limit,
+            hit_limit=hit_limit,
+            score_threshold=score_threshold)
+
     # # # SECURE # # #
     server.add_middleware(verify_token)
 
@@ -293,86 +317,21 @@ def setup(
         clear_vecdb_all = bool(args.get("clear_vecdb_all", False))
         index_vecdb_main = bool(args.get("index_vecdb_main", False))
         index_vecdb_test = bool(args.get("index_vecdb_test", False))
-        if clear_vecdb_all and (not clear_vecdb_main or not clear_vecdb_test):
-            raise ValueError(
-                "clear_vecdb_all must have "
-                "clear_vecdb_main and clear_vecdb_test")
-        if clear_rmain:
-            try:
-                clear_redis(smind_config, "rmain")
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                clear_rmain = False
-        if clear_rdata:
-            try:
-                clear_redis(smind_config, "rdata")
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                clear_rdata = False
-        if clear_rcache:
-            try:
-                clear_redis(smind_config, "rcache")
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                clear_rcache = False
-        if clear_rbody:
-            try:
-                clear_redis(smind_config, "rbody")
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                clear_rbody = False
-        if clear_rworker:
-            try:
-                clear_redis(smind_config, "rworker")
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                clear_rworker = False
-        if clear_vecdb_all:
-            try:
-                vec_flushall(vec_db, qdrant_redis)
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                clear_vecdb_all = False
-                clear_vecdb_main = False
-                clear_vecdb_test = False
-        if clear_vecdb_main:
-            try:
-                get_vec_db("main", force_clear=True, force_index=False)
-                index_vecdb_main = False
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                clear_vecdb_main = False
-        if clear_vecdb_test:
-            try:
-                get_vec_db("test", force_clear=True, force_index=False)
-                index_vecdb_test = False
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                clear_vecdb_test = False
-        if index_vecdb_main:
-            try:
-                get_vec_db("main", force_clear=False, force_index=True)
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                index_vecdb_main = False
-        if index_vecdb_test:
-            try:
-                get_vec_db("test", force_clear=False, force_index=True)
-            except Exception:  # pylint: disable=broad-except
-                print(traceback.format_exc())
-                index_vecdb_test = False
-        return {
-            "clear_rmain": clear_rmain,
-            "clear_rdata": clear_rdata,
-            "clear_rcache": clear_rcache,
-            "clear_rbody": clear_rbody,
-            "clear_rworker": clear_rworker,
-            "clear_vecdb_all": clear_vecdb_all,
-            "clear_vecdb_main": clear_vecdb_main,
-            "clear_vecdb_test": clear_vecdb_test,
-            "index_vecdb_main": index_vecdb_main,
-            "index_vecdb_test": index_vecdb_test,
-        }
+        return vec_clear(
+            vec_db,
+            qdrant_redis,
+            smind_config,
+            get_vec_db=get_vec_db,
+            clear_rmain=clear_rmain,
+            clear_rdata=clear_rdata,
+            clear_rcache=clear_rcache,
+            clear_rbody=clear_rbody,
+            clear_rworker=clear_rworker,
+            clear_vecdb_main=clear_vecdb_main,
+            clear_vecdb_test=clear_vecdb_test,
+            clear_vecdb_all=clear_vecdb_all,
+            index_vecdb_main=index_vecdb_main,
+            index_vecdb_test=index_vecdb_test)
 
     # *** embeddings ***
 
@@ -508,55 +467,26 @@ def setup(
             articles = articles_test
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
-        filters = args.get("filters")
-        if filters is not None:
-            filters = {
-                key: to_list(value)
-                for key, value in filters.items()
-            }
-        offset: int | None = int(args.get("offset", 0))
-        if offset == 0:
-            offset = None
-        limit = int(args["limit"])
-        if not input_str:
-            res = query_docs(
-                vec_db,
-                articles,
-                offset=offset,
-                limit=limit,
-                filters=filters)
-            return {
-                "hits": res,
-                "status": "ok",
-            }
-        hit_limit = int(args.get("hit_limit", default_hit_limit))
-        score_threshold = maybe_float(args.get("score_threshold"))
-        embed = get_text_results_immediate(
-            [input_str],
-            smind=smind,
-            ns=articles_ns,
-            input_field=articles_input,
-            output_field=articles_output,
-            output_sample=[1.0])[0]
-        log_query(db, db_name=articles, text=input_str)
-        if embed is None:
-            return {
-                "hits": [],
-                "status": "error",
-            }
-        hits = query_embed_emu_filters(
+        filters: dict[str, list[str]] | None = args.get("filters")
+        offset: int = int(args.get("offset", 0))
+        limit: int = int(args["limit"])
+        hit_limit: int = int(args.get("hit_limit", default_hit_limit))
+        score_threshold: float | None = maybe_float(
+            args.get("score_threshold"))
+        return vec_search(
+            db,
             vec_db,
-            articles,
-            embed,
+            smind,
+            input_str,
+            articles=articles,
+            articles_ns=articles_ns,
+            articles_input=articles_input,
+            articles_output=articles_output,
+            filters=filters,
             offset=offset,
             limit=limit,
             hit_limit=hit_limit,
-            score_threshold=score_threshold,
-            filters=filters)
-        return {
-            "hits": hits,
-            "status": "ok",
-        }
+            score_threshold=score_threshold)
 
     # *** location ***
 

@@ -1,7 +1,7 @@
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 from app.system.smind.api import QueueStat
-from app.system.smind.vec import ResultChunk, VecDBStat
+from app.system.smind.vec import VecDBStat
 
 
 SourceResponse = TypedDict('SourceResponse', {
@@ -21,25 +21,4 @@ VersionResponse = TypedDict('VersionResponse', {
 StatsResponse = TypedDict('StatsResponse', {
     "vecdbs": list[VecDBStat],
     "queues": list[QueueStat],
-})
-ClearResponse = TypedDict('ClearResponse', {
-    "clear_rmain": bool,
-    "clear_rdata": bool,
-    "clear_rcache": bool,
-    "clear_rbody": bool,
-    "clear_rworker": bool,
-    "clear_vecdb_all": bool,
-    "clear_vecdb_main": bool,
-    "clear_vecdb_test": bool,
-    "index_vecdb_main": bool,
-    "index_vecdb_test": bool,
-})
-AddEmbed = TypedDict('AddEmbed', {
-    "previous": int,
-    "snippets": int,
-    "failed": int,
-})
-QueryEmbed = TypedDict('QueryEmbed', {
-    "hits": list[ResultChunk],
-    "status": Literal["ok", "error"],
 })
