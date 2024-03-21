@@ -351,10 +351,7 @@ def add_embed(
         ])
     # FIXME: split in multiple calls using offset?
     prev_data, _ = db.scroll(
-        data_name,
-        scroll_filter=filter_data,
-        with_payload=True,
-        timeout=90)
+        data_name, scroll_filter=filter_data, with_payload=True)
     meta_keys: set[ExternalKey] = set(meta_obj.keys())
     prev_meta: dict[ExternalKey, list[str] | str] = {}
     if len(prev_data):
@@ -460,10 +457,7 @@ def stat_embed(
     else:
         # FIXME: split in multiple calls using offset?
         main_ids_data, _ = db.scroll(
-            data_name,
-            scroll_filter=query_filter,
-            with_payload=["main_id"],
-            timeout=90)
+            data_name, scroll_filter=query_filter, with_payload=["main_id"])
         main_ids = {
             data.payload["main_id"]
             for data in main_ids_data
@@ -666,8 +660,7 @@ def query_docs(
                 direction=Direction.DESC),
             limit=total_limit,
             scroll_filter=query_filter,
-            with_payload=True,
-            timeout=180))
+            with_payload=True))
 
     def convert_hit(hit: Record) -> ResultChunk:
         data_payload = hit.payload
