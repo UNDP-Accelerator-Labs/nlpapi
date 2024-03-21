@@ -152,9 +152,9 @@ def get_vec_client(config: Config) -> QdrantClient:
 
 
 def vec_flushall(db: QdrantClient, redis: Redis) -> None:
+    redis.flushall()
     for collection in db.get_collections().collections:
         db.delete_collection(collection.name)
-    redis.flushall()
 
 
 def get_vec_stats(
@@ -227,7 +227,7 @@ def build_db_name(
                 vectors_config=VectorParams(size=1, distance=distance),
                 on_disk_payload=True)
 
-            for key in redis.keys(match=f"{name}:*", block=False):
+            for key in redis.iter_keys(match=f"{name}:*"):
                 redis.delete(key)
 
             db.delete_payload_index(data_name, "main_id")
@@ -423,9 +423,11 @@ def stat_embed(
     fields: collections.defaultdict[str, dict[str, int]] = \
         collections.defaultdict(dict)
     if filters is None:
-        for key in redis.keys(match=f"{name}:{FIELDS_PREFIX}:*", block=False):
+        for key in redis.iter_keys(match=f"{name}:{FIELDS_PREFIX}:*"):
             _, _, f_name, f_value = key.split(":", 3)
-            fields[f_name][f_value] = redis.scard(key)
+            field_name = fields[f_name]
+            if f_value not in field_name:
+                field_name[f_value] = redis.scard(key)
     else:
         # FIXME: split in multiple calls using offset?
         main_ids_data, _ = db.scroll(
@@ -437,11 +439,13 @@ def stat_embed(
             for data in main_ids_data
             if data.payload is not None
         }
-        for key in redis.keys(match=f"{name}:{FIELDS_PREFIX}:*", block=False):
+        for key in redis.iter_keys(match=f"{name}:{FIELDS_PREFIX}:*"):
             _, _, f_name, f_value = key.split(":", 3)
-            # FIXME use redis intersection function
-            f_count = len(main_ids.intersection(redis.smembers(key)))
-            fields[f_name][f_value] = f_count
+            field_name = fields[f_name]
+            if f_value not in field_name:
+                # FIXME use redis intersection function
+                f_count = len(main_ids.intersection(redis.smembers(key)))
+                field_name[f_value] = f_count
     return {
         "doc_count": count_res.count,
         "fields": fields,
