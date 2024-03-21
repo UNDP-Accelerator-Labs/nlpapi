@@ -1,7 +1,6 @@
 import collections
 import re
 import time
-import traceback
 import uuid
 from collections.abc import Callable
 from typing import cast, Literal, TypeAlias, TypedDict
@@ -276,9 +275,7 @@ def build_db_name(
                 except (UnexpectedResponse, ResponseHandlingException):
                     conn_error += 1
                     if conn_error > 10:
-                        print(traceback.format_exc())
-                        need_create = True
-                        break
+                        raise
                     time.sleep(10.0)
         if force_clear or need_create:
             recreate()
