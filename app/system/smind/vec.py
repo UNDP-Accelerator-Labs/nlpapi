@@ -631,7 +631,6 @@ def query_docs(
         order_by=OrderBy(
             key=convert_meta_key("date"),
             direction=Direction.DESC),
-        offset=0,
         limit=total_limit,
         scroll_filter=query_filter,
         with_payload=True)
