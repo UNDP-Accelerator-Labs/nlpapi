@@ -25,6 +25,7 @@ import { getElement, isLoading } from './util.js';
  *     score: number;
  *     snippets: string[];
  *     url: string;
+ *     title: string;
  *   }[];
  *   status: string;
  * }} SearchResult
@@ -284,7 +285,7 @@ export default class Search {
       div.classList.add('hit');
       const link = document.createElement('a');
       link.href = hit.url;
-      link.innerText = hit.url;
+      link.innerText = hit.title;
       div.appendChild(link);
       const info = document.createElement('div');
       info.classList.add('hitInfo');

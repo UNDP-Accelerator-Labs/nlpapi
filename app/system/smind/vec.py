@@ -88,6 +88,7 @@ EmbedMain = TypedDict('EmbedMain', {
     "doc_id": int,
     "base": str,
     "url": str,
+    "title": str,
     "meta": dict[ExternalKey, list[str] | str],
 })
 
@@ -105,6 +106,7 @@ ResultChunk = TypedDict('ResultChunk', {
     "doc_id": int,
     "base": str,
     "url": str,
+    "title": str,
     "snippets": list[str],
     "meta": dict[ExternalKey, list[str] | str],
 })
@@ -686,6 +688,7 @@ def query_embed(
         base = data_payload["base"]
         doc_id = data_payload["doc_id"]
         url = data_payload["url"]
+        title = data_payload.get("title", url)
         main_id = data_payload["main_id"]
         return {
             "main_id": main_id,
@@ -694,6 +697,7 @@ def query_embed(
             "doc_id": doc_id,
             "snippets": snippets,
             "url": url,
+            "title": title,
             "meta": meta,
         }
 
@@ -732,6 +736,7 @@ def query_docs(
         base = data_payload["base"]
         doc_id = data_payload["doc_id"]
         url = data_payload["url"]
+        title = data_payload.get("title", url)
         main_id = data_payload["main_id"]
         return {
             "main_id": main_id,
@@ -740,6 +745,7 @@ def query_docs(
             "doc_id": doc_id,
             "snippets": [],
             "url": url,
+            "title": title,
             "meta": meta,
         }
 

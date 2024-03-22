@@ -361,6 +361,7 @@ def setup(
         base = args["base"]
         doc_id = int(args["doc_id"])
         url = args["url"]
+        title = args["title"]
         meta_obj = args.get("meta", {})
         update_meta_only = bool(args.get("update_meta_only", False))
         user: uuid.UUID = meta["user"]
@@ -379,6 +380,7 @@ def setup(
             base=base,
             doc_id=doc_id,
             url=url,
+            title=title,
             meta_obj=meta_obj,
             update_meta_only=update_meta_only)
 

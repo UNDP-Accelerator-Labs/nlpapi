@@ -216,9 +216,18 @@ def vec_add(
         base: str,
         doc_id: int,
         url: str,
+        title: str,
         meta_obj: dict[ExternalKey, list[str] | str],
         update_meta_only: bool) -> AddEmbed:
     qdrant_cache.flushall()
+    # validate title
+    title = title.strip()
+    if not title:
+        raise ValueError("title cannot be empty")
+    # validate url
+    url = url.strip()
+    if not url:
+        raise ValueError("url cannot be empty")
     # validate status
     if "status" not in meta_obj:
         raise ValueError(f"status is a mandatory field: {meta_obj}")
@@ -291,6 +300,7 @@ def vec_add(
         "base": base,
         "doc_id": doc_id,
         "url": url,
+        "title": title,
         "meta": meta_obj,
     }
     embed_chunks: list[EmbedChunk] = [
