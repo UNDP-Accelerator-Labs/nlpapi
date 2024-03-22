@@ -239,6 +239,7 @@ echo "DOCKER_RCACHE=${IMAGE_BASE}-rcache:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_
 echo "DOCKER_RBODY=${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> "${DEFAULT_ENV_FILE}"
+echo "DEV_LOCAL=eof" >> "${DEFAULT_ENV_FILE}"  # put the correct values for local development if needed
 
 ! read -r -d '' PY_COMPOSE <<'EOF'
 import os
@@ -275,4 +276,3 @@ echo "docker compose is ready at ${DOCKER_COMPOSE_OUT}"
 echo "make sure to call make dockerpush before updating"
 echo "================================================="
 cat "${DOCKER_COMPOSE_OUT}"
-echo ""
