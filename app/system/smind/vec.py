@@ -344,6 +344,9 @@ def full_scroll(
             limit=cur_limit,
             with_payload=with_payload)
         res.extend(cur)
+        print(
+            f"scroll with offset={offset} limit={cur_limit} "
+            f"chunk={len(cur)} results={len(res)} next={next_offset}")
         if next_offset is None:
             break
         offset = next_offset
