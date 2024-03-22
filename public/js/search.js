@@ -45,6 +45,7 @@ export default class Search {
     /** @type {HTMLDivElement} */ this._paginationDiv =
       getElement(paginationId);
     /** @type {string} */ this._input = '';
+    /** @type {boolean} */ this._searched = false;
     /** @type {{ [key: string]: string[] }} */ this._filter = {};
     /** @type {{ [key: string]: boolean }} */ this._groups = {};
     /** @type {number} */ this._page = 0;
@@ -57,24 +58,19 @@ export default class Search {
     searchInput.addEventListener('change', () => {
       const current = searchInput.value;
       this._input = current;
-      setTimeout(async () => {
-        if (this._input !== current) {
-          return;
-        }
-        await this.updateSearch();
-      }, 600);
+      this._searched = false;
     });
-
-    searchInput.addEventListener('blur', async () => {
-      await this.updateSearch();
-    });
-    searchInput.addEventListener('keydown', async (e) => {
+    searchInput.addEventListener('keydown', (e) => {
       if (e.defaultPrevented) {
         return;
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        await this.updateSearch();
+        if (this._searched) {
+          return;
+        }
+        this._searched = true;
+        this.updateSearch();
       }
     });
   }
