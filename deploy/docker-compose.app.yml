@@ -51,7 +51,8 @@ services:
       - '6379'
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rbody:/data
-  worker:
+  worker-1:
+    container_name: worker-1  # instead of replicas for now
     # deploy:
     #   mode: replicated
     #   replicas: 3
