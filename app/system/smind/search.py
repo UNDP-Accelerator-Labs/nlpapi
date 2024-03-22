@@ -243,10 +243,11 @@ def vec_add(
     doc_type = meta_obj["doc_type"]
     if isinstance(doc_type, list):
         raise TypeError(f"doc_type {doc_type} must be string")
-    required_doc_type = KNOWN_DOC_TYPES.get(base)
-    if required_doc_type is not None and required_doc_type != doc_type:
+    required_doc_types = KNOWN_DOC_TYPES.get(base)
+    if required_doc_types is not None and doc_type not in required_doc_types:
         raise ValueError(
-            f"base {base} requires doc_type {required_doc_type} != {doc_type}")
+            f"base {base} requires doc_type from "
+            f"{required_doc_types} not {doc_type}")
     required_base = DOC_TYPE_TO_BASE.get(doc_type)
     if required_base is not None and required_base != base:
         raise ValueError(
