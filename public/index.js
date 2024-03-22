@@ -1,11 +1,15 @@
 // @ts-check
 
-const run = () => {
-  // TODO
+import Search from './js/search.js';
+
+const run = async () => {
+  const search = new Search('#filter', '#search', '#results', '#pagination');
+  await search.updateStats();
+  await search.updateSearch();
 };
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', run);
 } else {
-  run();
+  await run();
 }
