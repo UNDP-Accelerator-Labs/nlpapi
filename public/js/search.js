@@ -70,6 +70,7 @@ export default class Search {
           return;
         }
         this._searched = true;
+        this._page = 0;
         this.updateSearch();
       }
     });
@@ -110,17 +111,19 @@ export default class Search {
 
   async updateStats() {
     console.log('update stats');
+    const filterDiv = this._filterDiv;
+    filterDiv.classList.add('.loading');
     const stats = await this.getStats();
+    filterDiv.classList.remove('.loading');
     const paginationDiv = this._paginationDiv;
-    const filter = this._filter;
     const groups = this._groups;
+    const filter = this._filter;
     const docCount = document.createElement('div');
     docCount.innerText = `${stats.doc_count}`;
     paginationDiv.replaceChildren(...[docCount]);
-    const filterDiv = this._filterDiv;
     const fields = stats.fields;
     const newChildren = Object.keys(fields)
-      .filter((field) => !['date'].includes(field))
+      .filter((field) => !['date', 'base'].includes(field))
       .map((field) => {
         const ul = document.createElement('ul');
         const div = document.createElement('div');
@@ -144,24 +147,27 @@ export default class Search {
         });
         div.appendChild(fieldName);
         const fieldVals = fields[field];
-        const lis = Object.keys(fieldVals).map((value) => {
-          const fieldValue = document.createElement('li');
-          const isSelected = filter[field]?.includes(value);
-          if (isSelected) {
-            fieldValue.classList.add('fieldSelected');
-          }
-          fieldValue.innerText = `${value} (${fieldVals[value]})`;
-          fieldValue.addEventListener('click', () => {
+        const lis = Object.keys(fieldVals)
+          .filter((value) => fieldVals[value])
+          .map((value) => {
+            const fieldValue = document.createElement('li');
+            const isSelected = filter[field]?.includes(value);
             if (isSelected) {
-              filter[field] = filter[field].filter((f) => f !== value);
-            } else {
-              filter[field] = [...(filter[field] ?? []), value];
+              fieldValue.classList.add('fieldSelected');
             }
-            this.updateStats();
-            this.updateSearch();
+            fieldValue.innerText = `${value} (${fieldVals[value]})`;
+            fieldValue.addEventListener('click', () => {
+              if (isSelected) {
+                filter[field] = filter[field].filter((f) => f !== value);
+              } else {
+                filter[field] = [...(filter[field] ?? []), value];
+              }
+              this._page = 0;
+              this.updateStats();
+              this.updateSearch();
+            });
+            return fieldValue;
           });
-          return fieldValue;
-        });
         ul.replaceChildren(...lis);
         div.appendChild(ul);
         return div;
@@ -171,14 +177,35 @@ export default class Search {
 
   async updateSearch() {
     console.log('update search');
-    const results = await this.getSearch();
     const resultsDiv = this._resultsDiv;
+    resultsDiv.classList.add('.loading');
+    const results = await this.getSearch();
+    resultsDiv.classList.remove('.loading');
     const newChildren = results.hits.map((hit) => {
       const div = document.createElement('div');
+      div.classList.add('hit');
       const link = document.createElement('a');
       link.href = hit.url;
       link.innerText = hit.url;
       div.appendChild(link);
+      const info = document.createElement('div');
+      info.classList.add('hitInfo');
+      info.innerText = `${hit.base}-${hit.doc_id} score: ${hit.score} date: ${hit.meta.date}`;
+      div.appendChild(info);
+      const demographic = document.createElement('div');
+      const countries = `countries: ${(hit.meta?.iso3 ?? []).join(', ')}`;
+      const languages = `languages: ${(hit.meta?.language ?? []).join(', ')}`;
+      demographic.innerText = `${countries} ${languages}`;
+      div.appendChild(demographic);
+      const snippets = document.createElement('div');
+      const snippetDivs = hit.snippets.map((snippet) => {
+        const snippetDiv = document.createElement('div');
+        snippetDiv.classList.add('hitSnippet');
+        snippetDiv.innerText = snippet;
+        return snippetDiv;
+      });
+      snippets.replaceChildren(...snippetDivs);
+      div.appendChild(snippets);
       return div;
     });
     resultsDiv.replaceChildren(...newChildren);

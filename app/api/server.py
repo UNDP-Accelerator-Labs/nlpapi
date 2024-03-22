@@ -112,6 +112,8 @@ def setup(
     server.timeout = server_timeout
     server.socket.settimeout(server_timeout)
 
+    server.cross_origin = True  # FIXME: for now...
+
     if deploy:
         server.no_command_loop = True
 

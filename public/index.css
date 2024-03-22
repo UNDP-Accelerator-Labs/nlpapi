@@ -53,14 +53,20 @@ a:focus {
   margin-right: 5px;
 }
 
+.loading {
+  filter: brightness(0.8) blur(5px);
+}
+
 .topleft,
 .search {
   height: 20vh;
   flex-shrink: 0;
   flex-grow: 0;
+  margin: 2px;
 }
 
 .filter {
+  margin: 2px;
   overflow: auto;
 }
 
@@ -135,6 +141,26 @@ a:focus {
 .results {
   overflow: auto;
   flex-grow: 1;
+}
+
+.hit {
+  padding: 4px 8px;
+  margin: 2px;
+  border: 1px solid black;
+}
+
+.hitInfo {
+  font-weight: bolder;
+}
+
+.hitSnippet {
+  max-height: 5em;
+  overflow: auto;
+  background-color: khaki;
+  padding: 2px;
+  margin: 2px;
+  line-height: 1.2em;
+  margin-left: 20px;
 }
 
 .pagination {
