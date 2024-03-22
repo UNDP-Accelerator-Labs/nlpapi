@@ -168,6 +168,8 @@ def setup(
         "/cluster/",
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/cluster")
 
+    server.bind_path("/search/", "public/")
+
     # TODO: add date module
 
     def verify_token(
