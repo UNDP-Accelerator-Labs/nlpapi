@@ -2,7 +2,7 @@
 
 import Search from './js/search.js';
 
-const run = async () => {
+const run = () => {
   const search = new Search(
     '#filter',
     '#search',
@@ -10,12 +10,12 @@ const run = async () => {
     '#pagination',
     '#docCount',
   );
-  await search.updateStats();
-  await search.updateSearch();
+  search.updateStats();
+  search.updateSearch();
 };
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', run);
 } else {
-  await run();
+  run();
 }

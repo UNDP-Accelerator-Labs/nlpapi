@@ -1,3 +1,5 @@
+/* general */
+
 * {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 14px;
@@ -42,6 +44,12 @@ a:focus {
   max-width: 100vw;
 }
 
+.loading {
+  filter: brightness(0.8) blur(5px);
+}
+
+/** left column */
+
 .vside {
   display: flex;
   justify-content: start;
@@ -53,9 +61,7 @@ a:focus {
   margin-right: 5px;
 }
 
-.loading {
-  filter: brightness(0.8) blur(5px);
-}
+/** topleft */
 
 .topleft,
 .search {
@@ -70,6 +76,8 @@ a:focus {
   flex-direction: column;
   justify-content: end;
 }
+
+/** filters */
 
 .filter {
   margin: 2px;
@@ -128,6 +136,8 @@ a:focus {
   background-color: salmon;
 }
 
+/** results column */
+
 .vmain {
   display: flex;
   justify-content: start;
@@ -138,11 +148,15 @@ a:focus {
   max-width: 60vw;
 }
 
+/** searchbar */
+
 .search {
   display: flex;
   flex-direction: column;
   justify-content: end;
 }
+
+/** results panel */
 
 .results {
   overflow: auto;
@@ -169,7 +183,11 @@ a:focus {
   margin-left: 20px;
 }
 
+/** pagination */
+
 .pagination {
+  margin-top: 2px;
+  padding-top: 2px;
   flex-grow: 0;
 }
 
@@ -202,6 +220,8 @@ a:focus {
 .pagination span.dotdotdot:hover {
   background-color: inherit;
 }
+
+/** phone */
 
 @media (hover: none) and (max-width: 480px) {
   .hmain {

@@ -2,7 +2,7 @@ import collections
 import re
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, cast, Literal, TypeAlias, TypedDict, TypeVar
 
 from qdrant_client import QdrantClient
@@ -327,6 +327,30 @@ def build_db_name(
     return name
 
 
+def full_scroll(
+        db: QdrantClient,
+        name: str,
+        *,
+        scroll_filter: Filter | None,
+        with_payload: bool | Sequence[str]) -> list[Record]:
+    offset = None
+    cur_limit = 10
+    res: list[Record] = []
+    while True:
+        cur, next_offset = db.scroll(
+            name,
+            scroll_filter=scroll_filter,
+            offset=offset,
+            limit=cur_limit,
+            with_payload=with_payload)
+        res.extend(cur)
+        if next_offset is None:
+            break
+        offset = next_offset
+        cur_limit = int(max(1, min(100, cur_limit * 1.2)))
+    return res
+
+
 def add_embed(
         db: QdrantClient,
         redis: Redis,
@@ -350,12 +374,11 @@ def add_embed(
         must=[
             FieldCondition(key="main_id", match=MatchValue(value=main_id)),
         ])
-    # FIXME: split in multiple calls using offset?
-    prev_data, _ = db.scroll(
-        data_name, scroll_filter=filter_data, with_payload=True)
+    prev_data = full_scroll(
+        db, data_name, scroll_filter=filter_data, with_payload=True)
     meta_keys: set[ExternalKey] = set(meta_obj.keys())
     prev_meta: dict[ExternalKey, list[str] | str] = {}
-    if len(prev_data):
+    if len(prev_data) > 0:
         prev_payload = prev_data[0].payload
         assert prev_payload is not None
         prev_meta = fill_meta(prev_payload)
@@ -484,9 +507,11 @@ def stat_embed(
             if f_value not in field_name:
                 field_name[f_value] = redis.scard(key)
     else:
-        # FIXME: split in multiple calls using offset?
-        main_ids_data, _ = db.scroll(
-            data_name, scroll_filter=query_filter, with_payload=["main_id"])
+        main_ids_data = full_scroll(
+            db,
+            data_name,
+            scroll_filter=query_filter,
+            with_payload=["main_id"])
         main_ids = {
             data.payload["main_id"]
             for data in main_ids_data

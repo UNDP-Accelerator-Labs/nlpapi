@@ -1,6 +1,6 @@
 // @ts-check
 
-import { getElement } from './util.js';
+import { getElement, isLoading } from './util.js';
 
 /**
  * @typedef {{
@@ -35,6 +35,8 @@ const BASE = window.location.host.startsWith('localhost')
   : '';
 
 const PAGE_SIZE = 10;
+const DISPLAY_PAGE_COUNT = 10;
+const MID_PAGE = Math.floor(DISPLAY_PAGE_COUNT / 2);
 
 export default class Search {
   constructor(
@@ -112,8 +114,7 @@ export default class Search {
 
   updateStats() {
     console.log('update stats');
-    const filterDiv = this._filterDiv;
-    filterDiv.classList.add('loading');
+    isLoading(this._filterDiv, true);
     this._statsId += 1;
     const statsId = this._statsId;
     setTimeout(async () => {
@@ -125,23 +126,26 @@ export default class Search {
     const docCount = this._docCount;
     const currentPage = this._page;
     const paginationDiv = this._paginationDiv;
-    const pageCount = Math.min(Math.ceil(docCount / PAGE_SIZE), 11);
+    const pageCount = Math.min(
+      Math.ceil(docCount / PAGE_SIZE),
+      DISPLAY_PAGE_COUNT + 1,
+    );
     const pagination = [...Array(pageCount).keys()]
       .map((page) => ({
-        page: currentPage > 5 ? page + currentPage - 5 : page,
+        page: currentPage > MID_PAGE ? page + currentPage - MID_PAGE : page,
         isFirst: page === 0,
-        isLast: page >= 10,
+        isLast: page >= DISPLAY_PAGE_COUNT,
       }))
       .map(({ page, isFirst, isLast }) => {
         const span = document.createElement('span');
-        if (currentPage > 5) {
+        if (currentPage > MID_PAGE) {
           span.innerText = isFirst || isLast ? '...' : `${page}`;
         } else {
           span.innerText = isLast ? '...' : `${page}`;
         }
         if (page === currentPage) {
           span.classList.add('current');
-        } else if (isLast || (currentPage > 5 && isFirst)) {
+        } else if (isLast || (currentPage > MID_PAGE && isFirst)) {
           span.classList.add('dotdotdot');
         } else {
           span.addEventListener('click', () => {
@@ -218,13 +222,12 @@ export default class Search {
         return div;
       });
     filterDiv.replaceChildren(...newChildren);
-    filterDiv.classList.remove('loading');
+    isLoading(filterDiv, false);
   }
 
   updateSearch() {
     console.log('update search');
-    const resultsDiv = this._resultsDiv;
-    resultsDiv.classList.add('loading');
+    isLoading(this._resultsDiv, true);
     this._searchId += 1;
     const searchId = this._searchId;
     setTimeout(async () => {
@@ -270,6 +273,6 @@ export default class Search {
       return div;
     });
     resultsDiv.replaceChildren(...newChildren);
-    resultsDiv.classList.remove('loading');
+    isLoading(resultsDiv, false);
   }
 } // Search
