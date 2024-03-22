@@ -22,6 +22,12 @@ body {
   }
 }
 
+.error {
+  cursor: pointer;
+  color: white;
+  background-color: crimson;
+}
+
 /* links */
 
 a,

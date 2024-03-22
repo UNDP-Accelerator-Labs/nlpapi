@@ -83,33 +83,49 @@ export default class Search {
 
   /** @type {() => Promise<StatResult>} */
   async getStats() {
-    const res = await fetch(`${BASE}/api/stats`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ filters: this._filter }),
-    });
-    return await res.json();
+    try {
+      const res = await fetch(`${BASE}/api/stats`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ filters: this._filter }),
+      });
+      return await res.json();
+    } catch (err) {
+      console.error(err);
+      return {
+        doc_count: -1,
+        fields: {},
+      };
+    }
   }
 
   /** @type {() => Promise<SearchResult>} */
   async getSearch() {
-    const res = await fetch(`${BASE}/api/search`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        input: this._input,
-        filters: this._filter,
-        offset: this._page * PAGE_SIZE,
-        limit: PAGE_SIZE,
-      }),
-    });
-    return await res.json();
+    try {
+      const res = await fetch(`${BASE}/api/search`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          input: this._input,
+          filters: this._filter,
+          offset: this._page * PAGE_SIZE,
+          limit: PAGE_SIZE,
+        }),
+      });
+      return await res.json();
+    } catch (err) {
+      console.error(err);
+      return {
+        hits: [],
+        status: 'error',
+      };
+    }
   }
 
   updateStats() {
@@ -165,6 +181,17 @@ export default class Search {
       return;
     }
     const filterDiv = this._filterDiv;
+    isLoading(filterDiv, false);
+    if (stats.doc_count < 0) {
+      const errDiv = document.createElement('div');
+      errDiv.classList.add('error');
+      errDiv.innerText = 'An error occurred! Click here to try again.';
+      errDiv.addEventListener('click', () => {
+        this.updateStats();
+      });
+      filterDiv.replaceChildren(...[errDiv]);
+      return;
+    }
     const groups = this._groups;
     const filter = this._filter;
     this._docCountDiv.innerText = `Total documents: ${stats.doc_count}`;
@@ -222,7 +249,6 @@ export default class Search {
         return div;
       });
     filterDiv.replaceChildren(...newChildren);
-    isLoading(filterDiv, false);
   }
 
   updateSearch() {
@@ -240,8 +266,19 @@ export default class Search {
     if (searchId !== this._searchId) {
       return;
     }
-    this.setPageDiv();
     const resultsDiv = this._resultsDiv;
+    isLoading(resultsDiv, false);
+    this.setPageDiv();
+    if (results.status !== 'ok') {
+      const errDiv = document.createElement('div');
+      errDiv.classList.add('error');
+      errDiv.innerText = 'An error occurred! Click here to try again.';
+      errDiv.addEventListener('click', () => {
+        this.updateSearch();
+      });
+      resultsDiv.replaceChildren(...[errDiv]);
+      return;
+    }
     const newChildren = results.hits.map((hit) => {
       const div = document.createElement('div');
       div.classList.add('hit');
@@ -273,6 +310,5 @@ export default class Search {
       return div;
     });
     resultsDiv.replaceChildren(...newChildren);
-    isLoading(resultsDiv, false);
   }
 } // Search

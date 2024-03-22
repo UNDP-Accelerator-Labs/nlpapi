@@ -141,6 +141,8 @@ def setup(
 
     qdrant_redis = get_redis(
         smind_config, redis_name="rmain", overwrite_prefix="qdrant")
+    qdrant_cache = get_redis(
+        smind_config, redis_name="rcache", overwrite_prefix="qdrant")
 
     def get_vec_db(name: DBName, force_clear: bool, force_index: bool) -> str:
         return build_db_name(
@@ -267,7 +269,8 @@ def setup(
         filters["status"] = ["public"]  # NOTE: not logged in!
         return vec_filter(
             vec_db,
-            qdrant_redis,
+            qdrant_redis=qdrant_redis,
+            qdrant_cache=qdrant_cache,
             articles=articles_main,
             filters=filters)
 
@@ -315,6 +318,7 @@ def setup(
         clear_rcache = bool(args.get("clear_rcache", False))
         clear_rbody = bool(args.get("clear_rbody", False))
         clear_rworker = bool(args.get("clear_rworker", False))
+        clear_veccache = bool(args.get("clear_veccache", False))
         clear_vecdb_main = bool(args.get("clear_vecdb_main", False))
         clear_vecdb_test = bool(args.get("clear_vecdb_test", False))
         clear_vecdb_all = bool(args.get("clear_vecdb_all", False))
@@ -322,14 +326,16 @@ def setup(
         index_vecdb_test = bool(args.get("index_vecdb_test", False))
         return vec_clear(
             vec_db,
-            qdrant_redis,
             smind_config,
+            qdrant_redis=qdrant_redis,
+            qdrant_cache=qdrant_cache,
             get_vec_db=get_vec_db,
             clear_rmain=clear_rmain,
             clear_rdata=clear_rdata,
             clear_rcache=clear_rcache,
             clear_rbody=clear_rbody,
             clear_rworker=clear_rworker,
+            clear_veccache=clear_veccache,
             clear_vecdb_main=clear_vecdb_main,
             clear_vecdb_test=clear_vecdb_test,
             clear_vecdb_all=clear_vecdb_all,
@@ -361,9 +367,10 @@ def setup(
         return vec_add(
             db,
             vec_db,
-            qdrant_redis,
             smind,
             input_str,
+            qdrant_redis=qdrant_redis,
+            qdrant_cache=qdrant_cache,
             articles=articles,
             articles_ns=articles_ns,
             articles_input=articles_input,
@@ -389,7 +396,8 @@ def setup(
         filters: dict[str, list[str]] | None = args.get("filters")
         return vec_filter(
             vec_db,
-            qdrant_redis,
+            qdrant_redis=qdrant_redis,
+            qdrant_cache=qdrant_cache,
             articles=articles,
             filters=filters)
 

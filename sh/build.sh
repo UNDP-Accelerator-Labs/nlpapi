@@ -269,7 +269,7 @@ with open(dout, "w", encoding="utf-8") as fout:
     fout.write(content)
 EOF
 
-${PYTHON} -c "${PY_COMPOSE}" "${DOCKER_LOGIN_SERVER}" "deploy/docker-compose.yml" "${DEFAULT_ENV_FILE}" "${DOCKER_COMPOSE_OUT}"
+${PYTHON} -c "${PY_COMPOSE}" "${DOCKER_LOGIN_SERVER}" "deploy/docker-compose.app.yml" "${DEFAULT_ENV_FILE}" "${DOCKER_COMPOSE_OUT}"
 
 echo "docker compose is ready at ${DOCKER_COMPOSE_OUT}"
 echo "make sure to call make dockerpush before updating"

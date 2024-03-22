@@ -1,3 +1,4 @@
+import hashlib
 import traceback
 import uuid
 from typing import get_args, Literal, Protocol, TypeAlias, TypedDict
@@ -7,7 +8,13 @@ from redipy import Redis
 from scattermind.api.api import ScattermindAPI
 from scattermind.system.names import GNamespace
 
-from app.misc.util import fmt_time, parse_time_str, to_list
+from app.misc.util import (
+    fmt_time,
+    json_compact_str,
+    json_maybe_read,
+    parse_time_str,
+    to_list,
+)
 from app.system.db.db import DBConnector
 from app.system.language.pipeline import extract_language
 from app.system.location.pipeline import extract_locations
@@ -47,6 +54,7 @@ ClearResponse = TypedDict('ClearResponse', {
     "clear_rcache": bool,
     "clear_rbody": bool,
     "clear_rworker": bool,
+    "clear_veccache": bool,
     "clear_vecdb_all": bool,
     "clear_vecdb_main": bool,
     "clear_vecdb_test": bool,
@@ -87,15 +95,17 @@ DOC_TYPE_TO_BASE: dict[str, str] = {
 
 def vec_clear(
         vec_db: QdrantClient,
-        qdrant_redis: Redis,
         smind_config: str,
         *,
+        qdrant_redis: Redis,
+        qdrant_cache: Redis,
         get_vec_db: GetVecDB,
         clear_rmain: bool,
         clear_rdata: bool,
         clear_rcache: bool,
         clear_rbody: bool,
         clear_rworker: bool,
+        clear_veccache: bool,
         clear_vecdb_main: bool,
         clear_vecdb_test: bool,
         clear_vecdb_all: bool,
@@ -135,6 +145,12 @@ def vec_clear(
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_rworker = False
+    if clear_veccache:
+        try:
+            qdrant_cache.flushall()
+        except Exception:  # pylint: disable=broad-except
+            print(traceback.format_exc())
+            clear_veccache = False
     if clear_vecdb_all:
         try:
             vec_flushall(vec_db, qdrant_redis)
@@ -175,6 +191,7 @@ def vec_clear(
         "clear_rcache": clear_rcache,
         "clear_rbody": clear_rbody,
         "clear_rworker": clear_rworker,
+        "clear_veccache": clear_veccache,
         "clear_vecdb_all": clear_vecdb_all,
         "clear_vecdb_main": clear_vecdb_main,
         "clear_vecdb_test": clear_vecdb_test,
@@ -186,10 +203,11 @@ def vec_clear(
 def vec_add(
         db: DBConnector,
         vec_db: QdrantClient,
-        qdrant_redis: Redis,
         smind: ScattermindAPI,
         input_str: str,
         *,
+        qdrant_redis: Redis,
+        qdrant_cache: Redis,
         articles: str,
         articles_ns: GNamespace,
         articles_input: str,
@@ -200,6 +218,7 @@ def vec_add(
         url: str,
         meta_obj: dict[ExternalKey, list[str] | str],
         update_meta_only: bool) -> AddEmbed:
+    qdrant_cache.flushall()
     # validate status
     if "status" not in meta_obj:
         raise ValueError(f"status is a mandatory field: {meta_obj}")
@@ -299,10 +318,29 @@ def vec_add(
     }
 
 
+def get_filter_hash(filters: dict[str, list[str]] | None) -> str:
+    blake = hashlib.blake2b(digest_size=32)
+    if filters is not None:
+        for key, values in sorted(filters.items(), key=lambda kv: kv[0]):
+            if not values:
+                continue
+            key_bytes = key.encode("utf-8")
+            blake.update(f"{len(key_bytes)}:".encode("utf-8"))
+            blake.update(key_bytes)
+            blake.update(f"{len(values)}[".encode("utf-8"))
+            for val in sorted(values):
+                val_bytes = val.encode("utf-8")
+                blake.update(f"{len(val_bytes)}:".encode("utf-8"))
+                blake.update(val_bytes)
+            blake.update(b"]")
+    return blake.hexdigest()
+
+
 def vec_filter(
         vec_db: QdrantClient,
-        qdrant_redis: Redis,
         *,
+        qdrant_redis: Redis,
+        qdrant_cache: Redis,
         articles: str,
         filters: dict[str, list[str]] | None) -> StatEmbed:
     if filters is not None:
@@ -310,7 +348,17 @@ def vec_filter(
             key: to_list(value)
             for key, value in filters.items()
         }
-    return stat_embed(vec_db, qdrant_redis, articles, filters=filters)
+    cache_key = f"stat:{articles}:{get_filter_hash(filters)}"
+    res = qdrant_cache.get_value(cache_key)
+    if res is not None:
+        ret_val: StatEmbed | None = json_maybe_read(res)
+        if ret_val is not None:
+            print(f"STAT CACHE HIT {cache_key}")
+            return ret_val
+    print(f"STAT CACHE MISS {cache_key}")
+    ret_val = stat_embed(vec_db, qdrant_redis, articles, filters=filters)
+    qdrant_cache.set_value(cache_key, json_compact_str(ret_val))
+    return ret_val
 
 
 def vec_search(

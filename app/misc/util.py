@@ -212,12 +212,12 @@ def json_pretty(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True, indent=2)
 
 
-def json_compact(obj: Any) -> bytes:
+def json_compact_str(obj: Any) -> str:
     return json.dumps(
         obj,
         sort_keys=True,
         indent=None,
-        separators=(',', ':')).encode("utf-8")
+        separators=(',', ':'))
 
 
 def json_read(data: bytes) -> Any:
