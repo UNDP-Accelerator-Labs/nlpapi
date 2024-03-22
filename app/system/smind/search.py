@@ -73,14 +73,15 @@ DocStatus: TypeAlias = Literal["public", "preview"]
 DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
 
 
-FIXED_DOC_TYPES: dict[str, str] = {
-    "actionplan": "action plan",
-    "experiment": "experiment",
-    "solution": "solution",
+KNOWN_DOC_TYPES: dict[str, set[str]] = {
+    "actionplan": {"action plan"},
+    "experiment": {"experiment"},
+    "solution": {"solution"},
 }
-REV_FIXED_DOC_TYPES: dict[str, str] = {
-    value: key
-    for key, value in FIXED_DOC_TYPES.items()
+DOC_TYPE_TO_BASE: dict[str, str] = {
+    doc_type: base
+    for base, doc_types in KNOWN_DOC_TYPES.items()
+    for doc_type in doc_types
 }
 
 
@@ -214,11 +215,11 @@ def vec_add(
     doc_type = meta_obj["doc_type"]
     if isinstance(doc_type, list):
         raise TypeError(f"doc_type {doc_type} must be string")
-    required_doc_type = FIXED_DOC_TYPES.get(base)
+    required_doc_type = KNOWN_DOC_TYPES.get(base)
     if required_doc_type is not None and required_doc_type != doc_type:
         raise ValueError(
             f"base {base} requires doc_type {required_doc_type} != {doc_type}")
-    required_base = REV_FIXED_DOC_TYPES.get(doc_type)
+    required_base = DOC_TYPE_TO_BASE.get(doc_type)
     if required_base is not None and required_base != base:
         raise ValueError(
             f"doc_type {doc_type} requires base {required_base} != {base}")
@@ -332,6 +333,19 @@ def vec_search(
             key: to_list(value)
             for key, value in filters.items()
         }
+        # NOTE: utilizing base vec index for known doc_types
+        # each doc_type can only be in one base
+        doc_type_filter = filters.get("doc_type")
+        if doc_type_filter and "base" not in filters:
+            bases: set[str] = set()
+            for doc_type in doc_type_filter:
+                fixed_base = DOC_TYPE_TO_BASE.get(doc_type)
+                if fixed_base is None:
+                    bases = set()
+                    break
+                bases.add(fixed_base)
+            if bases:
+                filters["base"] = sorted(bases)
     if offset == 0:
         offset = None
     if not input_str:
