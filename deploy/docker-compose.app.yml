@@ -52,9 +52,9 @@ services:
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rbody:/data
   worker:
-    deploy:
-      mode: replicated
-      replicas: 3
+    # deploy:
+    #   mode: replicated
+    #   replicas: 3
     image: $DOCKER_WORKER
     pull_policy: always
     restart: always
