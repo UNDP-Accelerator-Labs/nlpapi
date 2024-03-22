@@ -3,7 +3,13 @@
 import Search from './js/search.js';
 
 const run = async () => {
-  const search = new Search('#filter', '#search', '#results', '#pagination');
+  const search = new Search(
+    '#filter',
+    '#search',
+    '#results',
+    '#pagination',
+    '#docCount',
+  );
   await search.updateStats();
   await search.updateSearch();
 };

@@ -112,6 +112,8 @@ def setup(
     server.timeout = server_timeout
     server.socket.settimeout(server_timeout)
 
+    server.link_empty_favicon_fallback()
+
     server.cross_origin = True  # FIXME: for now...
 
     if deploy:

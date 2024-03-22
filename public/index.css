@@ -65,6 +65,12 @@ a:focus {
   margin: 2px;
 }
 
+.topleft {
+  display: flex;
+  flex-direction: column;
+  justify-content: end;
+}
+
 .filter {
   margin: 2px;
   overflow: auto;
@@ -165,6 +171,36 @@ a:focus {
 
 .pagination {
   flex-grow: 0;
+}
+
+.pagination span {
+  padding: 10px;
+  cursor: pointer;
+}
+
+.pagination span:hover {
+  background-color: silver;
+}
+
+.pagination span.current {
+  user-select: none;
+  cursor: inherit;
+  font-weight: bolder;
+  background-color: lightgray;
+}
+
+.pagination span.current:hover {
+  background-color: lightgray;
+}
+
+.pagination span.dotdotdot {
+  user-select: none;
+  cursor: inherit;
+  background-color: inherit;
+}
+
+.pagination span.dotdotdot:hover {
+  background-color: inherit;
 }
 
 @media (hover: none) and (max-width: 480px) {
