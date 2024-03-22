@@ -239,9 +239,9 @@ def setup(
             "error": None,
         }
 
-    @server.json_get(f"{prefix}/stats")
+    @server.json_get(f"{prefix}/info")
     @server.middleware(verify_readonly)
-    def _get_stats(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
+    def _get_info(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
         vecdbs: list[VecDBStat] = []
         for articles in [articles_main, articles_test]:
             for is_vec in [False, True]:
@@ -252,6 +252,18 @@ def setup(
             "vecdbs": vecdbs,
             "queues": get_queue_stats(smind),
         }
+
+    @server.json_post(f"{prefix}/stats")
+    @server.middleware(verify_readonly)
+    def _post_stats(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
+        args = rargs["post"]
+        filters: dict[str, list[str]] = args.get("filters", {})
+        filters["status"] = ["public"]  # NOTE: not logged in!
+        return vec_filter(
+            vec_db,
+            qdrant_redis,
+            articles=articles_main,
+            filters=filters)
 
     @server.json_post(f"{prefix}/search")
     @server.middleware(verify_readonly)
@@ -368,7 +380,7 @@ def setup(
             articles = articles_test
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
-        filters = args.get("filters")
+        filters: dict[str, list[str]] | None = args.get("filters")
         return vec_filter(
             vec_db,
             qdrant_redis,

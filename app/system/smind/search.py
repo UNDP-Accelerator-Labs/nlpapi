@@ -1,6 +1,6 @@
 import traceback
 import uuid
-from typing import cast, get_args, Literal, Protocol, TypeAlias, TypedDict
+from typing import get_args, Literal, Protocol, TypeAlias, TypedDict
 
 from qdrant_client import QdrantClient
 from redipy import Redis
@@ -200,15 +200,33 @@ def vec_add(
         meta_obj: dict[ExternalKey, list[str] | str],
         update_meta_only: bool) -> AddEmbed:
     # validate status
-    if "status" in meta_obj:
-        if meta_obj["status"] not in DOC_STATUS:
-            raise ValueError(
-                f"status must be one of {DOC_STATUS} got "
-                f"{meta_obj['status']}")
+    if "status" not in meta_obj:
+        raise ValueError(f"status is a mandatory field: {meta_obj}")
+    if isinstance(meta_obj["status"], list):
+        raise TypeError(f"status {meta_obj['status']} must be string")
+    if meta_obj["status"] not in DOC_STATUS:
+        raise ValueError(
+            f"status must be one of {DOC_STATUS} got "
+            f"{meta_obj['status']}")
+    # validate doc_type
+    if "doc_type" not in meta_obj:
+        raise ValueError(f"doc_type is a mandatory field: {meta_obj}")
+    doc_type = meta_obj["doc_type"]
+    if isinstance(doc_type, list):
+        raise TypeError(f"doc_type {doc_type} must be string")
+    required_doc_type = FIXED_DOC_TYPES.get(base)
+    if required_doc_type is not None and required_doc_type != doc_type:
+        raise ValueError(
+            f"base {base} requires doc_type {required_doc_type} != {doc_type}")
+    required_base = REV_FIXED_DOC_TYPES.get(doc_type)
+    if required_base is not None and required_base != base:
+        raise ValueError(
+            f"doc_type {doc_type} requires base {required_base} != {base}")
     # validate date
     if "date" in meta_obj:
-        meta_obj["date"] = fmt_time(parse_time_str(
-            cast(str, meta_obj["date"])))
+        if isinstance(meta_obj["date"], list):
+            raise TypeError(f"date {meta_obj['date']} must be string")
+        meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
     # fill language if missing
     if "language" not in meta_obj and not update_meta_only:
         lang_res = extract_language(db, input_str, user)
