@@ -194,11 +194,11 @@ export default class Search {
     const filter = this._filter;
     if (stats.doc_count !== null) {
       this._docCountDiv.innerText = `Total documents: ${stats.doc_count}`;
-      setLoading(this._docCountDiv, false);
+      setLoading(this._docCountDiv, false, true);
       this._docCount = stats.doc_count;
       this.setPageDiv();
     } else {
-      setLoading(this._docCountDiv, true);
+      setLoading(this._docCountDiv, true, false);
     }
     const fields = stats.fields;
     const newChildren = Object.keys(fields)
@@ -292,7 +292,7 @@ export default class Search {
 
   updateSearch() {
     console.log('update search');
-    setLoading(this._resultsDiv, true);
+    setLoading(this._resultsDiv, true, false);
     this._searchId += 1;
     const searchId = this._searchId;
     setTimeout(async () => {
@@ -306,7 +306,7 @@ export default class Search {
       return;
     }
     const resultsDiv = this._resultsDiv;
-    setLoading(resultsDiv, false);
+    setLoading(resultsDiv, false, true);
     this.setPageDiv();
     if (results.status !== 'ok') {
       const errDiv = document.createElement('div');

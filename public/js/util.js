@@ -16,13 +16,14 @@ const renderCounts = {};
 export function setLoading(
   /** @type {Element} */ element,
   /** @type {boolean} */ value,
+  /** @type {boolean} */ force,
 ) {
   const eId = element.id;
   if (value) {
     renderCounts[eId] = (renderCounts[eId] ?? 0) + 1;
     // NOTE: only show loading if an action takes longer than 200ms
     setTimeout(() => {
-      if (renderCounts[eId] > 0) {
+      if (force || renderCounts[eId] > 0) {
         element.classList.add('loading');
       }
     }, 200);
@@ -30,8 +31,9 @@ export function setLoading(
     renderCounts[eId] = Math.max((renderCounts[eId] ?? 0) - 1, 0);
     // NOTE: never show loading shorter than 200ms which causes blinking
     setTimeout(() => {
-      if (renderCounts[eId] <= 0) {
+      if (force || renderCounts[eId] <= 0) {
         element.classList.remove('loading');
+        renderCounts[eId] = 0;
       }
     }, 200);
   }
