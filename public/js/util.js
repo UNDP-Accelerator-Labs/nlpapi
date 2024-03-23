@@ -10,30 +10,28 @@ export function getElement(selector) {
   return res;
 }
 
-/** @type {{ [key: string]: number }} */
-const renderCounts = {};
+/** @type {{ [key: string]: boolean }} */
+const isLoading = {};
 
 export function setLoading(
   /** @type {Element} */ element,
   /** @type {boolean} */ value,
-  /** @type {boolean} */ force,
 ) {
   const eId = element.id;
   if (value) {
-    renderCounts[eId] = (renderCounts[eId] ?? 0) + 1;
+    isLoading[eId] = true;
     // NOTE: only show loading if an action takes longer than 200ms
     setTimeout(() => {
-      if (force || renderCounts[eId] > 0) {
+      if (isLoading[eId]) {
         element.classList.add('loading');
       }
     }, 200);
   } else {
-    renderCounts[eId] = Math.max((renderCounts[eId] ?? 0) - 1, 0);
+    isLoading[eId] = false;
     // NOTE: never show loading shorter than 200ms which causes blinking
     setTimeout(() => {
-      if (force || renderCounts[eId] <= 0) {
+      if (!isLoading[eId]) {
         element.classList.remove('loading');
-        renderCounts[eId] = 0;
       }
     }, 200);
   }
