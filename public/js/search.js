@@ -267,7 +267,7 @@ export default class Search {
       fields: Object.keys(fields).reduce((newFields, key) => {
         newFields[key] = Object.keys(fields[key]).reduce(
           (newValues, value) => {
-            newValues[value] = null;
+            newValues[value] = fields[key][value] !== 0 ? null : 0;
             return newValues;
           },
           {},
