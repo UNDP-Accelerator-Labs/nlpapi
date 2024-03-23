@@ -13,7 +13,7 @@ export function getElement(selector) {
 /** @type {{ [key: string]: number }} */
 const renderCounts = {};
 
-export function isLoading(
+export function setLoading(
   /** @type {Element} */ element,
   /** @type {boolean} */ value,
 ) {
@@ -27,7 +27,7 @@ export function isLoading(
       }
     }, 200);
   } else {
-    renderCounts[eId] = (renderCounts[eId] ?? 0) - 1;
+    renderCounts[eId] = Math.max((renderCounts[eId] ?? 0) - 1, 0);
     // NOTE: never show loading shorter than 200ms which causes blinking
     setTimeout(() => {
       if (renderCounts[eId] <= 0) {

@@ -1,12 +1,19 @@
 // @ts-check
 
-import { getElement, isLoading } from './util.js';
+import { getElement, setLoading } from './util.js';
 
 /**
  * @typedef {{
  *  doc_count: number;
  *  fields: { [key: string]: { [key: string]: number } };
  * }} StatResult
+ */
+
+/**
+ * @typedef {{
+ *  doc_count: number?;
+ *  fields: { [key: string]: { [key: string]: number? } };
+ * }} StatResultCache
  */
 
 /**
@@ -60,6 +67,10 @@ export default class Search {
     /** @type {number} */ this._searchId = 0;
     /** @type {number} */ this._statsId = 0;
     /** @type {number} */ this._docCount = 0;
+    /** @type {StatResultCache} */ this._statCache = {
+      doc_count: null,
+      fields: {},
+    };
 
     this.setupInput();
   }
@@ -129,16 +140,6 @@ export default class Search {
     }
   }
 
-  updateStats() {
-    console.log('update stats');
-    isLoading(this._filterDiv, true);
-    this._statsId += 1;
-    const statsId = this._statsId;
-    setTimeout(async () => {
-      await this.doUpdateStats(statsId);
-    }, 0);
-  }
-
   setPageDiv() {
     const docCount = this._docCount;
     const currentPage = this._page;
@@ -176,14 +177,10 @@ export default class Search {
     paginationDiv.replaceChildren(...pagination);
   }
 
-  async doUpdateStats(/** @type {number} */ statsId) {
-    const stats = await this.getStats();
-    if (statsId !== this._statsId) {
-      return;
-    }
+  renderStats() {
+    const stats = this._statCache;
     const filterDiv = this._filterDiv;
-    isLoading(filterDiv, false);
-    if (stats.doc_count < 0) {
+    if (stats.doc_count !== null && stats.doc_count < 0) {
       const errDiv = document.createElement('div');
       errDiv.classList.add('error');
       errDiv.innerText = 'An error occurred! Click here to try again.';
@@ -195,9 +192,14 @@ export default class Search {
     }
     const groups = this._groups;
     const filter = this._filter;
-    this._docCountDiv.innerText = `Total documents: ${stats.doc_count}`;
-    this._docCount = stats.doc_count;
-    this.setPageDiv();
+    if (stats.doc_count !== null) {
+      this._docCountDiv.innerText = `Total documents: ${stats.doc_count}`;
+      setLoading(this._docCountDiv, false);
+      this._docCount = stats.doc_count;
+      this.setPageDiv();
+    } else {
+      setLoading(this._docCountDiv, true);
+    }
     const fields = stats.fields;
     const newChildren = Object.keys(fields)
       .filter((field) => !['date', 'base'].includes(field))
@@ -225,14 +227,17 @@ export default class Search {
         div.appendChild(fieldName);
         const fieldVals = fields[field];
         const lis = Object.keys(fieldVals)
-          .filter((value) => fieldVals[value])
+          .filter((value) => fieldVals[value] !== 0)
           .map((value) => {
             const fieldValue = document.createElement('li');
             const isSelected = filter[field]?.includes(value);
             if (isSelected) {
               fieldValue.classList.add('fieldSelected');
             }
-            fieldValue.innerText = `${value} (${fieldVals[value]})`;
+            fieldValue.innerText =
+              fieldVals[value] === null
+                ? `${value}`
+                : `${value} (${fieldVals[value]})`;
             fieldValue.addEventListener('click', () => {
               if (isSelected) {
                 filter[field] = filter[field].filter((f) => f !== value);
@@ -252,9 +257,42 @@ export default class Search {
     filterDiv.replaceChildren(...newChildren);
   }
 
+  updateStats() {
+    console.log('update stats');
+    this._statsId += 1;
+    const statsId = this._statsId;
+    const { fields } = this._statCache;
+    this._statCache = {
+      doc_count: null,
+      fields: Object.keys(fields).reduce((newFields, key) => {
+        newFields[key] = Object.keys(fields[key]).reduce(
+          (newValues, value) => {
+            newValues[value] = null;
+            return newValues;
+          },
+          {},
+        );
+        return newFields;
+      }, {}),
+    };
+    this.renderStats();
+    setTimeout(async () => {
+      await this.doUpdateStats(statsId);
+    }, 0);
+  }
+
+  async doUpdateStats(/** @type {number} */ statsId) {
+    const stats = await this.getStats();
+    if (statsId !== this._statsId) {
+      return;
+    }
+    this._statCache = stats;
+    this.renderStats();
+  }
+
   updateSearch() {
     console.log('update search');
-    isLoading(this._resultsDiv, true);
+    setLoading(this._resultsDiv, true);
     this._searchId += 1;
     const searchId = this._searchId;
     setTimeout(async () => {
@@ -268,7 +306,7 @@ export default class Search {
       return;
     }
     const resultsDiv = this._resultsDiv;
-    isLoading(resultsDiv, false);
+    setLoading(resultsDiv, false);
     this.setPageDiv();
     if (results.status !== 'ok') {
       const errDiv = document.createElement('div');
