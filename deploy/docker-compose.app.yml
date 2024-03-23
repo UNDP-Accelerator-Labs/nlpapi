@@ -51,11 +51,10 @@ services:
       - '6379'
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rbody:/data
-  worker-1:
-    container_name: worker-1  # instead of replicas for now
-    # deploy:
-    #   mode: replicated
-    #   replicas: 3
+  worker:
+    deploy:
+      mode: replicated
+      replicas: 3
     image: $DOCKER_WORKER
     pull_policy: always
     restart: always
