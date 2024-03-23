@@ -422,6 +422,7 @@ def add_embed(
         "doc_id": data["doc_id"],
         "base": base,
         "url": data["url"],
+        "title": data["title"],
     }
     for key, value in meta_obj.items():
         meta_key = convert_meta_key(key)
