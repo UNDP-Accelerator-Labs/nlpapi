@@ -233,13 +233,23 @@ a:focus {
   .hmain {
     justify-content: start;
     align-items: start;
+    flex-direction: column-reverse;
   }
 
   .vmain {
     justify-content: start;
   }
 
-  .topleft {
-    height: 0;
+  .topleft,
+  .search,
+  .filter,
+  .results,
+  .pagination {
+    width: 100vw;
+  }
+
+  .topleft,
+  .search {
+    height: auto;
   }
 }
