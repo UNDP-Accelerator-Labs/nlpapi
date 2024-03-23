@@ -569,6 +569,8 @@ def get_filter(
             continue
         key = maybe_convert_meta_key(key)
         conds.append(FieldCondition(key=key, match=MatchAny(any=values)))
+    if not conds:
+        return None
     return Filter(must=conds)
 
 
