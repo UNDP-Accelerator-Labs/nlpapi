@@ -286,6 +286,7 @@ def setup(
         hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
         score_threshold: float | None = maybe_float(
             args.get("score_threshold"))
+        short_snippets = bool(args.get("short_snippets", False))
         return vec_search(
             db,
             vec_db,
@@ -299,7 +300,8 @@ def setup(
             offset=offset,
             limit=limit,
             hit_limit=hit_limit,
-            score_threshold=score_threshold)
+            score_threshold=score_threshold,
+            short_snippets=short_snippets)
 
     # # # SECURE # # #
     server.add_middleware(verify_token)
@@ -420,6 +422,7 @@ def setup(
         hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
         score_threshold: float | None = maybe_float(
             args.get("score_threshold"))
+        short_snippets = bool(args.get("short_snippets", False))
         return vec_search(
             db,
             vec_db,
@@ -433,7 +436,8 @@ def setup(
             offset=offset,
             limit=limit,
             hit_limit=hit_limit,
-            score_threshold=score_threshold)
+            score_threshold=score_threshold,
+            short_snippets=short_snippets)
 
     # *** location ***
 

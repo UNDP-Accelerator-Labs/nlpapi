@@ -3,6 +3,7 @@ import traceback
 import uuid
 from typing import get_args, Literal, Protocol, TypeAlias, TypedDict
 
+import numpy as np
 from qdrant_client import QdrantClient
 from redipy import Redis
 from scattermind.api.api import ScattermindAPI
@@ -74,6 +75,7 @@ QueryEmbed = TypedDict('QueryEmbed', {
 
 
 CHUNK_SIZE = 600
+SMALL_CHUNK_SIZE = 80
 CHUNK_PADDING = 10
 DEFAULT_HIT_LIMIT = 3
 
@@ -255,7 +257,8 @@ def vec_add(
     if "date" in meta_obj:
         if isinstance(meta_obj["date"], list):
             raise TypeError(f"date {meta_obj['date']} must be string")
-        meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
+        if meta_obj["date"] is not None:
+            meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
     # fill language if missing
     if "language" not in meta_obj and not update_meta_only:
         lang_res = extract_language(db, input_str, user)
@@ -432,7 +435,8 @@ def vec_search(
         offset: int | None,
         limit: int,
         hit_limit: int,
-        score_threshold: float | None) -> QueryEmbed:
+        score_threshold: float | None,
+        short_snippets: bool) -> QueryEmbed:
     if filters is not None:
         filters = {
             key: to_list(value)
@@ -477,6 +481,39 @@ def vec_search(
             "hits": [],
             "status": "error",
         }
+
+    def snippet_post(snippets: list[str]) -> list[str]:
+        if not short_snippets:
+            return snippets
+        small_snippets = [
+            snap.strip()
+            for snip in snippets
+            for snap in snippify_text(
+                snip,
+                chunk_size=SMALL_CHUNK_SIZE,
+                chunk_padding=CHUNK_PADDING)
+            if snap.strip()
+        ]
+        sembeds = [
+            (stxt, sembed)
+            for stxt, sembed in zip(small_snippets, get_text_results_immediate(
+                small_snippets,
+                smind=smind,
+                ns=articles_ns,
+                input_field=articles_input,
+                output_field=articles_output,
+                output_sample=[1.0]))
+            if sembed is not None
+        ]
+        mat_ref = np.array([embed])  # 1 x len(embed)
+        mat_embed = np.array([
+            sembed
+            for (_, sembed) in sembeds
+        ]).T  # len(embed) x len(semebds)
+        dots = np.matmul(mat_ref, mat_embed).ravel()
+        ixs = list(np.argsort(dots))[::-1]
+        return [sembeds[ix][0] for ix in ixs[:len(snippets)]]
+
     hits = query_embed_emu_filters(
         vec_db,
         articles,
@@ -485,7 +522,8 @@ def vec_search(
         limit=limit,
         hit_limit=hit_limit,
         score_threshold=score_threshold,
-        filters=filters)
+        filters=filters,
+        snippet_post_processing=snippet_post)
     return {
         "hits": hits,
         "status": "ok",

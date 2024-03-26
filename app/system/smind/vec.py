@@ -583,7 +583,9 @@ def query_embed_emu_filters(
         limit: int,
         hit_limit: int,
         score_threshold: float | None,
-        filters: dict[ExternalKey, list[str]] | None) -> list[ResultChunk]:
+        filters: dict[ExternalKey, list[str]] | None,
+        snippet_post_processing: Callable[[list[str]], list[str]],
+        ) -> list[ResultChunk]:
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     filter_fn = create_filter_fn(filters)
@@ -601,7 +603,8 @@ def query_embed_emu_filters(
             limit=cur_limit,
             hit_limit=hit_limit,
             score_threshold=score_threshold,
-            vec_filter=vec_filter)
+            vec_filter=vec_filter,
+            snippet_post_processing=snippet_post_processing)
         if len(candidates) < cur_limit:
             reached_end = True
         for cand in candidates:
@@ -623,7 +626,9 @@ def query_embed(
         limit: int,
         hit_limit: int,
         score_threshold: float | None,
-        vec_filter: Filter | None) -> list[ResultChunk]:
+        vec_filter: Filter | None,
+        snippet_post_processing: Callable[[list[str]], list[str]],
+        ) -> list[ResultChunk]:
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     print(f"query {name} offset={real_offset} limit={total_limit}")
@@ -650,6 +655,7 @@ def query_embed(
             hit_payload = hit.payload
             assert hit_payload is not None
             snippets.append(hit_payload["snippet"])
+        snippets = snippet_post_processing(snippets)
         assert score is not None
         lookup = group.lookup
         assert lookup is not None

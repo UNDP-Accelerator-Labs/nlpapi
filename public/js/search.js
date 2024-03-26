@@ -61,6 +61,7 @@ export default class Search {
     /** @type {HTMLDivElement} */ this._paginationDiv =
       getElement(paginationId);
     /** @type {HTMLDivElement} */ this._docCountDiv = getElement(docCountId);
+    /** @type {{ [key: string]: HTMLUListElement }} */ this._groupElems = {};
     /** @type {string[]} */ (this._allFields = fields);
     /** @type {string} */ (this._input = '');
     /** @type {{ [key: string]: string[] }} */ this._filter = {};
@@ -187,9 +188,11 @@ export default class Search {
       errDiv.classList.add('error');
       errDiv.innerText = 'An error occurred! Click here to try again.';
       errDiv.addEventListener('click', () => {
+        errDiv.remove();
         this.updateStats(null);
       });
       filterDiv.replaceChildren(...[errDiv]);
+      this._groupElems = {};
       return;
     }
     const groups = this._groups;
@@ -203,30 +206,36 @@ export default class Search {
       setLoading(this._docCountDiv, true);
     }
     const fields = stats.fields;
-    const newChildren = Object.keys(fields)
+    Object.keys(fields)
       .filter((field) => !['date', 'base'].includes(field))
-      .map((field) => {
-        const ul = document.createElement('ul');
-        const div = document.createElement('div');
-        const fieldName = document.createElement('div');
-        fieldName.innerText = `${field}`;
-        fieldName.classList.add('fieldName');
-        if (groups[field]) {
-          fieldName.classList.add('groupSelected');
-          ul.classList.add('groupSelected');
-        }
-        fieldName.addEventListener('click', () => {
+      .forEach((field) => {
+        let ul = this._groupElems[field];
+        if (!ul) {
+          const div = document.createElement('div');
+          ul = document.createElement('ul');
+          const fieldName = document.createElement('div');
+          fieldName.innerText = `${field}`;
+          fieldName.classList.add('fieldName');
           if (groups[field]) {
-            fieldName.classList.remove('groupSelected');
-            ul.classList.remove('groupSelected');
-            groups[field] = false;
-          } else {
             fieldName.classList.add('groupSelected');
             ul.classList.add('groupSelected');
-            groups[field] = true;
           }
-        });
-        div.appendChild(fieldName);
+          fieldName.addEventListener('click', () => {
+            if (groups[field]) {
+              fieldName.classList.remove('groupSelected');
+              ul.classList.remove('groupSelected');
+              groups[field] = false;
+            } else {
+              fieldName.classList.add('groupSelected');
+              ul.classList.add('groupSelected');
+              groups[field] = true;
+            }
+          });
+          div.appendChild(fieldName);
+          div.appendChild(ul);
+          filterDiv.appendChild(div);
+          this._groupElems[field] = ul;
+        }
         const fieldVals = fields[field];
         const lis = Object.keys(fieldVals)
           .filter((value) => fieldVals[value] !== 0)
@@ -241,11 +250,14 @@ export default class Search {
                 ? `${value}`
                 : `${value} (${fieldVals[value]})`;
             fieldValue.addEventListener('click', () => {
+              console.log(filter[field]);
               if (isSelected) {
                 filter[field] = filter[field].filter((f) => f !== value);
               } else {
                 filter[field] = [...(filter[field] ?? []), value];
               }
+              fieldValue.classList.toggle('fieldSelected', !isSelected);
+              console.log(fieldValue, fieldValue.classList);
               this._page = 0;
               this.updateStats(field);
               this.updateSearch();
@@ -253,10 +265,7 @@ export default class Search {
             return fieldValue;
           });
         ul.replaceChildren(...lis);
-        div.appendChild(ul);
-        return div;
       });
-    filterDiv.replaceChildren(...newChildren);
   }
 
   updateStats(/** @type {string?} */ field) {
@@ -267,13 +276,13 @@ export default class Search {
     this._statCache = {
       doc_count: null,
       fields: Object.keys(fields).reduce((newFields, key) => {
-        newFields[key] = Object.keys(fields[key]).reduce(
-          (newValues, value) => {
-            newValues[value] = fields[key][value] !== 0 ? null : 0;
-            return newValues;
-          },
-          {},
-        );
+        newFields[key] =
+          key === field
+            ? fields[key]
+            : Object.keys(fields[key]).reduce((newValues, value) => {
+                newValues[value] = fields[key][value] !== 0 ? null : 0;
+                return newValues;
+              }, {});
         return newFields;
       }, {}),
     };
