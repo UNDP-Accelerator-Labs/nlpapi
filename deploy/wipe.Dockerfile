@@ -11,7 +11,7 @@ WORKDIR /usr/src/app
 ARG WIPE_VERSION_FILE
 ARG WIPE_RUN_SCRIPT
 ARG WIPE_SCRIPT
-COPY "${WIPE_VERSION_FILE}" /app/public/api/version/index.html
+COPY "${WIPE_VERSION_FILE}" /app/public/version.txt
 COPY "${WIPE_RUN_SCRIPT}" /app/run_wipe.sh
 COPY "${WIPE_SCRIPT}" /app/wipe.sh
 ARG PORT=8080
