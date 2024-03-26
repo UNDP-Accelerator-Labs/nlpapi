@@ -16,7 +16,9 @@ COPY "${REQUIREMENTS_PATH}" "requirements.docker.txt"
 RUN mkdir sh
 COPY sh/install.sh sh
 RUN REQUIREMENTS_PATH="requirements.docker.txt" make install-worker
-COPY . .
+COPY nlpapi/ nlpapi/
+COPY sh/ sh/
+COPY LICENSE .
 ARG SMIND_GRAPHS
 ARG SMIND_CONFIG
 COPY "${SMIND_CONFIG}" smind-config.json
