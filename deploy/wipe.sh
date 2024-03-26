@@ -2,23 +2,21 @@
 
 set -e
 
+remove() {
+  find "$1" -name . -o -prune -exec rm -rfv -- {} +
+}
+
 echo "deleting /smind_cache"
-rm -rfv /smind_cache/*
-rm -rfv /smind_cache/.*
+remove /smind_cache/
 echo "deleting /rbody"
-rm -rfv /rbody/*
-rm -rfv /rbody/.*
+remove /rbody/
 echo "deleting /rcache"
-rm -rfv /rcache/*
-rm -rfv /rcache/.*
+remove /rcache/
 echo "deleting /rdata"
-rm -rfv /rdata/*
-rm -rfv /rdata/.*
+remove /rdata/
 echo "deleting /rmain"
-rm -rfv /rmain/*
-rm -rfv /rmain/.*
+remove /rmain/
 echo "deleting /qdrant_data"
-rm -rfv /qdrant_data/*
-rm -rfv /qdrant_data/.*
+remove /qdrant_data/
 
 echo "done"
