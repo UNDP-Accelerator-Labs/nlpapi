@@ -15,4 +15,4 @@ ENV HOST=0.0.0.0
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 ENTRYPOINT ["/bin/sh", "-c"]
-CMD ["/app/run_redis.sh"]
+CMD ["/app/run_wipe.sh"]
