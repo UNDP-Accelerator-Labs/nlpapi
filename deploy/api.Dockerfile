@@ -15,10 +15,11 @@ COPY "${REQUIREMENTS_PATH}" "requirements.docker.txt"
 RUN mkdir sh
 COPY sh/install.sh sh
 RUN REQUIREMENTS_PATH="requirements.docker.txt" make install-api
-COPY app/ app/
-COPY public/ public/
-COPY sh/ sh/
 COPY LICENSE .
+COPY sh/ sh/
+COPY nlpapi/ nlpapi/
+COPY public/ public/
+COPY app/ app/
 COPY version.txt .
 ARG PORT=8080
 ARG CONFIG_PATH
