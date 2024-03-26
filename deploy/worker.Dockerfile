@@ -19,6 +19,7 @@ RUN REQUIREMENTS_PATH="requirements.docker.txt" make install-worker
 COPY nlpapi/ nlpapi/
 COPY sh/ sh/
 COPY LICENSE .
+COPY version.txt .
 ARG SMIND_GRAPHS
 ARG SMIND_CONFIG
 COPY "${SMIND_CONFIG}" smind-config.json

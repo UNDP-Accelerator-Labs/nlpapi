@@ -19,6 +19,7 @@ COPY app/ app/
 COPY public/ public/
 COPY sh/ sh/
 COPY LICENSE .
+COPY version.txt .
 ARG PORT=8080
 ARG CONFIG_PATH
 ARG SMIND_GRAPHS
