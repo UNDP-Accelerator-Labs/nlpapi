@@ -233,6 +233,8 @@ docker_build \
 docker_build \
     "${IMAGE_BASE}-wipe:${WIPE_DOCKER_VERSION}" \
     --build-arg "PORT=8080" \
+    --build-arg "WIPE_RUN_SCRIPT=${WIPE_RUN_SCRIPT}"
+    --build-arg "WIPE_VERSION_FILE=${WIPE_VERSION_FILE}"
     -f deploy/wipe.Dockerfile \
     .
 

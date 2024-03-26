@@ -8,6 +8,8 @@ RUN apt-get update && apt-get -y upgrade \
     libc6-dev \
     make
 WORKDIR /usr/src/app
+ARG WIPE_VERSION_FILE
+ARG WIPE_RUN_SCRIPT
 COPY "${WIPE_VERSION_FILE}" /app/public/api/version/index.html
 COPY "${WIPE_RUN_SCRIPT}" /app/run_wipe.sh
 ARG PORT=8080
