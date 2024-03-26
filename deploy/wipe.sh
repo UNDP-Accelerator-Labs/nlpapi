@@ -3,16 +3,16 @@
 set -e
 
 echo "deleting /smind_cache"
-rm -rf /smind_cache
+rm -rfv /smind_cache
 echo "deleting /rbody"
-rm -rf /rbody
+rm -rfv /rbody
 echo "deleting /rcache"
-rm -rf /rcache
+rm -rfv /rcache
 echo "deleting /rdata"
-rm -rf /rdata
+rm -rfv /rdata
 echo "deleting /rmain"
-rm -rf /rmain
+rm -rfv /rmain
 echo "deleting /qdrant_data"
-rm -rf /qdrant_data
+rm -rfv /qdrant_data
 
 echo "done"
