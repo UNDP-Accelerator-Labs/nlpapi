@@ -415,15 +415,10 @@ def add_embed(
     count_res = db.count(vec_name, count_filter=filter_docs, exact=True)
     prev_count = count_res.count
     if prev_count > new_count or new_count == 0:
-        db.delete(
-            vec_name,
-            points_selector=FilterSelector(filter=filter_docs),
-            timeout=180)
+        db.delete(vec_name, points_selector=FilterSelector(filter=filter_docs))
         if new_count == 0:
             db.delete(
-                data_name,
-                points_selector=FilterSelector(filter=filter_docs),
-                timeout=180)
+                data_name, points_selector=FilterSelector(filter=filter_docs))
 
     if not chunks:
         return (prev_count, new_count)
