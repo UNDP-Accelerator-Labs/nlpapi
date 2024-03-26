@@ -91,7 +91,7 @@ if [ ! -z "${DEVMODE}" ]; then
     WIPE_DOCKER_VERSION="${WIPE_DOCKER_VERSION}-devmode"
 fi
 
-echo "{\"version\": \"${WIPE_DOCKER_VERSION}\"}" > "${WIPE_VERSION_FILE}"
+echo "{\"app\": \"wipe\", \"version\": \"${WIPE_DOCKER_VERSION}\"}" > "${WIPE_VERSION_FILE}"
 
 QUICK_SERVER_PATH="../quick_server"
 REDIPY_PATH="../redipy"
