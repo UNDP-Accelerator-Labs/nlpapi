@@ -1,4 +1,5 @@
 import hashlib
+import re
 import traceback
 import uuid
 from typing import get_args, Literal, Protocol, TypeAlias, TypedDict
@@ -75,7 +76,7 @@ QueryEmbed = TypedDict('QueryEmbed', {
 
 
 CHUNK_SIZE = 600
-SMALL_CHUNK_SIZE = 80
+SMALL_CHUNK_SIZE = 140
 CHUNK_PADDING = 10
 DEFAULT_HIT_LIMIT = 3
 
@@ -484,12 +485,12 @@ def vec_search(
 
     def snippet_post(snippets: list[str]) -> list[str]:
         if not short_snippets:
-            return snippets
+            return [re.sub(r"\s+", " ", snip).strip() for snip in snippets]
         small_snippets = [
             snap.strip()
             for snip in snippets
             for snap in snippify_text(
-                snip,
+                re.sub(r"\s+", " ", snip).strip(),
                 chunk_size=SMALL_CHUNK_SIZE,
                 chunk_padding=CHUNK_PADDING)
             if snap.strip()

@@ -153,11 +153,11 @@ def clean(text: str) -> str:
         if prev_text == text:
             break
     text = unicodedata.normalize("NFKC", text)
-    text = re.sub("\r", "\n", text)
-    text = re.sub("\n\n+", "\n", text)
-    text = re.sub("\n[ \t]+", "\n", text)
-    text = re.sub("[ \t]+", " ", text)
-    text = re.sub("\n\n\n+", "\n\n", text)
+    text = re.sub(r"\r", "\n", text)
+    text = re.sub(r"\n\n+", "\n", text)
+    text = re.sub(r"\n[ \t]+", "\n", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n\n\n+", "\n\n", text)
     return text
 
 

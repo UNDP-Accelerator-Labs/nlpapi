@@ -493,8 +493,20 @@ def stat_embed(
             return val
         return [val]
 
+    def convert_for_date(val: str) -> str:
+        dt = parse_time_str(val)
+        return dt.date().isoformat()
+
+    def convert_for_value(val: str) -> str:
+        return val
+
+    if field == "date":
+        convert_for_stat = convert_for_date
+    else:
+        convert_for_stat = convert_for_value
+
     counts: collections.Counter[str] = collections.Counter(
-        value
+        convert_for_stat(value)
         for data in main_ids_data
         if data.payload is not None
         for value in convert(data.payload.get(field_key, [])))
