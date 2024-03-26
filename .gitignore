@@ -34,4 +34,5 @@ deploy/default.env
 __pycache__
 /docker-compose.yml
 /docker-compose.dev.yml
+/docker-compose.wipe.yml
 /queries.txt

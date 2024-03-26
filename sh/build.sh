@@ -290,6 +290,6 @@ ${PYTHON} -c "${PY_COMPOSE}" "${DOCKER_LOGIN_SERVER}" "deploy/docker-compose.wip
 
 echo "docker compose is ready at ${DOCKER_COMPOSE_OUT}"
 echo "make sure to call make dockerpush before updating"
-echo "wipe is at ${DOCKER_COMPOSE_WIPE_OUT} be careful!"
+echo "wipe is at ${DOCKER_COMPOSE_WIPE_OUT} be careful with it!"
 echo "================================================="
 cat "${DOCKER_COMPOSE_OUT}"
