@@ -495,45 +495,45 @@ def add_embed(
     return (prev_count, new_count)
 
 
+def stat_total(
+        db: QdrantClient,
+        name: str,
+        *,
+        filters: dict[ExternalKey, list[str]] | None) -> int:
+    query_filter = get_filter(filters, for_vec=False, skip_fields=None)
+    data_name = get_db_name(name, is_vec=False)
+    count_res = db.count(data_name, count_filter=query_filter, exact=True)
+    return count_res.count
+
+
 def stat_embed(
         db: QdrantClient,
         redis: Redis,
         name: str,
         *,
-        filters: dict[str, list[str]] | None) -> StatEmbed:
-    query_filter = get_filter(filters, for_vec=False)
+        field: ExternalKey,
+        filters: dict[ExternalKey, list[str]] | None,
+        ) -> dict[str, int]:
+    query_filter = get_filter(filters, for_vec=False, skip_fields={field})
     data_name = get_db_name(name, is_vec=False)
-    count_res = db.count(data_name, count_filter=query_filter, exact=True)
-    fields: collections.defaultdict[str, dict[str, int]] = \
-        collections.defaultdict(dict)
+
+    field_name: dict[str, int] = {}
     if filters is None:
-        for key in redis.iter_keys(match=f"{name}:{FIELDS_PREFIX}:*"):
-            _, _, f_name, f_value = key.split(":", 3)
-            field_name = fields[f_name]
-            if f_value not in field_name:
-                field_name[f_value] = redis.scard(key)
-    else:
-        main_ids_data = full_scroll(
-            db,
-            data_name,
-            scroll_filter=query_filter,
-            with_payload=["main_id"])
-        main_ids = {
-            data.payload["main_id"]
-            for data in main_ids_data
-            if data.payload is not None
-        }
-        for key in redis.iter_keys(match=f"{name}:{FIELDS_PREFIX}:*"):
-            _, _, f_name, f_value = key.split(":", 3)
-            field_name = fields[f_name]
-            if f_value not in field_name:
-                # FIXME use redis intersection function
-                f_count = len(main_ids.intersection(redis.smembers(key)))
-                field_name[f_value] = f_count
-    return {
-        "doc_count": count_res.count,
-        "fields": fields,
-    }
+        for key in redis.iter_keys(match=f"{name}:{FIELDS_PREFIX}:{field}:*"):
+            _, _, _, f_value = key.split(":", 3)
+            field_name[f_value] = redis.scard(key)
+        return field_name
+    field_key = convert_meta_key(field)
+    main_ids_data = full_scroll(
+        db,
+        data_name,
+        scroll_filter=query_filter,
+        with_payload=[field_key])
+    counts: collections.Counter[str] = collections.Counter(
+        data.payload[field_key]
+        for data in main_ids_data
+        if data.payload is not None)
+    return dict(counts)
 
 
 def fill_meta(payload: Payload) -> dict[ExternalKey, list[str] | str]:
@@ -549,11 +549,14 @@ def fill_meta(payload: Payload) -> dict[ExternalKey, list[str] | str]:
 def get_filter(
         filters: dict[ExternalKey, list[str]] | None,
         *,
-        for_vec: bool) -> Filter | None:
+        for_vec: bool,
+        skip_fields: set[ExternalKey] | None) -> Filter | None:
     if filters is None:
         return None
     conds: list[Condition] = []
     for key, values in filters.items():
+        if skip_fields is not None and key in skip_fields:
+            continue
         if not values:
             continue
         if for_vec and key not in VEC_SEARCHABLE:
@@ -619,7 +622,7 @@ def query_embed_emu_filters(
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     filter_fn = create_filter_fn(filters)
-    vec_filter = get_filter(filters, for_vec=True)
+    vec_filter = get_filter(filters, for_vec=True, skip_fields=None)
     cur_offset = 0
     cur_limit = limit
     cur_res: list[ResultChunk] = []
@@ -721,7 +724,7 @@ def query_docs(
     total_limit = real_offset + limit
     print(f"scroll {name} offset={real_offset} limit={total_limit}")
     data_name = get_db_name(name, is_vec=False)
-    query_filter = get_filter(filters, for_vec=False)
+    query_filter = get_filter(filters, for_vec=False, skip_fields=None)
     hits, _ = retry_err(
         lambda: db.scroll(
             data_name,

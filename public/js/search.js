@@ -53,6 +53,7 @@ export default class Search {
     /** @type {string} */ resultsId,
     /** @type {string} */ paginationId,
     /** @type {string} */ docCountId,
+    /** @type {string[]} */ fields,
   ) {
     /** @type {HTMLDivElement} */ this._filterDiv = getElement(filterId);
     /** @type {HTMLInputElement} */ this._searchInput = getElement(searchId);
@@ -60,7 +61,8 @@ export default class Search {
     /** @type {HTMLDivElement} */ this._paginationDiv =
       getElement(paginationId);
     /** @type {HTMLDivElement} */ this._docCountDiv = getElement(docCountId);
-    /** @type {string} */ this._input = '';
+    /** @type {string[]} */ (this._allFields = fields);
+    /** @type {string} */ (this._input = '');
     /** @type {{ [key: string]: string[] }} */ this._filter = {};
     /** @type {{ [key: string]: boolean }} */ this._groups = {};
     /** @type {number} */ this._page = 0;
@@ -93,8 +95,8 @@ export default class Search {
     });
   }
 
-  /** @type {() => Promise<StatResult>} */
-  async getStats() {
+  /** @type {(fields: string[]) => Promise<StatResult>} */
+  async getStats(fields) {
     try {
       const res = await fetch(`${BASE}/api/stats`, {
         method: 'POST',
@@ -102,7 +104,7 @@ export default class Search {
           Accept: 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ filters: this._filter }),
+        body: JSON.stringify({ fields, filters: this._filter }),
       });
       return await res.json();
     } catch (err) {
@@ -185,7 +187,7 @@ export default class Search {
       errDiv.classList.add('error');
       errDiv.innerText = 'An error occurred! Click here to try again.';
       errDiv.addEventListener('click', () => {
-        this.updateStats();
+        this.updateStats(null);
       });
       filterDiv.replaceChildren(...[errDiv]);
       return;
@@ -245,7 +247,7 @@ export default class Search {
                 filter[field] = [...(filter[field] ?? []), value];
               }
               this._page = 0;
-              this.updateStats();
+              this.updateStats(field);
               this.updateSearch();
             });
             return fieldValue;
@@ -257,7 +259,7 @@ export default class Search {
     filterDiv.replaceChildren(...newChildren);
   }
 
-  updateStats() {
+  updateStats(/** @type {string?} */ field) {
     console.log('update stats');
     this._statsId += 1;
     const statsId = this._statsId;
@@ -277,12 +279,17 @@ export default class Search {
     };
     this.renderStats();
     setTimeout(async () => {
-      await this.doUpdateStats(statsId);
+      await this.doUpdateStats(statsId, field);
     }, 0);
   }
 
-  async doUpdateStats(/** @type {number} */ statsId) {
-    const stats = await this.getStats();
+  async doUpdateStats(
+    /** @type {number} */ statsId,
+    /** @type {string?} */ field,
+  ) {
+    const stats = await this.getStats(
+      this._allFields.filter((f) => f !== field),
+    );
     if (statsId !== this._statsId) {
       return;
     }

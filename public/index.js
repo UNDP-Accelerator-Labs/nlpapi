@@ -9,8 +9,9 @@ const run = () => {
     '#results',
     '#pagination',
     '#docCount',
+    ['doc_type', 'iso3', 'language', 'status'],
   );
-  search.updateStats();
+  search.updateStats(null);
   search.updateSearch();
 };
 

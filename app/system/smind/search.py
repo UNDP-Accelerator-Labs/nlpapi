@@ -34,6 +34,7 @@ from app.system.smind.vec import (
     query_embed_emu_filters,
     ResultChunk,
     stat_embed,
+    stat_total,
     StatEmbed,
     vec_flushall,
 )
@@ -329,7 +330,7 @@ def vec_add(
     }
 
 
-def get_filter_hash(filters: dict[str, list[str]] | None) -> str:
+def get_filter_hash(filters: dict[ExternalKey, list[str]] | None) -> str:
     blake = hashlib.blake2b(digest_size=32)
     if filters is not None:
         for key, values in sorted(filters.items(), key=lambda kv: kv[0]):
@@ -347,29 +348,81 @@ def get_filter_hash(filters: dict[str, list[str]] | None) -> str:
     return blake.hexdigest()
 
 
+def vec_filter_total(
+        vec_db: QdrantClient,
+        *,
+        qdrant_cache: Redis,
+        articles: str,
+        filters: dict[ExternalKey, list[str]] | None) -> int:
+    if filters is not None:
+        filters = {
+            key: to_list(value)
+            for key, value in filters.items()
+        }
+    cache_key = f"total:{articles}:{get_filter_hash(filters)}"
+    res = qdrant_cache.get_value(cache_key)
+    if res is not None:
+        print(f"TOTAL CACHE HIT {cache_key}")
+        return int(res)
+    print(f"TOTAL CACHE MISS {cache_key}")
+    ret_val = stat_total(vec_db, articles, filters=filters)
+    qdrant_cache.set_value(cache_key, f"{ret_val}")
+    return ret_val
+
+
+def vec_filter_field(
+        vec_db: QdrantClient,
+        field: ExternalKey,
+        *,
+        qdrant_redis: Redis,
+        qdrant_cache: Redis,
+        articles: str,
+        filters: dict[ExternalKey, list[str]] | None) -> dict[str, int]:
+    if filters is not None:
+        filters = {
+            key: to_list(value)
+            for key, value in filters.items()
+            if key != field
+        }
+    cache_key = f"field:{articles}:{field}:{get_filter_hash(filters)}"
+    res = qdrant_cache.get_value(cache_key)
+    if res is not None:
+        ret_val: dict[str, int] | None = json_maybe_read(res)
+        if ret_val is not None:
+            print(f"FIELD CACHE HIT {cache_key}")
+            return ret_val
+    print(f"FIELD CACHE MISS {cache_key}")
+    ret_val = stat_embed(
+        vec_db, qdrant_redis, articles, field=field, filters=filters)
+    qdrant_cache.set_value(cache_key, json_compact_str(ret_val))
+    return ret_val
+
+
 def vec_filter(
         vec_db: QdrantClient,
         *,
         qdrant_redis: Redis,
         qdrant_cache: Redis,
         articles: str,
-        filters: dict[str, list[str]] | None) -> StatEmbed:
-    if filters is not None:
-        filters = {
-            key: to_list(value)
-            for key, value in filters.items()
-        }
-    cache_key = f"stat:{articles}:{get_filter_hash(filters)}"
-    res = qdrant_cache.get_value(cache_key)
-    if res is not None:
-        ret_val: StatEmbed | None = json_maybe_read(res)
-        if ret_val is not None:
-            print(f"STAT CACHE HIT {cache_key}")
-            return ret_val
-    print(f"STAT CACHE MISS {cache_key}")
-    ret_val = stat_embed(vec_db, qdrant_redis, articles, filters=filters)
-    qdrant_cache.set_value(cache_key, json_compact_str(ret_val))
-    return ret_val
+        fields: set[ExternalKey],
+        filters: dict[ExternalKey, list[str]] | None) -> StatEmbed:
+    return {
+        "doc_count": vec_filter_total(
+            vec_db,
+            qdrant_cache=qdrant_cache,
+            articles=articles,
+            filters=filters),
+        "fields": {
+            field: vec_filter_field(
+                vec_db,
+                field,
+                qdrant_redis=qdrant_redis,
+                qdrant_cache=qdrant_cache,
+                articles=articles,
+                filters=filters)
+            for field in fields
+        },
+    }
 
 
 def vec_search(
@@ -382,7 +435,7 @@ def vec_search(
         articles_ns: GNamespace,
         articles_input: str,
         articles_output: str,
-        filters: dict[str, list[str]] | None,
+        filters: dict[ExternalKey, list[str]] | None,
         offset: int | None,
         limit: int,
         hit_limit: int,

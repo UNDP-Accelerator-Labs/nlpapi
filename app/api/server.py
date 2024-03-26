@@ -265,6 +265,7 @@ def setup(
     @server.middleware(verify_readonly)
     def _post_stats(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
         args = rargs["post"]
+        fields = set(args["fields"])
         filters: dict[str, list[str]] = args.get("filters", {})
         filters["status"] = ["public"]  # NOTE: not logged in!
         return vec_filter(
@@ -272,6 +273,7 @@ def setup(
             qdrant_redis=qdrant_redis,
             qdrant_cache=qdrant_cache,
             articles=articles_main,
+            fields=fields,
             filters=filters)
 
     @server.json_post(f"{prefix}/search")
@@ -395,12 +397,14 @@ def setup(
             articles = articles_test
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
+        fields = set(args["fields"])
         filters: dict[str, list[str]] | None = args.get("filters")
         return vec_filter(
             vec_db,
             qdrant_redis=qdrant_redis,
             qdrant_cache=qdrant_cache,
             articles=articles,
+            fields=fields,
             filters=filters)
 
     @server.json_post(f"{prefix}/query_embed")
