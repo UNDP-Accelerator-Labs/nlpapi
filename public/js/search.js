@@ -131,6 +131,7 @@ export default class Search {
           filters: this._filter,
           offset: this._page * PAGE_SIZE,
           limit: PAGE_SIZE,
+          short_snippets: true,
         }),
       });
       return await res.json();

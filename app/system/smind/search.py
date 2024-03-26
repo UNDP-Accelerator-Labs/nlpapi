@@ -512,7 +512,7 @@ def vec_search(
         ]).T  # len(embed) x len(semebds)
         dots = np.matmul(mat_ref, mat_embed).ravel()
         ixs = list(np.argsort(dots))[::-1]
-        return [sembeds[ix][0] for ix in ixs[:len(snippets)]]
+        return [sembeds[ix][0] for ix in ixs[:hit_limit]]
 
     hits = query_embed_emu_filters(
         vec_db,
