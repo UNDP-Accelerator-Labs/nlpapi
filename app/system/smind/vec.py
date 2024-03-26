@@ -487,10 +487,17 @@ def stat_embed(
         data_name,
         scroll_filter=query_filter,
         with_payload=[field_key])
+
+    def convert(val: str | list[str]) -> list[str]:
+        if isinstance(val, list):
+            return val
+        return [val]
+
     counts: collections.Counter[str] = collections.Counter(
-        data.payload[field_key]
+        value
         for data in main_ids_data
-        if data.payload is not None)
+        if data.payload is not None
+        for value in convert(data.payload[field_key]))
     return dict(counts)
 
 
