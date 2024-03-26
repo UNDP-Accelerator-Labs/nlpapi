@@ -2,7 +2,7 @@
 
 cd "/app/public"
 echo "starting server"
-python -m http.server -b "${HOST}" -p "${PORT}" &
+nohup python -m http.server -b "${HOST}" -p "${PORT}" &
 
 echo "sleep"
 sleep 30
