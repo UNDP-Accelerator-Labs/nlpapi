@@ -1,8 +1,7 @@
 #!/bin/sh
 
-cd "/app/public"
 echo "starting server"
-nohup python -m http.server -b "${HOST}" -p "${PORT}" &> /app/public/server.txt &
+nohup python -m http.server -b "${HOST}" -d "/app/public" "${PORT}" &> /app/public/server.txt &
 
 echo "sleep"
 sleep 30
