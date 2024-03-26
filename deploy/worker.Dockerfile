@@ -19,6 +19,7 @@ RUN REQUIREMENTS_PATH="requirements.docker.txt" make install-worker
 COPY LICENSE .
 COPY sh/ sh/
 COPY nlpapi/ nlpapi/
+RUN python -m compileall .
 COPY version.txt .
 ARG SMIND_GRAPHS
 ARG SMIND_CONFIG

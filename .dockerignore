@@ -12,3 +12,4 @@ test*.json
 *.csv
 requirements.docker.txt
 queries.txt
+**/__pycache__

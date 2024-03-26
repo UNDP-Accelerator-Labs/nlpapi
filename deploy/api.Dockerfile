@@ -20,6 +20,7 @@ COPY sh/ sh/
 COPY nlpapi/ nlpapi/
 COPY public/ public/
 COPY app/ app/
+RUN python -m compileall .
 COPY version.txt .
 ARG PORT=8080
 ARG CONFIG_PATH
