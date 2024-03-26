@@ -98,7 +98,6 @@ def vec_clear(
         vec_db: QdrantClient,
         smind_config: str,
         *,
-        qdrant_redis: Redis,
         qdrant_cache: Redis,
         get_vec_db: GetVecDB,
         clear_rmain: bool,
@@ -154,7 +153,7 @@ def vec_clear(
             clear_veccache = False
     if clear_vecdb_all:
         try:
-            vec_flushall(vec_db, qdrant_redis)
+            vec_flushall(vec_db)
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_vecdb_all = False
@@ -207,7 +206,6 @@ def vec_add(
         smind: ScattermindAPI,
         input_str: str,
         *,
-        qdrant_redis: Redis,
         qdrant_cache: Redis,
         articles: str,
         articles_ns: GNamespace,
@@ -317,7 +315,6 @@ def vec_add(
     # add embedding to vecdb
     prev_count, new_count = add_embed(
         vec_db,
-        qdrant_redis,
         name=articles,
         data=embed_main,
         chunks=embed_chunks,
@@ -374,7 +371,6 @@ def vec_filter_field(
         vec_db: QdrantClient,
         field: ExternalKey,
         *,
-        qdrant_redis: Redis,
         qdrant_cache: Redis,
         articles: str,
         filters: dict[ExternalKey, list[str]] | None) -> dict[str, int]:
@@ -392,8 +388,7 @@ def vec_filter_field(
             print(f"FIELD CACHE HIT {cache_key}")
             return ret_val
     print(f"FIELD CACHE MISS {cache_key}")
-    ret_val = stat_embed(
-        vec_db, qdrant_redis, articles, field=field, filters=filters)
+    ret_val = stat_embed(vec_db, articles, field=field, filters=filters)
     qdrant_cache.set_value(cache_key, json_compact_str(ret_val))
     return ret_val
 
@@ -401,7 +396,6 @@ def vec_filter_field(
 def vec_filter(
         vec_db: QdrantClient,
         *,
-        qdrant_redis: Redis,
         qdrant_cache: Redis,
         articles: str,
         fields: set[ExternalKey],
@@ -416,7 +410,6 @@ def vec_filter(
             field: vec_filter_field(
                 vec_db,
                 field,
-                qdrant_redis=qdrant_redis,
                 qdrant_cache=qdrant_cache,
                 articles=articles,
                 filters=filters)

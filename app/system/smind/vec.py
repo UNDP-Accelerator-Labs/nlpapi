@@ -29,7 +29,6 @@ from qdrant_client.models import (
     VectorParams,
     WithLookup,
 )
-from redipy import Redis
 
 from app.misc.util import get_time_str, parse_time_str
 from app.system.config import Config
@@ -180,8 +179,7 @@ def retry_err(
                 time.sleep(sleep)
 
 
-def vec_flushall(db: QdrantClient, redis: Redis) -> None:
-    redis.flushall()
+def vec_flushall(db: QdrantClient) -> None:
     for collection in retry_err(lambda: db.get_collections().collections):
         retry_err(
             lambda name: db.delete_collection(name, timeout=600),
@@ -217,7 +215,6 @@ def build_db_name(
         distance_fn: DistanceFn,
         embed_size: int,
         db: QdrantClient,
-        redis: Redis,
         force_clear: bool,
         force_index: bool) -> str:
     name = f"{ensure_valid_name(name)}_{distance_fn}"
@@ -260,9 +257,6 @@ def build_db_name(
             vectors_config=VectorParams(size=1, distance=distance),
             on_disk_payload=True,
             timeout=600)
-
-        for key in redis.iter_keys(match=f"{name}:*"):
-            redis.delete(key)
 
     def recreate_index() -> None:
         vec_name = get_db_name(name, is_vec=True)
@@ -358,7 +352,6 @@ def full_scroll(
 
 def add_embed(
         db: QdrantClient,
-        redis: Redis,
         *,
         name: str,
         data: EmbedMain,
@@ -369,7 +362,6 @@ def add_embed(
         raise ValueError("'update_meta_only' requires chunks to be empty")
     print(f"add_embed {name} {new_count} items")
     base = data["base"]
-    redis_base_key = f"{name}:{FIELDS_PREFIX}:base:{base}"
     main_id = f"{base}:{data['doc_id']}"
     main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
 
@@ -392,30 +384,6 @@ def add_embed(
     if "date" not in prev_meta and "date" not in meta_obj:
         meta_obj["date"] = get_time_str()
         meta_keys.add("date")
-
-    def get_vals(val: list[str] | str) -> set[str]:
-        if not val:
-            return set()
-        if isinstance(val, list):
-            return set(val)
-        return {val}
-
-    def convert_val_for_redis(key: ExternalKey, val: str) -> str:
-        if key == "date":
-            dt = parse_time_str(val)
-            return dt.date().isoformat()
-        return val
-
-    with redis.pipeline() as pipe:
-        for meta_key in meta_keys:
-            cur_new = get_vals(meta_obj.get(meta_key, []))
-            cur_old = get_vals(prev_meta.get(meta_key, []))
-            for val in cur_new:
-                val = convert_val_for_redis(meta_key, val)
-                pipe.sadd(f"{name}:{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
-            for val in cur_old.difference(cur_new):
-                val = convert_val_for_redis(meta_key, val)
-                pipe.srem(f"{name}:{FIELDS_PREFIX}:{meta_key}:{val}", main_id)
 
     main_payload: dict[InternalKey, list[str] | str | int] = {
         "main_id": main_id,
@@ -452,13 +420,10 @@ def add_embed(
             points_selector=FilterSelector(filter=filter_docs),
             timeout=180)
         if new_count == 0:
-            redis.srem(redis_base_key, main_id)
             db.delete(
                 data_name,
                 points_selector=FilterSelector(filter=filter_docs),
                 timeout=180)
-    else:
-        redis.sadd(redis_base_key, main_id)
 
     if not chunks:
         return (prev_count, new_count)
@@ -508,7 +473,6 @@ def stat_total(
 
 def stat_embed(
         db: QdrantClient,
-        redis: Redis,
         name: str,
         *,
         field: ExternalKey,
@@ -517,12 +481,6 @@ def stat_embed(
     query_filter = get_filter(filters, for_vec=False, skip_fields={field})
     data_name = get_db_name(name, is_vec=False)
 
-    field_name: dict[str, int] = {}
-    if filters is None:
-        for key in redis.iter_keys(match=f"{name}:{FIELDS_PREFIX}:{field}:*"):
-            _, _, _, f_value = key.split(":", 3)
-            field_name[f_value] = redis.scard(key)
-        return field_name
     field_key = convert_meta_key(field)
     main_ids_data = full_scroll(
         db,

@@ -139,8 +139,6 @@ def setup(
         raise ValueError(f"graph {graph_embed} as variable shape")
     articles_size = m_articles_size
 
-    qdrant_redis = get_redis(
-        smind_config, redis_name="rmain", overwrite_prefix="qdrant")
     qdrant_cache = get_redis(
         smind_config, redis_name="rcache", overwrite_prefix="qdrant")
 
@@ -149,7 +147,6 @@ def setup(
             f"articles_{name}",
             distance_fn="dot",
             db=vec_db,
-            redis=qdrant_redis,
             embed_size=articles_size,
             force_clear=force_clear,
             force_index=force_index)
@@ -270,7 +267,6 @@ def setup(
         filters["status"] = ["public"]  # NOTE: not logged in!
         return vec_filter(
             vec_db,
-            qdrant_redis=qdrant_redis,
             qdrant_cache=qdrant_cache,
             articles=articles_main,
             fields=fields,
@@ -329,7 +325,6 @@ def setup(
         return vec_clear(
             vec_db,
             smind_config,
-            qdrant_redis=qdrant_redis,
             qdrant_cache=qdrant_cache,
             get_vec_db=get_vec_db,
             clear_rmain=clear_rmain,
@@ -372,7 +367,6 @@ def setup(
             vec_db,
             smind,
             input_str,
-            qdrant_redis=qdrant_redis,
             qdrant_cache=qdrant_cache,
             articles=articles,
             articles_ns=articles_ns,
@@ -401,7 +395,6 @@ def setup(
         filters: dict[str, list[str]] | None = args.get("filters")
         return vec_filter(
             vec_db,
-            qdrant_redis=qdrant_redis,
             qdrant_cache=qdrant_cache,
             articles=articles,
             fields=fields,
