@@ -32,6 +32,7 @@ RCACHE_CFG="buildtmp/rcache.conf"
 RBODY_CFG="buildtmp/rbody.conf"
 REDIS_RUN_SCRIPT="buildtmp/run_redis.sh"
 WIPE_RUN_SCRIPT="buildtmp/run_wipe.sh"
+WIPE_SCRIPT="buildtmp/wipe.sh"
 
 cp "deploy/redis/rmain.conf" "${RMAIN_CFG}"
 cp "deploy/redis/rdata.conf" "${RDATA_CFG}"
@@ -42,6 +43,7 @@ cp "deploy/qdrant.version" "${QDRANT_VERSION_FILE}"
 cp "deploy/devmode.conf" "${DEVMODE_CONF_FILE}"
 cp "deploy/run_redis.sh" "${REDIS_RUN_SCRIPT}"
 cp "deploy/run_wipe.sh" "${WIPE_RUN_SCRIPT}"
+cp "deploy/wipe.sh" "${WIPE_SCRIPT}"
 cp "${SMIND_CONFIG}" "${SMIND_CFG}"
 cp -R "${SMIND_GRAPHS}" "${SMIND_GRS}"
 
@@ -233,6 +235,7 @@ docker_build \
 docker_build \
     "${IMAGE_BASE}-wipe:${WIPE_DOCKER_VERSION}" \
     --build-arg "PORT=8080" \
+    --build-arg "WIPE_SCRIPT=${WIPE_SCRIPT}" \
     --build-arg "WIPE_RUN_SCRIPT=${WIPE_RUN_SCRIPT}" \
     --build-arg "WIPE_VERSION_FILE=${WIPE_VERSION_FILE}" \
     -f deploy/wipe.Dockerfile \
