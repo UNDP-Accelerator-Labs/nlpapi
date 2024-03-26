@@ -2,9 +2,9 @@
 
 set -e
 
-pushd "public"
+cd "public"
 python -m http.server -b "0.0.0.0" -p "${PORT}" &
-popd
+cd ".."
 
 echo "deleting /smind_cache"
 rm -rf /smind_cache
