@@ -4,9 +4,9 @@ set -e
 
 remove() {
   echo "plan for deleting $1:"
-  find "$1" ! -name "$1" -a -prune
+  find "$1" ! -wholename "$1" -a -prune
   echo "remove:"
-  find "$1" ! -name "$1" -a -prune -exec rm -rfv -- {} +
+  find "$1" ! -wholename "$1" -a -prune -exec rm -rfv -- {} +
 }
 
 remove /smind_cache
