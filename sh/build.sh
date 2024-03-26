@@ -20,6 +20,7 @@ QDRANT_API_TOKEN=$(make -s uuid)
 
 REDIS_VERSION_FILE="buildtmp/redis.version"
 QDRANT_VERSION_FILE="buildtmp/qdrant.version"
+WIPE_VERSION_FILE="buildtmp/wipe.version"
 DEVMODE_CONF_FILE="buildtmp/devmode.conf"
 REQUIREMENTS_API_FILE="buildtmp/requirements.api.txt"
 REQUIREMENTS_WORKER_FILE="buildtmp/requirements.worker.txt"
@@ -30,6 +31,7 @@ RDATA_CFG="buildtmp/rdata.conf"
 RCACHE_CFG="buildtmp/rcache.conf"
 RBODY_CFG="buildtmp/rbody.conf"
 REDIS_RUN_SCRIPT="buildtmp/run_redis.sh"
+WIPE_RUN_SCRIPT="buildtmp/run_wipe.sh"
 
 cp "deploy/redis/rmain.conf" "${RMAIN_CFG}"
 cp "deploy/redis/rdata.conf" "${RDATA_CFG}"
@@ -39,6 +41,7 @@ cp "deploy/redis.version" "${REDIS_VERSION_FILE}"
 cp "deploy/qdrant.version" "${QDRANT_VERSION_FILE}"
 cp "deploy/devmode.conf" "${DEVMODE_CONF_FILE}"
 cp "deploy/run_redis.sh" "${REDIS_RUN_SCRIPT}"
+cp "deploy/run_wipe.sh" "${WIPE_RUN_SCRIPT}"
 cp "${SMIND_CONFIG}" "${SMIND_CFG}"
 cp -R "${SMIND_GRAPHS}" "${SMIND_GRS}"
 
@@ -78,11 +81,15 @@ echo "building ${IMAGE_BASE}"
 source "${DEVMODE_CONF_FILE}"
 source "${REDIS_VERSION_FILE}"
 source "${QDRANT_VERSION_FILE}"
+source "deploy/wipe.version"
 
 if [ ! -z "${DEVMODE}" ]; then
     QDRANT_DOCKER_VERSION="${QDRANT_DOCKER_VERSION}-devmode"
     REDIS_DOCKER_VERSION="${REDIS_DOCKER_VERSION}-devmode"
+    WIPE_DOCKER_VERSION="${WIPE_DOCKER_VERSION}-devmode"
 fi
+
+echo "{\"version\": \"${WIPE_DOCKER_VERSION}\"}" > "${WIPE_VERSION_FILE}"
 
 QUICK_SERVER_PATH="../quick_server"
 REDIPY_PATH="../redipy"
@@ -221,6 +228,12 @@ docker_build \
     --build-arg "REDIS_VERSION_FILE=buildtmp/rbody.version" \
     --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
     -f deploy/redis.Dockerfile \
+    .
+
+docker_build \
+    "${IMAGE_BASE}-wipe:${WIPE_DOCKER_VERSION}" \
+    --build-arg "PORT=8080" \
+    -f deploy/wipe.Dockerfile \
     .
 
 if [ ! -z "${DEV}" ]; then
