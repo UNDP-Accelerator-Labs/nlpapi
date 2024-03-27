@@ -3,6 +3,7 @@ import re
 import time
 import uuid
 from collections.abc import Callable, Sequence
+from datetime import datetime
 from typing import Any, cast, Literal, TypeAlias, TypedDict, TypeVar
 
 from qdrant_client import QdrantClient
@@ -489,7 +490,10 @@ def stat_embed(
         return [val]
 
     def convert_for_date(val: str) -> str:
-        dt = parse_time_str(val)
+        if isinstance(val, datetime):
+            dt = val
+        else:
+            dt = parse_time_str(f"{val}")
         return dt.date().isoformat()
 
     def convert_for_value(val: str) -> str:
