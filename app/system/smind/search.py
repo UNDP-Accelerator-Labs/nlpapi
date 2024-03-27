@@ -78,7 +78,7 @@ QueryEmbed = TypedDict('QueryEmbed', {
 CHUNK_SIZE = 600
 SMALL_CHUNK_SIZE = 150
 CHUNK_PADDING = 10
-DEFAULT_HIT_LIMIT = 3
+DEFAULT_HIT_LIMIT = 1
 
 
 DocStatus: TypeAlias = Literal["public", "preview"]
