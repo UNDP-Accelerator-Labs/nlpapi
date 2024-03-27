@@ -508,7 +508,8 @@ def stat_embed(
         convert_for_stat(value)
         for data in main_ids_data
         if data.payload is not None
-        for value in convert(data.payload.get(field_key, [])))
+        for value in convert(data.payload.get(field_key, []))
+        if value is not None)
     return dict(counts)
 
 
