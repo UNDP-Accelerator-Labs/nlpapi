@@ -51,10 +51,46 @@ services:
       - '6379'
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rbody:/data
-  worker:
-    deploy:
-      mode: replicated
-      replicas: 3
+  worker-1:
+    container_name: worker-1
+    image: $DOCKER_WORKER
+    pull_policy: always
+    restart: always
+    expose:
+      - '6380'
+    depends_on:
+      - rmain
+      - rdata
+      - rcache
+      - rbody
+    links:
+      - rmain
+      - rdata
+      - rcache
+      - rbody
+    volumes:
+      - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
+  worker-2:
+    container_name: worker-2
+    image: $DOCKER_WORKER
+    pull_policy: always
+    restart: always
+    expose:
+      - '6380'
+    depends_on:
+      - rmain
+      - rdata
+      - rcache
+      - rbody
+    links:
+      - rmain
+      - rdata
+      - rcache
+      - rbody
+    volumes:
+      - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
+  worker-3:
+    container_name: worker-3
     image: $DOCKER_WORKER
     pull_policy: always
     restart: always
