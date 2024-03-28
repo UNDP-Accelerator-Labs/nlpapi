@@ -413,7 +413,8 @@ def add_embed(
         must=[
             FieldCondition(key=REF_KEY, match=MatchValue(value=main_uuid)),
         ])
-    count_res = db.count(vec_name, count_filter=filter_docs, exact=True)
+    count_res = retry_err(
+        lambda: db.count(vec_name, count_filter=filter_docs, exact=True))
     prev_count = count_res.count
     if prev_count > new_count or new_count == 0:
         db.delete(vec_name, points_selector=FilterSelector(filter=filter_docs))
@@ -463,7 +464,8 @@ def stat_total(
         filters: dict[ExternalKey, list[str]] | None) -> int:
     query_filter = get_filter(filters, for_vec=False, skip_fields=None)
     data_name = get_db_name(name, is_vec=False)
-    count_res = db.count(data_name, count_filter=query_filter, exact=True)
+    count_res = retry_err(
+        lambda: db.count(data_name, count_filter=query_filter, exact=True))
     return count_res.count
 
 
