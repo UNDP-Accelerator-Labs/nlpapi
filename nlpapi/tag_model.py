@@ -2,7 +2,7 @@ import threading
 
 # FIXME: the types are there, though...
 from keybert import KeyBERT  # type: ignore
-from scattermind.system.base import NodeId
+from scattermind.system.base import GraphId, NodeId
 from scattermind.system.client.client import ComputeTask
 from scattermind.system.graph.graph import Graph
 from scattermind.system.graph.node import Node
@@ -23,7 +23,11 @@ class TagModelNode(Node):
         super().__init__(kind, graph, node_id)
         self._model: KeyBERT | None = None
 
-    def do_is_pure(self, graph: Graph, queue_pool: QueuePool) -> bool:
+    def do_is_pure(
+            self,
+            graph: Graph,
+            queue_pool: QueuePool,
+            pure_cache: dict[GraphId, bool]) -> bool:
         return True
 
     def get_input_format(self) -> DataFormatJSON:

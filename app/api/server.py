@@ -1,8 +1,9 @@
 # pylint: disable=unused-argument
+import hmac
 import sys
 import threading
 import uuid
-from typing import Any, TypedDict
+from typing import Any, get_args, Literal, TypeAlias, TypedDict
 
 from quick_server import create_server, QuickServer
 from quick_server import QuickServerRequestHandler as QSRH
@@ -11,14 +12,9 @@ from quick_server import ReqArgs, ReqNext, Response
 from app.api.mod import Module
 from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
-from app.api.response_types import (
-    AddEmbed,
-    QueryEmbed,
-    StatsResponse,
-    VersionResponse,
-)
+from app.api.response_types import StatsResponse, VersionResponse
 from app.misc.env import envload_int, envload_str
-from app.misc.util import get_time_str
+from app.misc.util import get_time_str, maybe_float
 from app.misc.version import get_version
 from app.system.config import get_config
 from app.system.db.db import DBConnector
@@ -27,30 +23,43 @@ from app.system.language.langdetect import LangResponse
 from app.system.language.pipeline import extract_language
 from app.system.location.forwardgeo import OpenCageFormat
 from app.system.location.pipeline import extract_locations, extract_opencage
-from app.system.location.response import GeoOutput, GeoQuery
-
-# from app.system.ops.ops import get_ops
+from app.system.location.response import (
+    DEFAULT_MAX_REQUESTS,
+    GeoOutput,
+    GeoQuery,
+)
 from app.system.smind.api import (
     get_queue_stats,
-    get_text_results_immediate,
+    get_redis,
     load_graph,
     load_smind,
     normalize_text,
-    snippify_text,
+)
+from app.system.smind.search import (
+    AddEmbed,
+    ClearResponse,
+    DEFAULT_HIT_LIMIT,
+    QueryEmbed,
+    vec_add,
+    vec_clear,
+    vec_filter,
+    vec_search,
 )
 from app.system.smind.vec import (
-    add_embed,
     build_db_name,
-    EmbedChunk,
     get_vec_client,
     get_vec_stats,
-    query_embed,
+    StatEmbed,
     VecDBStat,
 )
 
 
+DBName: TypeAlias = Literal["main", "test"]
+
+
 MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
 MAX_LINKS = 20
+DBS: tuple[DBName] = get_args(DBName)
 
 
 VersionDict = TypedDict('VersionDict', {
@@ -103,6 +112,10 @@ def setup(
     server.timeout = server_timeout
     server.socket.settimeout(server_timeout)
 
+    server.link_empty_favicon_fallback()
+
+    server.cross_origin = True  # FIXME: for now...
+
     if deploy:
         server.no_command_loop = True
 
@@ -114,33 +127,53 @@ def setup(
 
     config = get_config()
     db = DBConnector(config["db"])
-    # ops = get_ops("db", config)
 
     vec_db = get_vec_client(config)
 
-    smind = load_smind(config["smind"])
+    smind_config = config["smind"]
+    smind = load_smind(smind_config)
     graph_embed = load_graph(config, smind, "graph_embed.json")
 
-    articles_ns, articles_input, articles_output, articles_size = graph_embed
-    if articles_size is None:
+    articles_ns, articles_input, articles_output, m_articles_size = graph_embed
+    if m_articles_size is None:
         raise ValueError(f"graph {graph_embed} as variable shape")
-    articles_main = build_db_name(
-        "articles_main",
-        distance_fn="dot",
-        db=vec_db,
-        embed_size=articles_size)
+    articles_size = m_articles_size
+
+    qdrant_cache = get_redis(
+        smind_config, redis_name="rcache", overwrite_prefix="qdrant")
+
+    def get_vec_db(name: DBName, force_clear: bool, force_index: bool) -> str:
+        return build_db_name(
+            f"articles_{name}",
+            distance_fn="dot",
+            db=vec_db,
+            embed_size=articles_size,
+            force_clear=force_clear,
+            force_index=force_index)
+
+    articles_main = get_vec_db("main", force_clear=False, force_index=False)
+    articles_test = get_vec_db("test", force_clear=False, force_index=False)
 
     write_token = envload_str("WRITE_TOKEN")
+    tanuki_token = envload_str("TANUKI")  # the nuke key
 
     vec_cfg = config["vector"]
     server.bind_proxy(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
+    # FIXME: fix for https://github.com/qdrant/qdrant-web-ui/issues/94
+    server.bind_proxy(
+        "/dashboard/",
+        f"http://{vec_cfg['host']}:{vec_cfg['port']}/dashboard")
+    server.bind_proxy(
+        "/collections/",
+        f"http://{vec_cfg['host']}:{vec_cfg['port']}/collections")
+    server.bind_proxy(
+        "/cluster/",
+        f"http://{vec_cfg['host']}:{vec_cfg['port']}/cluster")
 
-    # TODO: add tanuki
-    # TODO: record each search term
-    # TODO: deduplicate results (only one result for each document)
-    # TODO: allow flushing of db
-    # FIXME: make proxy forwarding work with qdrant dashboard
+    server.bind_path("/search/", "public/")
+
+    # TODO: add date module
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
@@ -169,8 +202,17 @@ def setup(
         token = rargs.get("post", {}).get("write_access")
         if token is None:
             raise KeyError("'write_access' not set")
-        if write_token != token:
-            raise ValueError("invalid write_access token!")
+        if not hmac.compare_digest(write_token, token):
+            raise ValueError("invalid 'write_access' token!")
+        return okay
+
+    def verify_tanuki(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        req_tanuki = rargs.get("post", {}).get("tanuki")
+        if req_tanuki is None:
+            raise KeyError("'tanuki' not set")
+        if not hmac.compare_digest(tanuki_token, req_tanuki):
+            raise ValueError("invalid 'tanuki'!")
         return okay
 
     def verify_input(
@@ -202,37 +244,102 @@ def setup(
             "error": None,
         }
 
-    @server.json_get(f"{prefix}/stats")
+    @server.json_get(f"{prefix}/info")
     @server.middleware(verify_readonly)
-    def _get_stats(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
+    def _get_info(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
         vecdbs: list[VecDBStat] = []
-        articles_stats = get_vec_stats(vec_db, articles_main)
-        if articles_stats is not None:
-            vecdbs.append(articles_stats)
+        for articles in [articles_main, articles_test]:
+            for is_vec in [False, True]:
+                articles_stats = get_vec_stats(vec_db, articles, is_vec=is_vec)
+                if articles_stats is not None:
+                    vecdbs.append(articles_stats)
         return {
             "vecdbs": vecdbs,
             "queues": get_queue_stats(smind),
         }
 
-    # # *** sources ***
-    #
-    # @server.json_post(f"{prefix}/source")
-    # def _post_source(_req: QSRH, rargs: ReqArgs) -> SourceResponse:
-    #     args = rargs["post"]
-    #     source = f"{args['source']}"
-    #     ops.add_source(source)
-    #     return {
-    #         "source": source,
-    #     }
-    #
-    # @server.json_get(f"{prefix}/source")
-    # def _get_source(_req: QSRH, _rargs: ReqArgs) -> SourceListResponse:
-    #     return {
-    #         "sources": ops.get_sources(),
-    #     }
+    @server.json_post(f"{prefix}/stats")
+    @server.middleware(verify_readonly)
+    def _post_stats(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
+        args = rargs["post"]
+        fields = set(args["fields"])
+        filters: dict[str, list[str]] = args.get("filters", {})
+        filters["status"] = ["public"]  # NOTE: not logged in!
+        return vec_filter(
+            vec_db,
+            qdrant_cache=qdrant_cache,
+            articles=articles_main,
+            fields=fields,
+            filters=filters)
+
+    @server.json_post(f"{prefix}/search")
+    @server.middleware(verify_readonly)
+    @server.middleware(verify_input)
+    def _post_search(_req: QSRH, rargs: ReqArgs) -> QueryEmbed:
+        args = rargs["post"]
+        meta = rargs["meta"]
+        input_str: str = meta["input"]
+        filters: dict[str, list[str]] = args.get("filters", {})
+        filters["status"] = ["public"]  # NOTE: not logged in!
+        offset: int = int(args.get("offset", 0))
+        limit: int = int(args["limit"])
+        hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
+        score_threshold: float | None = maybe_float(
+            args.get("score_threshold"))
+        short_snippets = bool(args.get("short_snippets", False))
+        return vec_search(
+            db,
+            vec_db,
+            smind,
+            input_str,
+            articles=articles_main,
+            articles_ns=articles_ns,
+            articles_input=articles_input,
+            articles_output=articles_output,
+            filters=filters,
+            offset=offset,
+            limit=limit,
+            hit_limit=hit_limit,
+            score_threshold=score_threshold,
+            short_snippets=short_snippets)
 
     # # # SECURE # # #
     server.add_middleware(verify_token)
+
+    # *** system ***
+
+    @server.json_post(f"{prefix}/clear")
+    @server.middleware(verify_write)
+    @server.middleware(verify_tanuki)
+    def _post_clear(_req: QSRH, rargs: ReqArgs) -> ClearResponse:
+        args = rargs["post"]
+        clear_rmain = bool(args.get("clear_rmain", False))
+        clear_rdata = bool(args.get("clear_rdata", False))
+        clear_rcache = bool(args.get("clear_rcache", False))
+        clear_rbody = bool(args.get("clear_rbody", False))
+        clear_rworker = bool(args.get("clear_rworker", False))
+        clear_veccache = bool(args.get("clear_veccache", False))
+        clear_vecdb_main = bool(args.get("clear_vecdb_main", False))
+        clear_vecdb_test = bool(args.get("clear_vecdb_test", False))
+        clear_vecdb_all = bool(args.get("clear_vecdb_all", False))
+        index_vecdb_main = bool(args.get("index_vecdb_main", False))
+        index_vecdb_test = bool(args.get("index_vecdb_test", False))
+        return vec_clear(
+            vec_db,
+            smind_config,
+            qdrant_cache=qdrant_cache,
+            get_vec_db=get_vec_db,
+            clear_rmain=clear_rmain,
+            clear_rdata=clear_rdata,
+            clear_rcache=clear_rcache,
+            clear_rbody=clear_rbody,
+            clear_rworker=clear_rworker,
+            clear_veccache=clear_veccache,
+            clear_vecdb_main=clear_vecdb_main,
+            clear_vecdb_test=clear_vecdb_test,
+            clear_vecdb_all=clear_vecdb_all,
+            index_vecdb_main=index_vecdb_main,
+            index_vecdb_test=index_vecdb_test)
 
     # *** embeddings ***
 
@@ -243,37 +350,57 @@ def setup(
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
+        vdb_str = args["db"]
+        if vdb_str == "main":
+            articles = articles_main
+        elif vdb_str == "test":
+            articles = articles_test
+        else:
+            raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
         base = args["base"]
         doc_id = int(args["doc_id"])
         url = args["url"]
-        meta = args.get("meta", {})
-        snippets = list(snippify_text(input_str, 600))
-        embeds = get_text_results_immediate(
-            snippets,
-            smind=smind,
-            ns=graph_embed[0],
-            input_field=graph_embed[1],
-            output_field=graph_embed[2],
-            output_sample=[1.0])
-        embed_chunks: list[EmbedChunk] = [
-            {
-                "base": base,
-                "doc_id": doc_id,
-                "chunk_id": chunk_id,
-                "embed": embed,
-                "snippet": snippet,
-                "url": url,
-                "meta": meta,
-            }
-            for chunk_id, (snippet, embed) in enumerate(zip(snippets, embeds))
-            if embed is not None
-        ]
-        count = add_embed(vec_db, articles_main, embed_chunks)
-        failed = sum(1 if embed is None else 0 for embed in embed_chunks)
-        return {
-            "snippets": count,
-            "failed": failed,
-        }
+        title = args["title"]
+        meta_obj = args.get("meta", {})
+        update_meta_only = bool(args.get("update_meta_only", False))
+        user: uuid.UUID = meta["user"]
+        return vec_add(
+            db,
+            vec_db,
+            smind,
+            input_str,
+            qdrant_cache=qdrant_cache,
+            articles=articles,
+            articles_ns=articles_ns,
+            articles_input=articles_input,
+            articles_output=articles_output,
+            user=user,
+            base=base,
+            doc_id=doc_id,
+            url=url,
+            title=title,
+            meta_obj=meta_obj,
+            update_meta_only=update_meta_only)
+
+    @server.json_post(f"{prefix}/stat_embed")
+    @server.middleware(verify_readonly)
+    def _post_stat_embed(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
+        args = rargs["post"]
+        vdb_str = args["db"]
+        if vdb_str == "main":
+            articles = articles_main
+        elif vdb_str == "test":
+            articles = articles_test
+        else:
+            raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
+        fields = set(args["fields"])
+        filters: dict[str, list[str]] | None = args.get("filters")
+        return vec_filter(
+            vec_db,
+            qdrant_cache=qdrant_cache,
+            articles=articles,
+            fields=fields,
+            filters=filters)
 
     @server.json_post(f"{prefix}/query_embed")
     @server.middleware(verify_readonly)
@@ -282,28 +409,35 @@ def setup(
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
-        offset: int | None = int(args.get("offset", 0))
-        if offset == 0:
-            offset = None
-        limit = int(args["limit"])
-        embed = get_text_results_immediate(
-            [input_str],
-            smind=smind,
-            ns=articles_ns,
-            input_field=articles_input,
-            output_field=articles_output,
-            output_sample=[1.0])[0]
-        if embed is None:
-            return {
-                "hits": [],
-                "status": "error",
-            }
-        hits = query_embed(
-            vec_db, articles_main, embed, offset=offset, limit=limit)
-        return {
-            "hits": hits,
-            "status": "ok",
-        }
+        vdb_str = args["db"]
+        if vdb_str == "main":
+            articles = articles_main
+        elif vdb_str == "test":
+            articles = articles_test
+        else:
+            raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
+        filters: dict[str, list[str]] | None = args.get("filters")
+        offset: int = int(args.get("offset", 0))
+        limit: int = int(args["limit"])
+        hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
+        score_threshold: float | None = maybe_float(
+            args.get("score_threshold"))
+        short_snippets = bool(args.get("short_snippets", False))
+        return vec_search(
+            db,
+            vec_db,
+            smind,
+            input_str,
+            articles=articles,
+            articles_ns=articles_ns,
+            articles_input=articles_input,
+            articles_output=articles_output,
+            filters=filters,
+            offset=offset,
+            limit=limit,
+            hit_limit=hit_limit,
+            score_threshold=score_threshold,
+            short_snippets=short_snippets)
 
     # *** location ***
 
@@ -330,7 +464,7 @@ def setup(
             "return_context": args.get("return_context", True),
             "strategy": args.get("strategy", "top"),
             "language": args.get("language", "en"),
-            "max_requests": args.get("max_requests", 5),
+            "max_requests": args.get("max_requests", DEFAULT_MAX_REQUESTS),
         }
         return extract_locations(db, obj, user)
 

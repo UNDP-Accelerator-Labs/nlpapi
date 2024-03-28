@@ -20,6 +20,7 @@ QDRANT_API_TOKEN=$(make -s uuid)
 
 REDIS_VERSION_FILE="buildtmp/redis.version"
 QDRANT_VERSION_FILE="buildtmp/qdrant.version"
+WIPE_VERSION_FILE="buildtmp/wipe.version"
 DEVMODE_CONF_FILE="buildtmp/devmode.conf"
 REQUIREMENTS_API_FILE="buildtmp/requirements.api.txt"
 REQUIREMENTS_WORKER_FILE="buildtmp/requirements.worker.txt"
@@ -28,15 +29,21 @@ SMIND_GRS="buildtmp/graphs/"
 RMAIN_CFG="buildtmp/rmain.conf"
 RDATA_CFG="buildtmp/rdata.conf"
 RCACHE_CFG="buildtmp/rcache.conf"
+RBODY_CFG="buildtmp/rbody.conf"
 REDIS_RUN_SCRIPT="buildtmp/run_redis.sh"
+WIPE_RUN_SCRIPT="buildtmp/run_wipe.sh"
+WIPE_SCRIPT="buildtmp/wipe.sh"
 
 cp "deploy/redis/rmain.conf" "${RMAIN_CFG}"
 cp "deploy/redis/rdata.conf" "${RDATA_CFG}"
 cp "deploy/redis/rcache.conf" "${RCACHE_CFG}"
+cp "deploy/redis/rbody.conf" "${RBODY_CFG}"
 cp "deploy/redis.version" "${REDIS_VERSION_FILE}"
 cp "deploy/qdrant.version" "${QDRANT_VERSION_FILE}"
 cp "deploy/devmode.conf" "${DEVMODE_CONF_FILE}"
 cp "deploy/run_redis.sh" "${REDIS_RUN_SCRIPT}"
+cp "deploy/run_wipe.sh" "${WIPE_RUN_SCRIPT}"
+cp "deploy/wipe.sh" "${WIPE_SCRIPT}"
 cp "${SMIND_CONFIG}" "${SMIND_CFG}"
 cp -R "${SMIND_GRAPHS}" "${SMIND_GRS}"
 
@@ -76,11 +83,15 @@ echo "building ${IMAGE_BASE}"
 source "${DEVMODE_CONF_FILE}"
 source "${REDIS_VERSION_FILE}"
 source "${QDRANT_VERSION_FILE}"
+source "deploy/wipe.version"
 
 if [ ! -z "${DEVMODE}" ]; then
     QDRANT_DOCKER_VERSION="${QDRANT_DOCKER_VERSION}-devmode"
     REDIS_DOCKER_VERSION="${REDIS_DOCKER_VERSION}-devmode"
+    WIPE_DOCKER_VERSION="${WIPE_DOCKER_VERSION}-devmode"
 fi
+
+echo "{\"app\": \"wipe\", \"version\": \"${WIPE_DOCKER_VERSION}\"}" > "${WIPE_VERSION_FILE}"
 
 QUICK_SERVER_PATH="../quick_server"
 REDIPY_PATH="../redipy"
@@ -210,11 +221,32 @@ docker_build \
     -f deploy/redis.Dockerfile \
     .
 
+echo "rbody:${REDIS_DOCKER_VERSION}" > buildtmp/rbody.version
+
+docker_build \
+    "${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" \
+    --build-arg "PORT=6379" \
+    --build-arg "CFG_FILE=${RBODY_CFG}" \
+    --build-arg "REDIS_VERSION_FILE=buildtmp/rbody.version" \
+    --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
+    -f deploy/redis.Dockerfile \
+    .
+
+docker_build \
+    "${IMAGE_BASE}-wipe:${WIPE_DOCKER_VERSION}" \
+    --build-arg "PORT=8080" \
+    --build-arg "WIPE_SCRIPT=${WIPE_SCRIPT}" \
+    --build-arg "WIPE_RUN_SCRIPT=${WIPE_RUN_SCRIPT}" \
+    --build-arg "WIPE_VERSION_FILE=${WIPE_VERSION_FILE}" \
+    -f deploy/wipe.Dockerfile \
+    .
+
 if [ ! -z "${DEV}" ]; then
     DOCKER_COMPOSE_OUT="docker-compose.dev.yml"
 else
     DOCKER_COMPOSE_OUT="docker-compose.yml"
 fi
+DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
 
 DEFAULT_ENV_FILE=deploy/default.env
 echo "# created by sh/build.sh" > "${DEFAULT_ENV_FILE}"
@@ -223,8 +255,11 @@ echo "DOCKER_API=${IMAGE_BASE}-api:${IMAGE_TAG}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_RMAIN=${IMAGE_BASE}-rmain:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_RDATA=${IMAGE_BASE}-rdata:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_RCACHE=${IMAGE_BASE}-rcache:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
+echo "DOCKER_RBODY=${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
+echo "DOCKER_WIPE=${IMAGE_BASE}-wipe:${WIPE_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> "${DEFAULT_ENV_FILE}"
+echo "DEV_LOCAL=eof" >> "${DEFAULT_ENV_FILE}"  # put the correct values for local development if needed
 
 ! read -r -d '' PY_COMPOSE <<'EOF'
 import os
@@ -255,10 +290,11 @@ with open(dout, "w", encoding="utf-8") as fout:
     fout.write(content)
 EOF
 
-${PYTHON} -c "${PY_COMPOSE}" "${DOCKER_LOGIN_SERVER}" "deploy/docker-compose.yml" "${DEFAULT_ENV_FILE}" "${DOCKER_COMPOSE_OUT}"
+${PYTHON} -c "${PY_COMPOSE}" "${DOCKER_LOGIN_SERVER}" "deploy/docker-compose.app.yml" "${DEFAULT_ENV_FILE}" "${DOCKER_COMPOSE_OUT}"
+${PYTHON} -c "${PY_COMPOSE}" "${DOCKER_LOGIN_SERVER}" "deploy/docker-compose.wipe.yml" "${DEFAULT_ENV_FILE}" "${DOCKER_COMPOSE_WIPE_OUT}"
 
 echo "docker compose is ready at ${DOCKER_COMPOSE_OUT}"
 echo "make sure to call make dockerpush before updating"
+echo "wipe is at ${DOCKER_COMPOSE_WIPE_OUT} be careful with it!"
 echo "================================================="
 cat "${DOCKER_COMPOSE_OUT}"
-echo ""

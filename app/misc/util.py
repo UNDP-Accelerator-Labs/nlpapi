@@ -147,6 +147,12 @@ def to_list(value: Any) -> list[Any]:
     return value
 
 
+def maybe_list(value: Any) -> list[Any] | None:
+    if value is None:
+        return None
+    return to_list(value)
+
+
 def is_int(value: Any) -> bool:
     try:
         int(value)
@@ -161,6 +167,12 @@ def is_float(value: Any) -> bool:
         return True
     except (ValueError, TypeError):
         return False
+
+
+def maybe_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
 
 
 def is_json(value: str) -> bool:
@@ -200,12 +212,12 @@ def json_pretty(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True, indent=2)
 
 
-def json_compact(obj: Any) -> bytes:
+def json_compact_str(obj: Any) -> str:
     return json.dumps(
         obj,
         sort_keys=True,
         indent=None,
-        separators=(',', ':')).encode("utf-8")
+        separators=(',', ':'))
 
 
 def json_read(data: bytes) -> Any:
@@ -251,6 +263,19 @@ def now() -> datetime:
         datetime: A timezone aware instance of now.
     """
     return datetime.now(timezone.utc).astimezone()
+
+
+def parse_time_str(time_str: str) -> datetime:
+    """
+    Parses an ISO formatted string representing a timestamp.
+
+    Args:
+        time_str (str): The string.
+
+    Returns:
+        datetime: The timestamp.
+    """
+    return datetime.fromisoformat(time_str)
 
 
 def fmt_time(when: datetime) -> str:
