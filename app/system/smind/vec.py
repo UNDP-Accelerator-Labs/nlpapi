@@ -382,8 +382,8 @@ def add_embed(
     if len(prev_data) > 0:
         prev_payload = prev_data[0].payload
         assert prev_payload is not None
-        prev_hash = prev_payload.get("hash")
-        prev_count = prev_payload.get("count", new_count + 1)
+        prev_hash = prev_payload["hash"]
+        prev_count = prev_payload["count"]
         prev_meta = fill_meta(prev_payload)
 
     if prev_meta.get("date") is None and meta_obj.get("date") is None:
@@ -497,7 +497,7 @@ def stat_embed(
         if isinstance(val, datetime):
             dt = val
         else:
-            dt = parse_time_str(f"{val}")
+            dt = parse_time_str(val)
         return dt.date().isoformat()
 
     def convert_for_value(val: str) -> str:
@@ -681,7 +681,9 @@ def query_embed(
         base = data_payload["base"]
         doc_id = data_payload["doc_id"]
         url = data_payload["url"]
-        title = data_payload.get("title", url)
+        title = data_payload.get("title")
+        if title is None:
+            title = url
         main_id = data_payload["main_id"]
         return {
             "main_id": main_id,
@@ -729,7 +731,9 @@ def query_docs(
         base = data_payload["base"]
         doc_id = data_payload["doc_id"]
         url = data_payload["url"]
-        title = data_payload.get("title", url)
+        title = data_payload.get("title")
+        if title is None:
+            title = url
         main_id = data_payload["main_id"]
         return {
             "main_id": main_id,
