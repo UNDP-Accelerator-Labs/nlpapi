@@ -402,6 +402,8 @@ def add_embed(
         meta_key = convert_meta_key(key)
         main_payload[meta_key] = value
 
+    # FIXME move upsert at bottom to prevent lost chunks with hash
+    # FIXME change hash strategy to go by chunks instead of full text
     db.upsert(
         data_name,
         points=[
