@@ -89,6 +89,7 @@ EmbedMain = TypedDict('EmbedMain', {
     "base": str,
     "url": str,
     "title": str,
+    "hash": str,
     "meta": dict[ExternalKey, list[str] | str],
 })
 
@@ -363,6 +364,7 @@ def add_embed(
         raise ValueError("'update_meta_only' requires chunks to be empty")
     print(f"add_embed {name} {new_count} items")
     base = data["base"]
+    cur_hash = data["hash"]
     main_id = f"{base}:{data['doc_id']}"
     main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
 
@@ -375,9 +377,13 @@ def add_embed(
     prev_data = full_scroll(
         db, data_name, scroll_filter=filter_data, with_payload=True)
     prev_meta: dict[ExternalKey, list[str] | str] = {}
+    prev_hash: str | None = None
+    prev_count: int = 0
     if len(prev_data) > 0:
         prev_payload = prev_data[0].payload
         assert prev_payload is not None
+        prev_hash = prev_payload.get("hash")
+        prev_count = prev_payload.get("count", new_count + 1)
         prev_meta = fill_meta(prev_payload)
 
     if prev_meta.get("date") is None and meta_obj.get("date") is None:
@@ -389,6 +395,8 @@ def add_embed(
         "base": base,
         "url": data["url"],
         "title": data["title"],
+        "hash": cur_hash,
+        "count": new_count,
     }
     for key, value in meta_obj.items():
         meta_key = convert_meta_key(key)
@@ -403,16 +411,13 @@ def add_embed(
                 payload=main_payload),
         ],
         wait=False)
-    if update_meta_only:
+    if update_meta_only or (prev_hash == cur_hash and prev_count == new_count):
         return (0, 0)
     vec_name = get_db_name(name, is_vec=True)
     filter_docs = Filter(
         must=[
             FieldCondition(key=REF_KEY, match=MatchValue(value=main_uuid)),
         ])
-    count_res = retry_err(
-        lambda: db.count(vec_name, count_filter=filter_docs, exact=True))
-    prev_count = count_res.count
     if prev_count > new_count or new_count == 0:
         db.delete(vec_name, points_selector=FilterSelector(filter=filter_docs))
         if new_count == 0:
