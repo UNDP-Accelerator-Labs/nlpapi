@@ -374,17 +374,14 @@ def add_embed(
         ])
     prev_data = full_scroll(
         db, data_name, scroll_filter=filter_data, with_payload=True)
-    meta_keys: set[ExternalKey] = set(meta_obj.keys())
     prev_meta: dict[ExternalKey, list[str] | str] = {}
     if len(prev_data) > 0:
         prev_payload = prev_data[0].payload
         assert prev_payload is not None
         prev_meta = fill_meta(prev_payload)
-        meta_keys.update(prev_meta.keys())
 
-    if "date" not in prev_meta and "date" not in meta_obj:
+    if prev_meta.get("date") is None and meta_obj.get("date") is None:
         meta_obj["date"] = get_time_str()
-        meta_keys.add("date")
 
     main_payload: dict[InternalKey, list[str] | str | int] = {
         "main_id": main_id,
