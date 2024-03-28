@@ -404,6 +404,7 @@ def add_embed(
 
     # FIXME move upsert at bottom to prevent lost chunks with hash
     # FIXME change hash strategy to go by chunks instead of full text
+    # FIXME scattermind cache should detect in-flight tasks
     db.upsert(
         data_name,
         points=[
