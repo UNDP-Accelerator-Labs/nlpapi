@@ -359,6 +359,7 @@ def vec_filter_total(
         filters = {
             key: to_list(value)
             for key, value in filters.items()
+            if to_list(value)
         }
     cache_key = f"total:{articles}:{get_filter_hash(filters)}"
     res = qdrant_cache.get_value(cache_key)
@@ -382,7 +383,7 @@ def vec_filter_field(
         filters = {
             key: to_list(value)
             for key, value in filters.items()
-            if key != field
+            if key != field and to_list(value)
         }
     cache_key = f"field:{articles}:{field}:{get_filter_hash(filters)}"
     res = qdrant_cache.get_value(cache_key)
@@ -442,6 +443,7 @@ def vec_search(
         filters = {
             key: to_list(value)
             for key, value in filters.items()
+            if to_list(value)
         }
         # NOTE: utilizing base vec index for known doc_types
         # each doc_type can only be in one base
