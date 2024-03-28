@@ -1,4 +1,5 @@
 import collections
+import hashlib
 import re
 import time
 import uuid
@@ -89,7 +90,6 @@ EmbedMain = TypedDict('EmbedMain', {
     "base": str,
     "url": str,
     "title": str,
-    "hash": str,
     "meta": dict[ExternalKey, list[str] | str],
 })
 
@@ -352,6 +352,16 @@ def full_scroll(
     return res
 
 
+def compute_chunk_hash(chunks: list[EmbedChunk]) -> str:
+    blake = hashlib.blake2b(digest_size=32)
+    blake.update(f"{len(chunks)}:".encode("utf-8"))
+    for chunk in chunks:
+        snippet = chunk["snippet"]
+        blake.update(f"{len(snippet)}:".encode("utf-8"))
+        blake.update(snippet.encode("utf-8"))
+    return blake.hexdigest()
+
+
 def add_embed(
         db: QdrantClient,
         *,
@@ -364,7 +374,7 @@ def add_embed(
         raise ValueError("'update_meta_only' requires chunks to be empty")
     print(f"add_embed {name} {new_count} items")
     base = data["base"]
-    cur_hash = data["hash"]
+    cur_hash = compute_chunk_hash(chunks)
     main_id = f"{base}:{data['doc_id']}"
     main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
 
@@ -402,45 +412,44 @@ def add_embed(
         meta_key = convert_meta_key(key)
         main_payload[meta_key] = value
 
-    # FIXME move upsert at bottom to prevent lost chunks with hash
-    # FIXME change hash strategy to go by chunks instead of full text
-    # FIXME scattermind cache should detect in-flight tasks
-    db.upsert(
-        data_name,
-        points=[
-            PointStruct(
-                id=main_uuid,
-                vector=DUMMY_VEC,
-                payload=main_payload),
-        ],
-        wait=False)
-    if update_meta_only or (prev_hash == cur_hash and prev_count == new_count):
-        return (0, 0)
     vec_name = get_db_name(name, is_vec=True)
-    filter_docs = Filter(
-        must=[
-            FieldCondition(key=REF_KEY, match=MatchValue(value=main_uuid)),
-        ])
-    if prev_count > new_count or new_count == 0:
-        db.delete(vec_name, points_selector=FilterSelector(filter=filter_docs))
-        if new_count == 0:
+
+    def empty_previous() -> None:
+        filter_docs = Filter(
+            must=[
+                FieldCondition(key=REF_KEY, match=MatchValue(value=main_uuid)),
+            ])
+        if prev_count > new_count or new_count == 0:
             db.delete(
-                data_name, points_selector=FilterSelector(filter=filter_docs))
+                vec_name,
+                points_selector=FilterSelector(filter=filter_docs))
+            if new_count == 0:
+                db.delete(
+                    data_name,
+                    points_selector=FilterSelector(filter=filter_docs))
 
-    if not chunks:
-        return (prev_count, new_count)
+    def insert_chunks() -> None:
+        vec_searchable: list[InternalKey] = [
+            maybe_convert_meta_key(key_name)
+            for key_name in VEC_SEARCHABLE
+        ]
+        vec_payload_template: dict[InternalKey, list[str] | str | int] = {
+            vec_name: main_payload[vec_name]
+            for vec_name in vec_searchable
+            if vec_name in main_payload
+        }
+        db.upsert(
+            vec_name,
+            points=[
+                convert_chunk(chunk, vec_payload_template)
+                for chunk in chunks
+            ],
+            wait=False)
 
-    vec_searchable: list[InternalKey] = [
-        maybe_convert_meta_key(key_name)
-        for key_name in VEC_SEARCHABLE
-    ]
-    vec_payload_template: dict[InternalKey, list[str] | str | int] = {
-        vec_name: main_payload[vec_name]
-        for vec_name in vec_searchable
-        if vec_name in main_payload
-    }
-
-    def convert_chunk(chunk: EmbedChunk) -> PointStruct:
+    def convert_chunk(
+            chunk: EmbedChunk,
+            vec_payload_template: dict[InternalKey, list[str] | str | int],
+            ) -> PointStruct:
         point_id = f"{main_id}:{chunk['chunk_id']}"
         point_uuid = f"{uuid.uuid5(QDRANT_UUID, point_id)}"
         point_payload: dict[InternalKey, list[str] | str | int] = {
@@ -455,11 +464,26 @@ def add_embed(
             vector=chunk["embed"],
             payload=point_payload)
 
-    db.upsert(
-        vec_name,
-        points=[convert_chunk(chunk) for chunk in chunks],
-        wait=False)
-    return (prev_count, new_count)
+    if update_meta_only or (prev_hash == cur_hash and prev_count == new_count):
+        res: tuple[int, int] = (0, 0)
+    else:
+        empty_previous()
+        if chunks:
+            insert_chunks()
+        res = (prev_count, new_count)
+
+    if new_count != 0:
+        db.upsert(
+            data_name,
+            points=[
+                PointStruct(
+                    id=main_uuid,
+                    vector=DUMMY_VEC,
+                    payload=main_payload),
+            ],
+            wait=False)
+
+    return res
 
 
 def stat_total(
