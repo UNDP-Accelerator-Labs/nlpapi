@@ -12,6 +12,7 @@ from scattermind.system.names import GNamespace
 
 from app.misc.util import (
     fmt_time,
+    get_text_hash,
     json_compact_str,
     json_maybe_read,
     parse_time_str,
@@ -300,11 +301,13 @@ def vec_add(
         input_field=articles_input,
         output_field=articles_output,
         output_sample=[1.0])
+    text_hash = get_text_hash(input_str)
     embed_main: EmbedMain = {
         "base": base,
         "doc_id": doc_id,
         "url": url,
         "title": title,
+        "hash": text_hash,
         "meta": meta_obj,
     }
     embed_chunks: list[EmbedChunk] = [

@@ -89,6 +89,7 @@ EmbedMain = TypedDict('EmbedMain', {
     "base": str,
     "url": str,
     "title": str,
+    "hash": str,
     "meta": dict[ExternalKey, list[str] | str],
 })
 
@@ -363,6 +364,7 @@ def add_embed(
         raise ValueError("'update_meta_only' requires chunks to be empty")
     print(f"add_embed {name} {new_count} items")
     base = data["base"]
+    cur_hash = data["hash"]
     main_id = f"{base}:{data['doc_id']}"
     main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
 
@@ -374,17 +376,18 @@ def add_embed(
         ])
     prev_data = full_scroll(
         db, data_name, scroll_filter=filter_data, with_payload=True)
-    meta_keys: set[ExternalKey] = set(meta_obj.keys())
     prev_meta: dict[ExternalKey, list[str] | str] = {}
+    prev_hash: str | None = None
+    prev_count: int = 0
     if len(prev_data) > 0:
         prev_payload = prev_data[0].payload
         assert prev_payload is not None
+        prev_hash = prev_payload["hash"]
+        prev_count = prev_payload["count"]
         prev_meta = fill_meta(prev_payload)
-        meta_keys.update(prev_meta.keys())
 
-    if "date" not in prev_meta and "date" not in meta_obj:
+    if prev_meta.get("date") is None and meta_obj.get("date") is None:
         meta_obj["date"] = get_time_str()
-        meta_keys.add("date")
 
     main_payload: dict[InternalKey, list[str] | str | int] = {
         "main_id": main_id,
@@ -392,6 +395,8 @@ def add_embed(
         "base": base,
         "url": data["url"],
         "title": data["title"],
+        "hash": cur_hash,
+        "count": new_count,
     }
     for key, value in meta_obj.items():
         meta_key = convert_meta_key(key)
@@ -406,15 +411,13 @@ def add_embed(
                 payload=main_payload),
         ],
         wait=False)
-    if update_meta_only:
+    if update_meta_only or (prev_hash == cur_hash and prev_count == new_count):
         return (0, 0)
     vec_name = get_db_name(name, is_vec=True)
     filter_docs = Filter(
         must=[
             FieldCondition(key=REF_KEY, match=MatchValue(value=main_uuid)),
         ])
-    count_res = db.count(vec_name, count_filter=filter_docs, exact=True)
-    prev_count = count_res.count
     if prev_count > new_count or new_count == 0:
         db.delete(vec_name, points_selector=FilterSelector(filter=filter_docs))
         if new_count == 0:
@@ -463,7 +466,8 @@ def stat_total(
         filters: dict[ExternalKey, list[str]] | None) -> int:
     query_filter = get_filter(filters, for_vec=False, skip_fields=None)
     data_name = get_db_name(name, is_vec=False)
-    count_res = db.count(data_name, count_filter=query_filter, exact=True)
+    count_res = retry_err(
+        lambda: db.count(data_name, count_filter=query_filter, exact=True))
     return count_res.count
 
 
@@ -493,7 +497,7 @@ def stat_embed(
         if isinstance(val, datetime):
             dt = val
         else:
-            dt = parse_time_str(f"{val}")
+            dt = parse_time_str(val)
         return dt.date().isoformat()
 
     def convert_for_value(val: str) -> str:
@@ -677,7 +681,9 @@ def query_embed(
         base = data_payload["base"]
         doc_id = data_payload["doc_id"]
         url = data_payload["url"]
-        title = data_payload.get("title", url)
+        title = data_payload.get("title")
+        if title is None:
+            title = url
         main_id = data_payload["main_id"]
         return {
             "main_id": main_id,
@@ -725,7 +731,9 @@ def query_docs(
         base = data_payload["base"]
         doc_id = data_payload["doc_id"]
         url = data_payload["url"]
-        title = data_payload.get("title", url)
+        title = data_payload.get("title")
+        if title is None:
+            title = url
         main_id = data_payload["main_id"]
         return {
             "main_id": main_id,
