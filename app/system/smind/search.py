@@ -24,6 +24,7 @@ from app.system.location.response import DEFAULT_MAX_REQUESTS, GeoQuery
 from app.system.smind.api import (
     clear_redis,
     get_text_results_immediate,
+    normalize_text,
     snippify_text,
 )
 from app.system.smind.log import log_query
@@ -223,7 +224,7 @@ def vec_add(
         update_meta_only: bool) -> AddEmbed:
     qdrant_cache.flushall()
     # validate title
-    title = title.strip()
+    title = normalize_text(title)
     if not title:
         raise ValueError("title cannot be empty")
     # validate url

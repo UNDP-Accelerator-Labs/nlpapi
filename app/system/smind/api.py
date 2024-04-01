@@ -169,7 +169,7 @@ def strip_html(text: str) -> str:
 
 
 def normalize_text(text: str) -> str:
-    return clean(strip_html(text))
+    return clean(strip_html(text)).strip()
 
 
 def snippify_text(
