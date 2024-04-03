@@ -157,13 +157,11 @@ fi
 if [ ! -z "${DEV}" ]; then
     DOCKER_COMPOSE_OUT="docker-compose.dev.yml"
     WEBAPP_STORAGE_HOME="./userdata"
-    DOCKER_LOGIN_SERVER="localhost/"
-    PULL_POLICY="never"
+    DOCKER_LOGIN_SERVER=
 else
     DOCKER_COMPOSE_OUT="docker-compose.yml"
     WEBAPP_STORAGE_HOME=
     DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io/"
-    PULL_POLICY="missing"
 fi
 DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
 
@@ -184,7 +182,6 @@ _docker_build() {
     shift
     if [ ! -z "${DEV}" ]; then
         docker build -t "${TAG}" "${@}"
-        docker tag "${TAG}" "${DOCKER_LOGIN_SERVER}${TAG}"
     else
         docker buildx build --platform linux/amd64 -t "${TAG}" "${@}"
     fi
@@ -276,7 +273,6 @@ echo "DOCKER_RBODY=${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_EN
 echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_WIPE=${IMAGE_BASE}-wipe:${WIPE_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> "${DEFAULT_ENV_FILE}"
-echo "PULL_POLICY=${PULL_POLICY}" >> "${DEFAULT_ENV_FILE}"
 if [ ! -z "${WEBAPP_STORAGE_HOME}" ]; then
     echo "{WEBAPP_STORAGE_HOME}=${WEBAPP_STORAGE_HOME}" >> "${DEFAULT_ENV_FILE}"
 fi
