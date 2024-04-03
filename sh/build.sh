@@ -262,7 +262,17 @@ DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
 ! read -r -d '' DEV_LOCAL <<'EOF'
 local volumes
 volumes:
-  storage:
+  nlpapi/smind_cache:
+    driver: local
+  nlpapi/rbody:
+    driver: local
+  nlpapi/rcache:
+    driver: local
+  nlpapi/rdata:
+    driver: local
+  nlpapi/rmain:
+    driver: local
+  nlpapi/qdrant:
     driver: local
 EOF
 
@@ -270,7 +280,7 @@ DEV_LOCAL_FILE=deploy/devlocal.txt
 if [ ! -z "${DEV}" ]; then
     echo "${DEV_LOCAL}" > "${DEV_LOCAL_FILE}"
     DEV_LOCAL="@${DEV_LOCAL_FILE}"
-    WEBAPP_STORAGE_HOME="storage"
+    WEBAPP_STORAGE_HOME="nlpapi"
 else
     DEV_LOCAL="eof"
     WEBAPP_STORAGE_HOME=
