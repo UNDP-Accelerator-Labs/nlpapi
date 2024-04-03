@@ -17,13 +17,14 @@ from app.system.location.response import (
     GeoQuery,
     GeoResult,
     GeoStatus,
+    LanguageStr,
     STATUS_MAP,
     STATUS_ORDER,
     StatusCount,
 )
 from app.system.location.spacy import get_locations
 from app.system.location.strategy import get_strategy
-from app.system.spacy import get_spacy
+from app.system.smind.api import GraphProfile
 from app.system.stats import create_length_counter
 
 
@@ -87,7 +88,10 @@ def extract_opencage(db: DBConnector, text: str, user: UUID) -> OpenCageFormat:
 
 
 def extract_locations(
-        db: DBConnector, geo_query: GeoQuery, user: UUID) -> GeoOutput:
+        db: DBConnector,
+        graph_profiles: dict[LanguageStr, GraphProfile],
+        geo_query: GeoQuery,
+        user: UUID) -> GeoOutput:
     strategy = get_strategy(geo_query["strategy"])
     rt_context = geo_query["return_context"]
     max_requests = geo_query["max_requests"]
@@ -95,12 +99,12 @@ def extract_locations(
     input_text = geo_query["input"]
     lnc, lnr = create_length_counter()
 
-    with get_spacy(geo_query["language"]) as nlp:
-        entities = [
-            (entity.strip(), start, stop)
-            for (entity, start, stop)
-            in get_locations(nlp, input_text, lnc)
-        ]
+    graph_profile = graph_profiles[geo_query["language"]]
+    entities = [
+        (entity.strip(), start, stop)
+        for (entity, start, stop)
+        in get_locations(graph_profile, input_text, lnc)
+    ]
 
     query_list = [entity for entity, _, _ in entities]
     queries = set(query_list)

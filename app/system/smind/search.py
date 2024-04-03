@@ -18,7 +18,11 @@ from app.misc.util import (
 from app.system.db.db import DBConnector
 from app.system.language.pipeline import extract_language
 from app.system.location.pipeline import extract_locations
-from app.system.location.response import DEFAULT_MAX_REQUESTS, GeoQuery
+from app.system.location.response import (
+    DEFAULT_MAX_REQUESTS,
+    GeoQuery,
+    LanguageStr,
+)
 from app.system.smind.api import (
     clear_redis,
     get_text_results_immediate,
@@ -211,6 +215,7 @@ def vec_add(
         qdrant_cache: Redis,
         articles: str,
         articles_graph: GraphProfile,
+        ner_graphs: dict[LanguageStr, GraphProfile],
         user: uuid.UUID,
         base: str,
         doc_id: int,
@@ -273,10 +278,10 @@ def vec_add(
             "return_input": False,
             "return_context": False,
             "strategy": "top",
-            "language": "en",
+            "language": "xx",
             "max_requests": DEFAULT_MAX_REQUESTS,
         }
-        geo_out = extract_locations(db, geo_obj, user)
+        geo_out = extract_locations(db, ner_graphs, geo_obj, user)
         if geo_out["status"] != "invalid":
             meta_obj["iso3"] = sorted({
                 geo_entity["location"]["country"]

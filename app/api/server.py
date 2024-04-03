@@ -27,10 +27,12 @@ from app.system.location.response import (
     DEFAULT_MAX_REQUESTS,
     GeoOutput,
     GeoQuery,
+    LanguageStr,
 )
 from app.system.smind.api import (
     get_queue_stats,
     get_redis,
+    GraphProfile,
     load_graph,
     load_smind,
     normalize_text,
@@ -133,6 +135,11 @@ def setup(
     smind_config = config["smind"]
     smind = load_smind(smind_config)
     graph_embed = load_graph(config, smind, "graph_embed.json")
+
+    ner_graphs: dict[LanguageStr, GraphProfile] = {
+        "en": load_graph(config, smind, "graph_ner_en.json"),
+        "xx": load_graph(config, smind, "graph_ner_xx.json"),
+    }
 
     qdrant_cache = get_redis(
         smind_config, redis_name="rcache", overwrite_prefix="qdrant")
@@ -363,6 +370,7 @@ def setup(
             qdrant_cache=qdrant_cache,
             articles=articles,
             articles_graph=graph_embed,
+            ner_graphs=ner_graphs,
             user=user,
             base=base,
             doc_id=doc_id,
@@ -452,7 +460,7 @@ def setup(
             "language": args.get("language", "en"),
             "max_requests": args.get("max_requests", DEFAULT_MAX_REQUESTS),
         }
-        return extract_locations(db, obj, user)
+        return extract_locations(db, ner_graphs, obj, user)
 
     # *** language ***
 
@@ -472,7 +480,7 @@ def setup(
     def add_mod(mod: Module) -> None:
         mods[mod.name()] = mod
 
-    add_mod(LocationModule(db))
+    add_mod(LocationModule(db, ner_graphs))
     add_mod(LanguageModule(db))
 
     @server.json_post(f"{prefix}/extract")

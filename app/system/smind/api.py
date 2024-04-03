@@ -35,6 +35,12 @@ QueueStat = TypedDict('QueueStat', {
 })
 
 
+NERResponse = TypedDict('NERResponse', {
+    "ranges": list[tuple[int, int]],
+    "text": list[str],
+})
+
+
 def get_redis(
         config_fname: str,
         *,
@@ -104,14 +110,11 @@ class GraphProfile:
         outputs = list(smind.main_outputs(ns))
         if len(inputs) != 1:
             raise ValueError(f"invalid graph inputs: {inputs}")
-        if len(outputs) != 1:
-            raise ValueError(f"invalid graph outputs: {outputs}")
-        _, output_shape = smind.output_format(ns, outputs[0])
-        if len(output_shape) != 1:
-            raise ValueError(f"invalid graph output shape: {output_shape}")
         self._input = inputs[0]
-        self._output = outputs[0]
-        self._shape = output_shape[0]
+        self._outputs = outputs
+
+        self._output_field: str | None = None
+        self._output_size: int | None = None
 
     def get_api(self) -> ScattermindAPI:
         return self._smind
@@ -122,13 +125,31 @@ class GraphProfile:
     def get_input_field(self) -> str:
         return self._input
 
+    def get_outputs(self) -> list[str]:
+        return self._outputs
+
     def get_output_field(self) -> str:
-        return self._output
+        output_field = self._output_field
+        if output_field is None:
+            outputs = self._outputs
+            if len(outputs) != 1:
+                raise ValueError(f"invalid graph outputs: {outputs}")
+            output_field = outputs[0]
+            self._output_field = output_field
+        return output_field
 
     def get_output_size(self) -> int:
-        if self._shape is None:
-            raise ValueError(f"graph {self._ns} has variable shape")
-        return self._shape
+        output_size = self._output_size
+        if output_size is None:
+            _, output_shape = self._smind.output_format(
+                self._ns, self.get_output_field())
+            if len(output_shape) != 1:
+                raise ValueError(f"invalid graph output shape: {output_shape}")
+            output_size = output_shape[0]
+            if output_size is None:
+                raise ValueError(f"graph {self._ns} has variable shape")
+            self._output_size = output_size
+        return output_size
 
 
 def load_graph(
@@ -273,6 +294,62 @@ def get_text_results_immediate(
                         f"{type(output)}<:{type(output_sample)}")
                 curix = lookup[tid]
                 res[curix] = output
+            print(
+                f"retrieved task {tid} ({resp['ns']}) {resp['status']} "
+                f"{resp['duration']}s retry={resp['retries']}")
+            tids.append(tid)
+        success = True
+    finally:
+        tasks = tids if success else sent_tasks
+        for tid in tasks:
+            smind.clear_task(tid)
+    return [res.get(ix, None) for ix in range(len(texts))]
+
+
+def get_ner_results_immediate(
+        texts: list[str],
+        *,
+        graph_profile: GraphProfile) -> list[NERResponse | None]:
+    if not texts:
+        return []
+    smind = graph_profile.get_api()
+    ns = graph_profile.get_ns()
+    input_field = graph_profile.get_input_field()
+    lookup: dict[TaskId, int] = {}
+    for ix, text in enumerate(texts):
+        task_id = smind.enqueue_task(
+            ns,
+            {
+                input_field: text,
+            })
+        print(f"enqueue task {task_id} ({len(text)})")
+        lookup[task_id] = ix
+    sent_tasks = list(lookup.keys())
+
+    res: dict[int, NERResponse] = {}
+    tids: list[TaskId] = []
+    success = False
+    try:
+        for tid, resp in smind.wait_for(sent_tasks, timeout=300):
+            if resp["error"] is not None:
+                error = resp["error"]
+                print(f"{error['code']} ({error['ctx']}): {error['message']}")
+                print("\n".join(error["traceback"]))
+            result = resp["result"]
+            if result is not None:
+                ranges: list[tuple[int, int]] = [
+                    tuple(cur_range)
+                    for cur_range in result["ranges"].cpu().tolist()
+                ]
+                res_texts: list[str] = [
+                    bytes(text).rstrip(b"\0").decode("utf-8")
+                    for text in result["text"].cpu().tolist()
+                ]
+                curix = lookup[tid]
+                res[curix] = {
+                    "ranges": ranges,
+                    "text": res_texts,
+                }
             print(
                 f"retrieved task {tid} ({resp['ns']}) {resp['status']} "
                 f"{resp['duration']}s retry={resp['retries']}")

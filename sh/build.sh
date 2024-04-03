@@ -160,9 +160,9 @@ docker_build() {
     # if ! docker inspect --type=image "${TAG}" &> /dev/null ; then
     shift
     if [ ! -z "${DEV}" ]; then
-        docker build -t "${TAG}" "${@}"
+        docker build --progress=plain -t "${TAG}" "${@}"
     else
-        docker buildx build --platform linux/amd64 -t "${TAG}" "${@}"
+        docker buildx build --platform linux/amd64 --progress=plain -t "${TAG}" "${@}"
     fi
     echo "built ${TAG}"
     # else
@@ -248,6 +248,23 @@ else
 fi
 DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
 
+! read -r -d '' DEV_LOCAL <<'EOF'
+local volumes
+volumes:
+  smind_cache:
+    driver: local
+  rmain:
+    driver: local
+  rdata:
+    driver: local
+  rbody:
+    driver: local
+  rcache:
+    driver: local
+  qdrant:
+    driver: local
+EOF
+
 DEFAULT_ENV_FILE=deploy/default.env
 echo "# created by sh/build.sh" > "${DEFAULT_ENV_FILE}"
 echo "DOCKER_WORKER=${IMAGE_BASE}-worker:${IMAGE_TAG}" >> "${DEFAULT_ENV_FILE}"
@@ -259,7 +276,14 @@ echo "DOCKER_RBODY=${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_EN
 echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_WIPE=${IMAGE_BASE}-wipe:${WIPE_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> "${DEFAULT_ENV_FILE}"
-echo "DEV_LOCAL=eof" >> "${DEFAULT_ENV_FILE}"  # put the correct values for local development if needed
+
+if [ ! -z "${DEV}" ]; then
+    DEV_LOCAL="eof"
+else
+    echo "{WEBAPP_STORAGE_HOME}=" >> "${DEFAULT_ENV_FILE}"
+else
+
+echo "DEV_LOCAL=${DEV_LOCAL}" >> "${DEFAULT_ENV_FILE}"
 
 ! read -r -d '' PY_COMPOSE <<'EOF'
 import os
