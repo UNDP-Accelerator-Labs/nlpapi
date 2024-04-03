@@ -154,6 +154,19 @@ if [ ! -z "${DEVMODE}" ]; then
     replace_lib "${REQUIREMENTS_WORKER_FILE}" "scattermind" "${SMIND_PATH}" "${SMIND_URL}" "${SMIND_BRANCH}"
 fi
 
+if [ ! -z "${DEV}" ]; then
+    DOCKER_COMPOSE_OUT="docker-compose.dev.yml"
+    WEBAPP_STORAGE_HOME="./userdata"
+    DOCKER_LOGIN_SERVER="localhost/"
+    PULL_POLICY="never"
+else
+    DOCKER_COMPOSE_OUT="docker-compose.yml"
+    WEBAPP_STORAGE_HOME=
+    DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io/"
+    PULL_POLICY="missing"
+fi
+DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
+
 docker_build() {
     ARGS=("$@")
     if [ ! -z "${VERBOSE}" ]; then
@@ -171,7 +184,7 @@ _docker_build() {
     shift
     if [ ! -z "${DEV}" ]; then
         docker build -t "${TAG}" "${@}"
-        docker tag "${TAG}" "${TAG}"
+        docker tag "${TAG}" "${DOCKER_LOGIN_SERVER}${TAG}"
     else
         docker buildx build --platform linux/amd64 -t "${TAG}" "${@}"
     fi
@@ -251,19 +264,6 @@ docker_build \
     --build-arg "WIPE_VERSION_FILE=${WIPE_VERSION_FILE}" \
     -f deploy/wipe.Dockerfile \
     .
-
-if [ ! -z "${DEV}" ]; then
-    DOCKER_COMPOSE_OUT="docker-compose.dev.yml"
-    WEBAPP_STORAGE_HOME="./userdata"
-    DOCKER_LOGIN_SERVER=
-    PULL_POLICY="never"
-else
-    DOCKER_COMPOSE_OUT="docker-compose.yml"
-    WEBAPP_STORAGE_HOME=
-    DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io/"
-    PULL_POLICY="missing"
-fi
-DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
 
 DEFAULT_ENV_FILE=deploy/default.env
 echo "# created by sh/build.sh" > "${DEFAULT_ENV_FILE}"
