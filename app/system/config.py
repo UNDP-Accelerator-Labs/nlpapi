@@ -44,7 +44,7 @@ def config_template() -> Config:
         "passwd": "INVALID",
     }
     default_vec: 'VecDBConfig' = {
-        "host": "INVALID",
+        "host": "qdrant",
         "port": 6333,
         "grpc": 6334,
         "token": "",
@@ -54,8 +54,8 @@ def config_template() -> Config:
         "opencage": "INVALID",
         "appsecret": "INVALID",
         "vector": default_vec.copy(),
-        "smind": "INVALID",
-        "graphs": "INVALID",
+        "smind": "smind-config.json",
+        "graphs": "graphs/",
     }
 
 
