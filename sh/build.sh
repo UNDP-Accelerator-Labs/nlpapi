@@ -260,7 +260,7 @@ fi
 DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
 
 if [ ! -z "${DEV}" ]; then
-    WEBAPP_STORAGE_HOME="userdata"
+    WEBAPP_STORAGE_HOME="./userdata"
 else
     WEBAPP_STORAGE_HOME=
 fi
