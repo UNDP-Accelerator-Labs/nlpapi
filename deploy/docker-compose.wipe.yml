@@ -14,4 +14,4 @@ services:
       - ${WEBAPP_STORAGE_HOME}/rdata:/rdata
       - ${WEBAPP_STORAGE_HOME}/rmain:/rmain
       - ${WEBAPP_STORAGE_HOME}/qdrant:/qdrant_data
-# $DEV_LOCAL
+# eof

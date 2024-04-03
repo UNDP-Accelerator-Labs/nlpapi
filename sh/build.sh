@@ -259,30 +259,9 @@ else
 fi
 DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
 
-! read -r -d '' DEV_LOCAL <<'EOF'
-local volumes
-volumes:
-  nlpapi/smind_cache:
-    driver: local
-  nlpapi/rbody:
-    driver: local
-  nlpapi/rcache:
-    driver: local
-  nlpapi/rdata:
-    driver: local
-  nlpapi/rmain:
-    driver: local
-  nlpapi/qdrant:
-    driver: local
-EOF
-
-DEV_LOCAL_FILE=deploy/devlocal.txt
 if [ ! -z "${DEV}" ]; then
-    echo "${DEV_LOCAL}" > "${DEV_LOCAL_FILE}"
-    DEV_LOCAL="@${DEV_LOCAL_FILE}"
-    WEBAPP_STORAGE_HOME="nlpapi"
+    WEBAPP_STORAGE_HOME="userdata"
 else
-    DEV_LOCAL="eof"
     WEBAPP_STORAGE_HOME=
 fi
 
@@ -297,7 +276,6 @@ echo "DOCKER_RBODY=${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_EN
 echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_WIPE=${IMAGE_BASE}-wipe:${WIPE_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> "${DEFAULT_ENV_FILE}"
-echo "DEV_LOCAL=${DEV_LOCAL}" >> "${DEFAULT_ENV_FILE}"
 if [ ! -z "${WEBAPP_STORAGE_HOME}" ]; then
     echo "{WEBAPP_STORAGE_HOME}=${WEBAPP_STORAGE_HOME}" >> "${DEFAULT_ENV_FILE}"
 fi

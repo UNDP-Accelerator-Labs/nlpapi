@@ -8,6 +8,7 @@ find . -type d \( \
         -path './venv' -o \
         -path './data' -o \
         -path './notebooks' -o \
+        -path './userdata' -o \
         -path './.*' \
         \) -prune -o \( \
         -name '*.py' -o \
@@ -16,4 +17,5 @@ find . -type d \( \
     | grep -vF './venv' \
     | grep -vF './.' \
     | grep -vF './data' \
-    | grep -vF './notebooks'
+    | grep -vF './notebooks' \
+    | grep -vF './userdata'

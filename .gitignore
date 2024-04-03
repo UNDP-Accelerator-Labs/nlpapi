@@ -29,7 +29,7 @@ buildtmp
 !deploy/*.json
 !deploy/graphs/*.json
 deploy/default.env
-deploy/devlocal.txt
+/userdata/
 
 **/.ipynb_checkpoints
 __pycache__

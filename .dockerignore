@@ -2,6 +2,7 @@
 deploy/
 data/
 notebooks/
+userdata/
 test-results/
 study/
 vecdb/
