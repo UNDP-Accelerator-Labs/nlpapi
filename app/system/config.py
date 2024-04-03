@@ -18,6 +18,8 @@ Config = TypedDict('Config', {
     "vector": 'VecDBConfig',
     "smind": str,
     "graphs": str,
+    "write_token": str,
+    "tanuki": str,
 })
 
 
@@ -56,6 +58,8 @@ def config_template() -> Config:
         "vector": default_vec.copy(),
         "smind": "smind-config.json",
         "graphs": "graphs/",
+        "write_token": "INVALID",
+        "tanuki": "INVALID",
     }
 
 
@@ -99,6 +103,8 @@ def get_config() -> Config:
             },
             "smind": envload_path("SMIND_CFG"),
             "graphs": envload_path("GRAPH_PATH"),
+            "write_token": envload_str("WRITE_TOKEN"),
+            "tanuki": envload_str("TANUKI"),  # the nuke key
         }
     else:
         print(f"loading config file: {config_path}")
@@ -109,4 +115,8 @@ def get_config() -> Config:
             if not config:
                 create_config_and_err(config_path)
             CONFIG = config
+    if CONFIG["write_token"] == "INVALID":
+        raise ValueError("write_token must be set!")
+    if CONFIG["tanuki"] == "INVALID":
+        raise ValueError("tanuki must be set!")
     return CONFIG

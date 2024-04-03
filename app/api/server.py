@@ -156,8 +156,8 @@ def setup(
     articles_main = get_vec_db("main", force_clear=False, force_index=False)
     articles_test = get_vec_db("test", force_clear=False, force_index=False)
 
-    write_token = envload_str("WRITE_TOKEN")
-    tanuki_token = envload_str("TANUKI")  # the nuke key
+    write_token = config["write_token"]
+    tanuki_token = config["tanuki"]  # the nuke key
 
     vec_cfg = config["vector"]
     server.bind_proxy(
