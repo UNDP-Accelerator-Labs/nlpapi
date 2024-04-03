@@ -6,7 +6,7 @@ cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
 IMAGE_TAG="${IMAGE_TAG:-$(make -s name)}"
 IMAGE_BASE="nlpapi"
-DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io"
+DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io/"
 
 DEVMODE_CONF_FILE="deploy/devmode.conf"
 REDIS_VERSION_FILE="deploy/redis.version"
@@ -26,7 +26,7 @@ fi
 
 dpush() {
     IMAGE="${IMAGE_BASE}-$1:$2"
-    URL="${DOCKER_LOGIN_SERVER}/${IMAGE}"
+    URL="${DOCKER_LOGIN_SERVER}${IMAGE}"
     if ! docker pull "${URL}" &> /dev/null ; then
         echo "pushing ${IMAGE} to ${URL}"
 
@@ -51,7 +51,7 @@ QDRANT_BASE="qdrant/qdrant:v1.8.0"
 docker pull --platform linux/amd64 "${QDRANT_BASE}"
 
 IMAGE_QDRANT="${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}"
-URL_QDRANT="${DOCKER_LOGIN_SERVER}/${IMAGE_QDRANT}"
+URL_QDRANT="${DOCKER_LOGIN_SERVER}${IMAGE_QDRANT}"
 if ! docker pull "${URL_QDRANT}" &> /dev/null ; then
     echo "pushing ${QDRANT_BASE} to ${URL_QDRANT}"
 
