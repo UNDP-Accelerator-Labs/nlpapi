@@ -171,6 +171,7 @@ _docker_build() {
     shift
     if [ ! -z "${DEV}" ]; then
         docker build -t "${TAG}" "${@}"
+        docker tag "${TAG}" "${TAG}"
     else
         docker buildx build --platform linux/amd64 -t "${TAG}" "${@}"
     fi
