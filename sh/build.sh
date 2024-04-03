@@ -6,7 +6,6 @@ cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
 mkdir -p buildtmp
 
-DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io"
 PYTHON="${PYTHON:-python3}"
 
 DOCKER_CONFIG=docker.config.json
@@ -254,16 +253,14 @@ docker_build \
 
 if [ ! -z "${DEV}" ]; then
     DOCKER_COMPOSE_OUT="docker-compose.dev.yml"
+    WEBAPP_STORAGE_HOME="./userdata"
+    DOCKER_LOGIN_SERVER=
 else
     DOCKER_COMPOSE_OUT="docker-compose.yml"
+    WEBAPP_STORAGE_HOME=
+    DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io"
 fi
 DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
-
-if [ ! -z "${DEV}" ]; then
-    WEBAPP_STORAGE_HOME="./userdata"
-else
-    WEBAPP_STORAGE_HOME=
-fi
 
 DEFAULT_ENV_FILE=deploy/default.env
 echo "# created by sh/build.sh" > "${DEFAULT_ENV_FILE}"
