@@ -7,8 +7,6 @@ from typing import get_args, Literal, Protocol, TypeAlias, TypedDict
 import numpy as np
 from qdrant_client import QdrantClient
 from redipy import Redis
-from scattermind.api.api import ScattermindAPI
-from scattermind.system.names import GNamespace
 
 from app.misc.util import (
     fmt_time,
@@ -24,6 +22,7 @@ from app.system.location.response import DEFAULT_MAX_REQUESTS, GeoQuery
 from app.system.smind.api import (
     clear_redis,
     get_text_results_immediate,
+    GraphProfile,
     normalize_text,
     snippify_text,
 )
@@ -207,14 +206,11 @@ def vec_clear(
 def vec_add(
         db: DBConnector,
         vec_db: QdrantClient,
-        smind: ScattermindAPI,
         input_str: str,
         *,
         qdrant_cache: Redis,
         articles: str,
-        articles_ns: GNamespace,
-        articles_input: str,
-        articles_output: str,
+        articles_graph: GraphProfile,
         user: uuid.UUID,
         base: str,
         doc_id: int,
@@ -296,10 +292,7 @@ def vec_add(
         chunk_padding=CHUNK_PADDING))
     embeds = get_text_results_immediate(
         snippets,
-        smind=smind,
-        ns=articles_ns,
-        input_field=articles_input,
-        output_field=articles_output,
+        graph_profile=articles_graph,
         output_sample=[1.0])
     embed_main: EmbedMain = {
         "base": base,
@@ -427,13 +420,10 @@ def vec_filter(
 def vec_search(
         db: DBConnector,
         vec_db: QdrantClient,
-        smind: ScattermindAPI,
         input_str: str,
         *,
         articles: str,
-        articles_ns: GNamespace,
-        articles_input: str,
-        articles_output: str,
+        articles_graph: GraphProfile,
         filters: dict[ExternalKey, list[str]] | None,
         offset: int | None,
         limit: int,
@@ -474,10 +464,7 @@ def vec_search(
         }
     embed = get_text_results_immediate(
         [input_str],
-        smind=smind,
-        ns=articles_ns,
-        input_field=articles_input,
-        output_field=articles_output,
+        graph_profile=articles_graph,
         output_sample=[1.0])[0]
     log_query(db, db_name=articles, text=input_str)
     if embed is None:
@@ -502,10 +489,7 @@ def vec_search(
             (stxt, sembed)
             for stxt, sembed in zip(small_snippets, get_text_results_immediate(
                 small_snippets,
-                smind=smind,
-                ns=articles_ns,
-                input_field=articles_input,
-                output_field=articles_output,
+                graph_profile=articles_graph,
                 output_sample=[1.0]))
             if sembed is not None
         ]

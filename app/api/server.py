@@ -134,11 +134,6 @@ def setup(
     smind = load_smind(smind_config)
     graph_embed = load_graph(config, smind, "graph_embed.json")
 
-    articles_ns, articles_input, articles_output, m_articles_size = graph_embed
-    if m_articles_size is None:
-        raise ValueError(f"graph {graph_embed} as variable shape")
-    articles_size = m_articles_size
-
     qdrant_cache = get_redis(
         smind_config, redis_name="rcache", overwrite_prefix="qdrant")
 
@@ -147,7 +142,7 @@ def setup(
             f"articles_{name}",
             distance_fn="dot",
             db=vec_db,
-            embed_size=articles_size,
+            embed_size=graph_embed.get_output_size(),
             force_clear=force_clear,
             force_index=force_index)
 
@@ -290,12 +285,9 @@ def setup(
         return vec_search(
             db,
             vec_db,
-            smind,
             input_str,
             articles=articles_main,
-            articles_ns=articles_ns,
-            articles_input=articles_input,
-            articles_output=articles_output,
+            articles_graph=graph_embed,
             filters=filters,
             offset=offset,
             limit=limit,
@@ -367,13 +359,10 @@ def setup(
         return vec_add(
             db,
             vec_db,
-            smind,
             input_str,
             qdrant_cache=qdrant_cache,
             articles=articles,
-            articles_ns=articles_ns,
-            articles_input=articles_input,
-            articles_output=articles_output,
+            articles_graph=graph_embed,
             user=user,
             base=base,
             doc_id=doc_id,
@@ -426,12 +415,9 @@ def setup(
         return vec_search(
             db,
             vec_db,
-            smind,
             input_str,
             articles=articles,
-            articles_ns=articles_ns,
-            articles_input=articles_input,
-            articles_output=articles_output,
+            articles_graph=graph_embed,
             filters=filters,
             offset=offset,
             limit=limit,

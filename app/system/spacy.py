@@ -6,9 +6,10 @@ import spacy
 from spacy.language import Language
 
 
-LanguageStr = Literal["en"]
+LanguageStr = Literal["en", "xx"]
 LANGUAGES: dict[LanguageStr, str] = {
     "en": "en_core_web_sm",
+    "xx": "xx_ent_wiki_sm",
 }
 
 SPACY_LANG: str | None = None

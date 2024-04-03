@@ -92,8 +92,8 @@ else
     echo "for MacOS follow these instructions: https://developer.apple.com/metal/pytorch/"
 fi
 
-if [ -z "${MODE}" ] || [ "${MODE}" = "api" ]; then
+if [ -z "${MODE}" ] || [ "${MODE}" = "worker" ]; then
     echo "initializing spacy"
-    # FIXME potentially use xx_ent_wiki_sm (https://spacy.io/models/xx)?
     ${PYTHON} -m spacy download en_core_web_sm
+    ${PYTHON} -m spacy download xx_ent_wiki_sm
 fi

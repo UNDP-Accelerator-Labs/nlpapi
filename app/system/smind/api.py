@@ -96,23 +96,49 @@ def load_smind(config_fname: str) -> ScattermindAPI:
     return load_api(config_obj)
 
 
+class GraphProfile:
+    def __init__(self, smind: ScattermindAPI, ns: GNamespace) -> None:
+        self._smind = smind
+        self._ns = ns
+        inputs = list(smind.main_inputs(ns))
+        outputs = list(smind.main_outputs(ns))
+        if len(inputs) != 1:
+            raise ValueError(f"invalid graph inputs: {inputs}")
+        if len(outputs) != 1:
+            raise ValueError(f"invalid graph outputs: {outputs}")
+        _, output_shape = smind.output_format(ns, outputs[0])
+        if len(output_shape) != 1:
+            raise ValueError(f"invalid graph output shape: {output_shape}")
+        self._input = inputs[0]
+        self._output = outputs[0]
+        self._shape = output_shape[0]
+
+    def get_api(self) -> ScattermindAPI:
+        return self._smind
+
+    def get_ns(self) -> GNamespace:
+        return self._ns
+
+    def get_input_field(self) -> str:
+        return self._input
+
+    def get_output_field(self) -> str:
+        return self._output
+
+    def get_output_size(self) -> int:
+        if self._shape is None:
+            raise ValueError(f"graph {self._ns} has variable shape")
+        return self._shape
+
+
 def load_graph(
         config: Config,
         smind: ScattermindAPI,
-        graph_fname: str) -> tuple[GNamespace, str, str, int | None]:
+        graph_fname: str) -> GraphProfile:
     with open(os.path.join(config["graphs"], graph_fname), "rb") as fin:
         graph_def_obj = json.load(fin)
-    ns = smind.load_graph(graph_def_obj)
-    inputs = list(smind.main_inputs(ns))
-    outputs = list(smind.main_outputs(ns))
-    if len(inputs) != 1:
-        raise ValueError(f"invalid graph inputs: {inputs}")
-    if len(outputs) != 1:
-        raise ValueError(f"invalid graph outputs: {outputs}")
-    _, embed_shape = smind.output_format(ns, outputs[0])
-    if len(embed_shape) != 1:
-        raise ValueError(f"invalid graph output shape: {embed_shape}")
-    return ns, inputs[0], outputs[0], embed_shape[0]
+    ns: GNamespace = smind.load_graph(graph_def_obj)
+    return GraphProfile(smind, ns)
 
 
 def get_queue_stats(smind: ScattermindAPI) -> list[QueueStat]:
@@ -207,13 +233,14 @@ def snippify_text(
 def get_text_results_immediate(
         texts: list[str],
         *,
-        smind: ScattermindAPI,
-        ns: GNamespace,
-        input_field: str,
-        output_field: str,
+        graph_profile: GraphProfile,
         output_sample: T) -> list[T | None]:
     if not texts:
         return []
+    smind = graph_profile.get_api()
+    ns = graph_profile.get_ns()
+    input_field = graph_profile.get_input_field()
+    output_field = graph_profile.get_output_field()
     lookup: dict[TaskId, int] = {}
     for ix, text in enumerate(texts):
         task_id = smind.enqueue_task(

@@ -33,7 +33,6 @@ requests==2.31.0
 scattermind~=0.4.0
 scikit-learn==1.2.0
 scipy==1.10.0
-spacy==3.5.3
 SQLAlchemy==2.0.9
 SQLAlchemy[mypy]==2.0.9
 tokenizers<0.19
