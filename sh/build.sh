@@ -156,13 +156,21 @@ if [ ! -z "${DEVMODE}" ]; then
 fi
 
 docker_build() {
+    ARGS=("$@")
+    if [ ! -z "${VERBOSE}" ]; then
+        ARGS+=("--progress=plain")
+    fi
+    _docker_build "${ARGS[@]}"
+}
+
+_docker_build() {
     TAG="$1"
     # if ! docker inspect --type=image "${TAG}" &> /dev/null ; then
     shift
     if [ ! -z "${DEV}" ]; then
-        docker build --progress=plain -t "${TAG}" "${@}"
+        docker build -t "${TAG}" "${@}"
     else
-        docker buildx build --platform linux/amd64 --progress=plain -t "${TAG}" "${@}"
+        docker buildx build --platform linux/amd64 -t "${TAG}" "${@}"
     fi
     echo "built ${TAG}"
     # else
@@ -281,7 +289,7 @@ if [ ! -z "${DEV}" ]; then
     DEV_LOCAL="eof"
 else
     echo "{WEBAPP_STORAGE_HOME}=" >> "${DEFAULT_ENV_FILE}"
-else
+fi
 
 echo "DEV_LOCAL=${DEV_LOCAL}" >> "${DEFAULT_ENV_FILE}"
 
