@@ -3,7 +3,7 @@ services:
   wipe:
     container_name: wipe
     image: $DOCKER_WIPE
-    pull_policy: always
+    pull_policy: missing
     restart: always
     ports:
       - '8080:8080'
