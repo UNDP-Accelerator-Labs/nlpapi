@@ -258,7 +258,7 @@ if [ ! -z "${DEV}" ]; then
 else
     DOCKER_COMPOSE_OUT="docker-compose.yml"
     WEBAPP_STORAGE_HOME=
-    DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io"
+    DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io/"
 fi
 DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
 
@@ -295,7 +295,7 @@ with open(denv, "r", encoding="utf-8") as fin:
         variable = f"${variable}".strip()
         value = f"{value.strip()}"
         if variable.startswith("$DOCKER_"):
-            value = f"{prefix}/{value}"
+            value = f"{prefix}{value}"
         if value.startswith("@"):
             with open(value[1:], "r", encoding="utf-8") as tin:
                 value = tin.read()
