@@ -62,6 +62,7 @@ def get_locations(
     for overlap_end, chunk, cur_ners in zip(overlap_ends, chunks, ner_res):
         if cur_ners is None:
             continue
+        print(cur_ners)
         next_buff = [
             (text, start, end)
             for text, (start, end) in zip(cur_ners["text"], cur_ners["ranges"])

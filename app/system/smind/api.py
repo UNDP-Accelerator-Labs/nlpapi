@@ -339,12 +339,18 @@ def get_ner_results_immediate(
             if result is not None:
                 ranges: list[tuple[int, int]] = [
                     tuple(cur_range)
-                    for cur_range in result["ranges"].cpu().tolist()
+                    for cur_range in result["ranges"].T.cpu().tolist()
                 ]
                 res_texts: list[str] = [
                     bytes(text).rstrip(b"\0").decode("utf-8")
                     for text in result["text"].cpu().tolist()
                 ]
+                if (len(ranges) == 1
+                        and len(res_texts) == 1
+                        and ranges[0] == (0, 0)
+                        and not res_texts[0]):
+                    ranges = []
+                    res_texts = []
                 curix = lookup[tid]
                 res[curix] = {
                     "ranges": ranges,

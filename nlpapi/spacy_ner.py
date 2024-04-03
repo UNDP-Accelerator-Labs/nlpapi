@@ -110,6 +110,11 @@ class SpacyNERNode(Node):
                 starts.append(ent.start_char)
                 ends.append(ent.end_char)
 
+            if not ents:
+                ents.append(str_to_tensor(""))
+                starts.append(0)
+                ends.append(0)
+
             range_tensor = create_tensor([starts, ends], dtype="int")
             text_tensor = pad_list(ents, [max_len])
 
