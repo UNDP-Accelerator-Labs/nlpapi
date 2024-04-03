@@ -262,19 +262,19 @@ DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
 ! read -r -d '' DEV_LOCAL <<'EOF'
 local volumes
 volumes:
-  smind_cache:
-    driver: local
-  rmain:
-    driver: local
-  rdata:
-    driver: local
-  rbody:
-    driver: local
-  rcache:
-    driver: local
-  qdrant:
+  storage:
     driver: local
 EOF
+
+DEV_LOCAL_FILE=deploy/devlocal.txt
+if [ ! -z "${DEV}" ]; then
+    echo "${DEV_LOCAL}" > "${DEV_LOCAL_FILE}"
+    DEV_LOCAL="@${DEV_LOCAL_FILE}"
+    WEBAPP_STORAGE_HOME="storage"
+else
+    DEV_LOCAL="eof"
+    WEBAPP_STORAGE_HOME=
+fi
 
 DEFAULT_ENV_FILE=deploy/default.env
 echo "# created by sh/build.sh" > "${DEFAULT_ENV_FILE}"
@@ -287,14 +287,10 @@ echo "DOCKER_RBODY=${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_EN
 echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_WIPE=${IMAGE_BASE}-wipe:${WIPE_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> "${DEFAULT_ENV_FILE}"
-
-if [ ! -z "${DEV}" ]; then
-    DEV_LOCAL="eof"
-else
-    echo "{WEBAPP_STORAGE_HOME}=" >> "${DEFAULT_ENV_FILE}"
-fi
-
 echo "DEV_LOCAL=${DEV_LOCAL}" >> "${DEFAULT_ENV_FILE}"
+if [ ! -z "${WEBAPP_STORAGE_HOME}" ]; then
+    echo "{WEBAPP_STORAGE_HOME}=${WEBAPP_STORAGE_HOME}" >> "${DEFAULT_ENV_FILE}"
+fi
 
 ! read -r -d '' PY_COMPOSE <<'EOF'
 import os
@@ -315,6 +311,9 @@ with open(denv, "r", encoding="utf-8") as fin:
         value = f"{value.strip()}"
         if variable.startswith("$DOCKER_"):
             value = f"{prefix}/{value}"
+        if value.startswith("@"):
+            with open(value[1:], "r", encoding="utf-8") as tin:
+                value = tin.read()
         substitute[variable] = value
 with open(dcompose, "r", encoding="utf-8") as din:
     content = din.read()
