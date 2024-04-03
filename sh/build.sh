@@ -15,8 +15,6 @@ DEFAULT_CONFIG=-
 SMIND_CONFIG="${SMIND_CONFIG:-deploy/smind-config.json}"
 SMIND_GRAPHS="${SMIND_GRAPHS:-deploy/graphs/}"
 
-QDRANT_API_TOKEN=$(make -s uuid)
-
 REDIS_VERSION_FILE="buildtmp/redis.version"
 QDRANT_VERSION_FILE="buildtmp/qdrant.version"
 WIPE_VERSION_FILE="buildtmp/wipe.version"
@@ -56,8 +54,10 @@ fi
 
 if [ ! -z "${DEV}" ]; then
     CONFIG_PATH="${CONFIG_PATH:-${DOCKER_CONFIG}}"
+    QDRANT_API_TOKEN=
 else
     CONFIG_PATH="${CONFIG_PATH:-${DEFAULT_CONFIG}}"
+    QDRANT_API_TOKEN=$(make -s uuid)
 fi
 echo "using config: ${CONFIG_PATH}"
 if [ "${CONFIG_PATH}" == "${LOCAL_CONFIG}" ]; then
