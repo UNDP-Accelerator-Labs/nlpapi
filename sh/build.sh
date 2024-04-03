@@ -160,6 +160,9 @@ docker_build() {
     if [ ! -z "${VERBOSE}" ]; then
         ARGS+=("--progress=plain")
     fi
+    if [ ! -z "${NO_CACHE}" ]; then
+        ARGS+=("--no-cache")
+    fi
     _docker_build "${ARGS[@]}"
 }
 
