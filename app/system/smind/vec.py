@@ -629,6 +629,7 @@ def query_embed_emu_filters(
         filters: dict[ExternalKey, list[str]] | None,
         snippet_post_processing: Callable[[list[str]], list[str]],
         ) -> list[ResultChunk]:
+    # FIXME workaround for https://github.com/qdrant/qdrant/issues/3970
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     filter_fn = create_filter_fn(filters)
