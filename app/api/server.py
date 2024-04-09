@@ -29,13 +29,13 @@ from app.system.location.response import (
     GeoQuery,
     LanguageStr,
 )
+from app.system.prep.clean import normalize_text
 from app.system.smind.api import (
     get_queue_stats,
     get_redis,
     GraphProfile,
     load_graph,
     load_smind,
-    normalize_text,
 )
 from app.system.smind.search import (
     AddEmbed,
@@ -288,7 +288,8 @@ def setup(
         hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
         score_threshold: float | None = maybe_float(
             args.get("score_threshold"))
-        short_snippets = bool(args.get("short_snippets", False))
+        short_snippets = bool(args.get("short_snippets", True))
+        order_by = "date"  # FIXME: order_by
         return vec_search(
             db,
             vec_db,
@@ -296,6 +297,7 @@ def setup(
             articles=articles_main,
             articles_graph=graph_embed,
             filters=filters,
+            order_by=order_by,
             offset=offset,
             limit=limit,
             hit_limit=hit_limit,
@@ -361,7 +363,6 @@ def setup(
         url = args["url"]
         title = args["title"]
         meta_obj = args.get("meta", {})
-        update_meta_only = bool(args.get("update_meta_only", False))
         user: uuid.UUID = meta["user"]
         return vec_add(
             db,
@@ -376,8 +377,7 @@ def setup(
             doc_id=doc_id,
             url=url,
             title=title,
-            meta_obj=meta_obj,
-            update_meta_only=update_meta_only)
+            meta_obj=meta_obj)
 
     @server.json_post(f"{prefix}/stat_embed")
     @server.middleware(verify_readonly)
@@ -419,7 +419,8 @@ def setup(
         hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
         score_threshold: float | None = maybe_float(
             args.get("score_threshold"))
-        short_snippets = bool(args.get("short_snippets", False))
+        short_snippets = bool(args.get("short_snippets", True))
+        order_by = "date"  # FIXME: order_by
         return vec_search(
             db,
             vec_db,
@@ -427,6 +428,7 @@ def setup(
             articles=articles,
             articles_graph=graph_embed,
             filters=filters,
+            order_by=order_by,
             offset=offset,
             limit=limit,
             hit_limit=hit_limit,

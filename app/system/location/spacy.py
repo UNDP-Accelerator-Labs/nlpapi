@@ -1,35 +1,15 @@
 import re
 from collections.abc import Iterable
 
+from app.system.prep.snippify import Location, snippify_text
 from app.system.smind.api import get_ner_results_immediate, GraphProfile
 from app.system.stats import LengthCounter
-
-
-Location = tuple[str, int]
 
 
 MAX_PROCESSING_SIZE = 1000
 PROCESSING_GRACE = 50
 
 BOUNDARY = re.compile(r"\b")
-
-
-def next_chunk(text: str, offset: int) -> tuple[Location, Location | None]:
-    if len(text) < MAX_PROCESSING_SIZE:
-        return (text, offset), None
-    bix = MAX_PROCESSING_SIZE
-    min_pos = MAX_PROCESSING_SIZE - PROCESSING_GRACE
-    max_pos = MAX_PROCESSING_SIZE + PROCESSING_GRACE
-    boundary = BOUNDARY.search(f"w{text[min_pos:max_pos]}", 1)
-    if boundary is not None:
-        bix = min_pos + boundary.start() - 1
-    fix = bix + PROCESSING_GRACE
-    boundary = BOUNDARY.search(f"w{text[bix:bix + PROCESSING_GRACE][::-1]}", 1)
-    if boundary is not None:
-        fix = bix + PROCESSING_GRACE - (boundary.start() - 1)
-    chunk = text[:fix]
-    remain = text[bix:]
-    return (chunk, offset), (remain, offset + bix)
 
 
 def get_locations(
@@ -42,16 +22,13 @@ def get_locations(
         cur_text, cur_offset = chunk
         return cur_offset + len(cur_text)
 
-    next_offset = 0
-    next_text = text
     chunks: list[Location] = []
-    while True:
-        chunk, remain = next_chunk(next_text, next_offset)
+    for chunk in snippify_text(
+            text,
+            chunk_size=MAX_PROCESSING_SIZE,
+            chunk_padding=PROCESSING_GRACE):
         chunks.append(chunk)
         overlap_ends.append(get_overlap_end(chunk))
-        if remain is None:
-            break
-        next_text, next_offset = remain
 
     ner_res = get_ner_results_immediate(
         [lnc(chunk_text) for chunk_text, _ in chunks],

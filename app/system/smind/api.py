@@ -1,11 +1,7 @@
 import json
 import os
-import re
 import time
 import traceback
-import unicodedata
-from collections.abc import Iterable
-from html import unescape
 from typing import cast, Literal, TypedDict, TypeVar
 
 import redis as redis_lib
@@ -190,65 +186,6 @@ def get_token_count(prompts: list[str]) -> list[int]:
     duration = time.monotonic() - start_time
     print(f"tokenization time: {duration}s")
     return res
-
-
-def clean(text: str) -> str:
-    text = text.strip()
-    while True:
-        prev_text = text
-        text = unescape(text)
-        if prev_text == text:
-            break
-    text = unicodedata.normalize("NFKC", text)
-    text = re.sub(r"\r", "\n", text)
-    text = re.sub(r"\n\n+", "\n", text)
-    text = re.sub(r"\n[ \t]+", "\n", text)
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n\n\n+", "\n\n", text)
-    text = re.sub(r"\s\s+", " ", text)  # ignore all newlines...
-    return text
-
-
-def strip_html(text: str) -> str:
-    text = re.sub(r"<br\s*/?\s*>", "\n", text.strip())
-    text = re.sub(r"<(?:\"[^\"]*\"['\"]*|'[^']*'['\"]*|[^'\">])+>", "", text)
-    return text
-
-
-def normalize_text(text: str) -> str:
-    return clean(strip_html(text)).strip()
-
-
-def snippify_text(
-        text: str, *, chunk_size: int, chunk_padding: int) -> Iterable[str]:
-    pos = 0
-    content = text.strip()
-    if not content:
-        return
-    while pos < len(content):
-        cur = content[pos:pos + chunk_size]
-        if len(cur) < chunk_size:
-            cur = cur.strip()
-            if cur:
-                yield cur
-            break
-        if len(cur) == len(cur.rstrip()):
-            rpos = cur.rfind(" ")
-        else:
-            cur = cur.rstrip()
-            rpos = len(cur)
-        if rpos > 0:
-            small = cur[:rpos].rstrip()
-            if small.lstrip():
-                yield small.lstrip()
-            spos = small.rfind(" ", 0, -chunk_padding)
-            if spos > 0:
-                pos += spos
-            else:
-                pos += len(small)
-        else:
-            yield cur.strip()
-            pos += len(cur)
 
 
 def get_text_results_immediate(

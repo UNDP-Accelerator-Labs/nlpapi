@@ -1,18 +1,36 @@
 version: '3.8'
 services:
-  qdrant:
-    container_name: qdrant
+  qdrant-1:
+    container_name: qdrant-1
     image: $DOCKER_QDRANT
     restart: always
     expose:
       - '6333'
       - '6334'
+      - '6335'
     volumes:
       - ${WEBAPP_STORAGE_HOME}/qdrant:/qdrant_data
     environment:
       QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
       QDRANT__TELEMETRY_DISABLED: true
+      QDRANT__CLUSTER__ENABLED: true
+      INITIAL_PEER: http://qdrant-1:6335
+      QDRANT__SERVICE__API_KEY: $QDRANT_API_TOKEN
+  qdrant-2:
+    container_name: qdrant-2
+    image: $DOCKER_QDRANT
+    restart: always
+    expose:
+      - '6335'
+    volumes:
+      - ${WEBAPP_STORAGE_HOME}/qdrant:/qdrant_data
+    environment:
+      QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
+      QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
+      QDRANT__TELEMETRY_DISABLED: true
+      QDRANT__CLUSTER__ENABLED: true
+      BOOTSTRAP_PEER: http://qdrant-1:6335
       QDRANT__SERVICE__API_KEY: $QDRANT_API_TOKEN
   rmain:
     container_name: rmain
@@ -52,16 +70,6 @@ services:
     restart: always
     expose:
       - '6380'
-    depends_on:
-      - rmain
-      - rdata
-      - rcache
-      - rbody
-    links:
-      - rmain
-      - rdata
-      - rcache
-      - rbody
     volumes:
       - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
   worker-2:
@@ -70,41 +78,19 @@ services:
     restart: always
     expose:
       - '6380'
-    depends_on:
-      - rmain
-      - rdata
-      - rcache
-      - rbody
-    links:
-      - rmain
-      - rdata
-      - rcache
-      - rbody
     volumes:
       - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
   api:
     container_name: api
     image: $DOCKER_API
     restart: always
-    depends_on:
-      - qdrant
-      - rmain
-      - rdata
-      - rcache
-      - rbody
     ports:
       - '8080:8080'
     environment:
-      QDRANT_HOST: qdrant
+      QDRANT_HOST: qdrant-1
       QDRANT_REST_PORT: 6333
       QDRANT_GRPC_PORT: 6334
       QDRANT_API_KEY: $QDRANT_API_TOKEN
-    links:
-      - qdrant
-      - rmain
-      - rdata
-      - rcache
-      - rbody
     volumes:
       - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
 # eof
