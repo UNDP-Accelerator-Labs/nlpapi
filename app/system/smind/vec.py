@@ -85,6 +85,18 @@ META_SNIPPET_INDEX: dict[MetaKey, PayloadSchemaType] = {
 }
 
 
+KNOWN_DOC_TYPES: dict[str, set[str]] = {
+    "actionplan": {"action plan"},
+    "experiment": {"experiment"},
+    "solution": {"solution"},
+}
+DOC_TYPE_TO_BASE: dict[str, str] = {
+    doc_type: base
+    for base, doc_types in KNOWN_DOC_TYPES.items()
+    for doc_type in doc_types
+}
+
+
 StatEmbed = TypedDict('StatEmbed', {
     "doc_count": int,
     "fields": dict[MetaKey, dict[str, int]],
@@ -524,6 +536,18 @@ def add_embed(
     if prev_meta.get("date") is None and meta_obj.get("date") is None:
         meta_obj["date"] = get_time_str()
 
+    base = data["base"]
+    doc_type = meta_obj["doc_type"]
+    required_doc_types = KNOWN_DOC_TYPES.get(base)
+    if required_doc_types is not None and doc_type not in required_doc_types:
+        raise ValueError(
+            f"base {base} requires doc_type from "
+            f"{required_doc_types} not {doc_type}")
+    required_base = DOC_TYPE_TO_BASE.get(doc_type)
+    if required_base is not None and required_base != base:
+        raise ValueError(
+            f"doc_type {doc_type} requires base {required_base} != {base}")
+
     vec_name = get_db_name(name, is_vec=True)
 
     def empty_previous() -> None:
@@ -696,6 +720,21 @@ def get_filter(
             conds.append(FieldCondition(
                 key=ikey, range=DatetimeRange(gte=min(dates), lte=max(dates))))
             continue
+        if key == "doc_type":
+            # NOTE: utilizing base vec index for known doc_types
+            # each doc_type can only be in one base
+            bases: set[str] = set()
+            for doc_type in values:
+                fixed_base = DOC_TYPE_TO_BASE.get(doc_type)
+                if fixed_base is None:
+                    bases = set()
+                    break
+                bases.add(fixed_base)
+            if bases:
+                conds.append(FieldCondition(
+                    key="base",
+                    match=MatchAny(any=sorted(bases))))
+                continue
         ikey = convert_meta_key(key)
         conds.append(FieldCondition(key=ikey, match=MatchAny(any=values)))
     if not conds:

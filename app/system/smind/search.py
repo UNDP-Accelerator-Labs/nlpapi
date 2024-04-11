@@ -2,6 +2,7 @@ import hashlib
 import re
 import traceback
 import uuid
+from collections.abc import Callable
 from typing import Literal, Protocol, TypedDict
 
 import numpy as np
@@ -82,21 +83,9 @@ QueryEmbed = TypedDict('QueryEmbed', {
 
 
 CHUNK_SIZE = 600
-SMALL_CHUNK_SIZE = 150
+SMALL_CHUNK_SIZE = 120
 CHUNK_PADDING = 10
 DEFAULT_HIT_LIMIT = 1
-
-
-KNOWN_DOC_TYPES: dict[str, set[str]] = {
-    "actionplan": {"action plan"},
-    "experiment": {"experiment"},
-    "solution": {"solution"},
-}
-DOC_TYPE_TO_BASE: dict[str, str] = {
-    doc_type: base
-    for base, doc_types in KNOWN_DOC_TYPES.items()
-    for doc_type in doc_types
-}
 
 
 def vec_clear(
@@ -242,40 +231,25 @@ def vec_add(
     if "doc_type" not in meta_obj:
         raise ValueError(f"doc_type is a mandatory field: {meta_obj}")
     doc_type = meta_obj["doc_type"]
-    if isinstance(doc_type, list):
+    if not isinstance(doc_type, str):
         raise TypeError(f"doc_type {doc_type} must be string")
-    required_doc_types = KNOWN_DOC_TYPES.get(base)
-    if required_doc_types is not None and doc_type not in required_doc_types:
-        raise ValueError(
-            f"base {base} requires doc_type from "
-            f"{required_doc_types} not {doc_type}")
-    required_base = DOC_TYPE_TO_BASE.get(doc_type)
-    if required_base is not None and required_base != base:
-        raise ValueError(
-            f"doc_type {doc_type} requires base {required_base} != {base}")
     # validate date
-    # FIXME: infer if possible
-    if "date" in meta_obj:
+    if meta_obj.get("date") is not None:
         if isinstance(meta_obj["date"], list):
             raise TypeError(f"date {meta_obj['date']} must be string")
         if meta_obj["date"] is not None:
             meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
     # fill language if missing
-    # FIXME: get scores
-    if "language" not in meta_obj:
+    if meta_obj.get("language") is None:
         lang_res = extract_language(db, input_str, user)
-        # FIXME: must be score map now
-        meta_obj["language"] = sorted({
-            lang_obj["lang"]
+        meta_obj["language"] = {
+            lang_obj["lang"]: lang_obj["score"]
             for lang_obj in lang_res["languages"]
-        })
-    elif "language" in meta_obj:
-        # FIXME: must be score map now
-        meta_obj["language"] = sorted(set(to_list(meta_obj["language"])))
+        }
+    else:
+        meta_obj["language"] = dict(meta_obj["language"].items())
     # fill iso3 if missing
-    # FIXME: possibly infer from url as well
-    # FIXME: get scores
-    if "iso3" not in meta_obj:
+    if meta_obj.get("iso3") is None:
         geo_obj: GeoQuery = {
             "input": input_str,
             "return_input": False,
@@ -286,13 +260,22 @@ def vec_add(
         }
         geo_out = extract_locations(db, ner_graphs, geo_obj, user)
         if geo_out["status"] != "invalid":
-            meta_obj["iso3"] = sorted({
-                geo_entity["location"]["country"]
-                for geo_entity in geo_out["entities"]
-                if geo_entity["location"] is not None
-            })
-    elif "iso3" in meta_obj:
-        meta_obj["iso3"] = sorted(set(to_list(meta_obj["iso3"])))
+            total: int = 0
+            countries: dict[str, int] = {}
+            for geo_entity in geo_out["entities"]:
+                if geo_entity["location"] is None:
+                    continue
+                cur_country = geo_entity["location"]["country"]
+                prev_ccount = countries.get(cur_country, 0)
+                countries[cur_country] = prev_ccount + geo_entity["count"]
+            meta_obj["iso3"] = {
+                country: count / total
+                for country, count in countries.items()
+            }
+        else:
+            meta_obj["iso3"] = {}
+    else:
+        meta_obj["iso3"] = dict(meta_obj["iso3"].items())
     # compute embedding
     snippets = [
         snippet
@@ -427,6 +410,88 @@ def vec_filter(
     }
 
 
+def apply_snippets(
+        hits: list[ResultChunk],
+        fn: Callable[[int], list[str]]) -> list[ResultChunk]:
+
+    def apply(ix: int, hit: ResultChunk) -> ResultChunk:
+        res = hit.copy()
+        res["snippets"] = fn(ix)
+        return res
+
+    return [apply(ix, hit) for (ix, hit) in enumerate(hits)]
+
+
+def dot_order(
+        embed: list[float],
+        sembeds: list[tuple[tuple[int, str], list[float]]],
+        hit_limit: int) -> dict[int, list[str]]:
+    mat_ref = np.array([embed])  # 1 x len(embed)
+
+    def dot_hit(group: list[tuple[str, list[float]]]) -> list[str]:
+        mat_embed = np.array([
+            sembed
+            for (_, sembed) in group
+        ]).T  # len(embed) x len(group)
+        dots = np.matmul(mat_ref, mat_embed).ravel()
+        ixs = list(np.argsort(dots))[::-1]
+        return [group[ix][0] for ix in ixs[:hit_limit]]
+
+    lookup: dict[int, list[tuple[str, list[float]]]] = {}
+    for ((pos, txt), cur_embed) in sembeds:
+        cur: list[tuple[str, list[float]]] | None = lookup.get(pos)
+        if cur is None:
+            cur = []
+            lookup[pos] = cur
+        cur.append((txt, cur_embed))
+    return {
+        pos: dot_hit(cur_group)
+        for (pos, cur_group) in lookup.items()
+    }
+
+
+def snippet_post(
+        hits: list[ResultChunk],
+        *,
+        embed: list[float],
+        articles_graph: GraphProfile,
+        short_snippets: bool,
+        hit_limit: int) -> list[ResultChunk]:
+
+    def process_snippets(ix: int) -> list[str]:
+        return [
+            re.sub(r"\s+", " ", snip).strip()
+            for snip in hits[ix]["snippets"]
+        ]
+
+    if not short_snippets:
+        return apply_snippets(hits, process_snippets)
+    small_snippets: list[tuple[int, str]] = [
+        (ix, snap.strip())
+        for (ix, hit) in enumerate(hits)
+        for snip in hit["snippets"]
+        for (snap, _) in snippify_text(
+            re.sub(r"\s+", " ", snip).strip(),
+            chunk_size=SMALL_CHUNK_SIZE,
+            chunk_padding=CHUNK_PADDING)
+        if snap.strip()
+    ]
+    sembeds: list[tuple[tuple[int, str], list[float]]] = [
+        (ssnip, sembed)
+        for ssnip, sembed in zip(small_snippets, get_text_results_immediate(
+            [snip for (_, snip) in small_snippets],
+            graph_profile=articles_graph,
+            output_sample=[1.0]))
+        if sembed is not None
+    ]
+    lookup = dot_order(embed, sembeds, hit_limit)
+
+    def apply_dot(ix: int) -> list[str]:
+        return lookup.get(ix, [])
+
+    return apply_snippets(hits, apply_dot)
+
+
 def vec_search(
         db: DBConnector,
         vec_db: QdrantClient,
@@ -447,19 +512,6 @@ def vec_search(
             for key, value in filters.items()
             if to_list(value)
         }
-        # NOTE: utilizing base vec index for known doc_types
-        # each doc_type can only be in one base
-        doc_type_filter = filters.get("doc_type")
-        if doc_type_filter and "base" not in filters:
-            bases: set[str] = set()
-            for doc_type in doc_type_filter:
-                fixed_base = DOC_TYPE_TO_BASE.get(doc_type)
-                if fixed_base is None:
-                    bases = set()
-                    break
-                bases.add(fixed_base)
-            if bases:
-                filters["base"] = sorted(bases)
     if offset == 0:
         offset = None
     if not input_str:
@@ -485,36 +537,6 @@ def vec_search(
             "status": "error",
         }
 
-    # FIXME: do on all snippets at once
-    def snippet_post(snippets: list[str]) -> list[str]:
-        if not short_snippets:
-            return [re.sub(r"\s+", " ", snip).strip() for snip in snippets]
-        small_snippets = [
-            snap.strip()
-            for snip in snippets
-            for (snap, _) in snippify_text(
-                re.sub(r"\s+", " ", snip).strip(),
-                chunk_size=SMALL_CHUNK_SIZE,
-                chunk_padding=CHUNK_PADDING)
-            if snap.strip()
-        ]
-        sembeds = [
-            (stxt, sembed)
-            for stxt, sembed in zip(small_snippets, get_text_results_immediate(
-                small_snippets,
-                graph_profile=articles_graph,
-                output_sample=[1.0]))
-            if sembed is not None
-        ]
-        mat_ref = np.array([embed])  # 1 x len(embed)
-        mat_embed = np.array([
-            sembed
-            for (_, sembed) in sembeds
-        ]).T  # len(embed) x len(semebds)
-        dots = np.matmul(mat_ref, mat_embed).ravel()
-        ixs = list(np.argsort(dots))[::-1]
-        return [sembeds[ix][0] for ix in ixs[:hit_limit]]
-
     hits = query_embed(
         vec_db,
         articles,
@@ -525,6 +547,11 @@ def vec_search(
         score_threshold=score_threshold,
         filters=filters)
     return {
-        "hits": hits,
+        "hits": snippet_post(
+            hits,
+            embed=embed,
+            articles_graph=articles_graph,
+            short_snippets=short_snippets,
+            hit_limit=hit_limit),
         "status": "ok",
     }

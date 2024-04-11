@@ -51,6 +51,7 @@ from app.system.smind.vec import (
     build_db_name,
     get_vec_client,
     get_vec_stats,
+    MetaKey,
     StatEmbed,
     VecDBStat,
 )
@@ -265,7 +266,7 @@ def setup(
     def _post_stats(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
         args = rargs["post"]
         fields = set(args["fields"])
-        filters: dict[str, list[str]] = args.get("filters", {})
+        filters: dict[MetaKey, list[str]] = args.get("filters", {})
         filters["status"] = ["public"]  # NOTE: not logged in!
         return vec_filter(
             vec_db,
@@ -281,7 +282,7 @@ def setup(
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
-        filters: dict[str, list[str]] = args.get("filters", {})
+        filters: dict[MetaKey, list[str]] = args.get("filters", {})
         filters["status"] = ["public"]  # NOTE: not logged in!
         offset: int = int(args.get("offset", 0))
         limit: int = int(args["limit"])
@@ -289,7 +290,7 @@ def setup(
         score_threshold: float | None = maybe_float(
             args.get("score_threshold"))
         short_snippets = bool(args.get("short_snippets", True))
-        order_by = "date"  # FIXME: order_by
+        order_by: MetaKey = "date"  # FIXME: order_by
         return vec_search(
             db,
             vec_db,
@@ -391,7 +392,7 @@ def setup(
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
         fields = set(args["fields"])
-        filters: dict[str, list[str]] | None = args.get("filters")
+        filters: dict[MetaKey, list[str]] | None = args.get("filters")
         return vec_filter(
             vec_db,
             qdrant_cache=qdrant_cache,
@@ -413,14 +414,14 @@ def setup(
             articles = articles_test
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
-        filters: dict[str, list[str]] | None = args.get("filters")
+        filters: dict[MetaKey, list[str]] | None = args.get("filters")
         offset: int = int(args.get("offset", 0))
         limit: int = int(args["limit"])
         hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
         score_threshold: float | None = maybe_float(
             args.get("score_threshold"))
         short_snippets = bool(args.get("short_snippets", True))
-        order_by = "date"  # FIXME: order_by
+        order_by: MetaKey = "date"  # FIXME: order_by
         return vec_search(
             db,
             vec_db,
