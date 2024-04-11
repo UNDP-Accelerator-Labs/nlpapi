@@ -46,7 +46,7 @@ def config_template() -> Config:
         "passwd": "INVALID",
     }
     default_vec: 'VecDBConfig' = {
-        "host": "qdrant",
+        "host": "qdrant-1",
         "port": 6333,
         "grpc": 6334,
         "token": "",
