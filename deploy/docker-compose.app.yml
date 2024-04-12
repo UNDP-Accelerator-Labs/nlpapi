@@ -9,7 +9,7 @@ services:
       - '6334'
       - '6335'
     volumes:
-      - ${WEBAPP_STORAGE_HOME}/qdrant_1:/qdrant_1
+      - ${WEBAPP_STORAGE_HOME}/qdrant_1:/qdrant_data
     environment:
       QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
@@ -24,7 +24,7 @@ services:
     expose:
       - '6335'
     volumes:
-      - ${WEBAPP_STORAGE_HOME}/qdrant_2:/qdrant_2
+      - ${WEBAPP_STORAGE_HOME}/qdrant_2:/qdrant_data
     environment:
       QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
