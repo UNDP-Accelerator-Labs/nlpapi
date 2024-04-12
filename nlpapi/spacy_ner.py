@@ -94,7 +94,7 @@ class SpacyNERNode(Node):
             tensor_to_str(val)
             for val in inputs.get_data("text").iter_values()
         ]
-        for text in texts:
+        for task, text in zip(inputs.get_current_tasks(), texts):
             doc = model(text)
             starts = []
             ends = []
@@ -115,18 +115,12 @@ class SpacyNERNode(Node):
                 starts.append(0)
                 ends.append(0)
 
-            range_tensor = create_tensor([starts, ends], dtype="int").T
+            range_tensor = create_tensor([starts, ends], dtype="int")
             text_tensor = pad_list(ents, [max_len])
-
-            print(
-                f"NER {inputs.get_current_tasks()=} "
-                f"{len(inputs.get_current_tasks())=}"
-                f"{range_tensor=} {range_tensor.shape=} "
-                f"{text_tensor=} {text_tensor.shape=}")
 
             state.push_results(
                 "out",
-                inputs.get_current_tasks(),
+                [task],
                 {
                     "ranges": state.create_single(range_tensor),
                     "text": state.create_single(text_tensor),
