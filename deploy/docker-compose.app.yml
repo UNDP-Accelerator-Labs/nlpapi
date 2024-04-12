@@ -15,8 +15,8 @@ services:
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
       QDRANT__TELEMETRY_DISABLED: true
       QDRANT__CLUSTER__ENABLED: true
-      INITIAL_PEER: http://qdrant-1:6335
       QDRANT__SERVICE__API_KEY: $QDRANT_API_TOKEN
+    command: ["./qdrant", "--uri", "http://qdrant-1:6335"]
   qdrant-2:
     container_name: qdrant-2
     image: $DOCKER_QDRANT
@@ -30,8 +30,8 @@ services:
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
       QDRANT__TELEMETRY_DISABLED: true
       QDRANT__CLUSTER__ENABLED: true
-      BOOTSTRAP_PEER: http://qdrant-1:6335
       QDRANT__SERVICE__API_KEY: $QDRANT_API_TOKEN
+    command: ["./qdrant", "--bootstrap", "http://qdrant-1:6335"]
   rmain:
     container_name: rmain
     image: $DOCKER_RMAIN
