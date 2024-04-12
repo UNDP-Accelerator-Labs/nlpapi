@@ -12,7 +12,11 @@ from quick_server import ReqArgs, ReqNext, Response
 from app.api.mod import Module
 from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
-from app.api.response_types import StatsResponse, VersionResponse
+from app.api.response_types import (
+    StatsResponse,
+    URLInspectResponse,
+    VersionResponse,
+)
 from app.misc.env import envload_int, envload_str
 from app.misc.util import get_time_str, maybe_float
 from app.misc.version import get_version
@@ -55,6 +59,7 @@ from app.system.smind.vec import (
     StatEmbed,
     VecDBStat,
 )
+from app.system.urlinspect.inspect import inspect_url
 
 
 DBName: TypeAlias = Literal["main", "test"]
@@ -475,6 +480,19 @@ def setup(
         input_str: str = meta["input"]
         user: uuid.UUID = meta["user"]
         return extract_language(db, input_str, user)
+
+    # *** URL inspect ***
+
+    @server.json_post(f"{prefix}/inspect")
+    @server.middleware(verify_readonly)
+    def _inspect(_req: QSRH, rargs: ReqArgs) -> URLInspectResponse:
+        args = rargs["post"]
+        url = args["url"]
+        iso3 = inspect_url(url)
+        return {
+            "url": url,
+            "iso3": iso3,
+        }
 
     # *** generic ***
 

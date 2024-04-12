@@ -22,3 +22,7 @@ StatsResponse = TypedDict('StatsResponse', {
     "vecdbs": list[VecDBStat],
     "queues": list[QueueStat],
 })
+URLInspectResponse = TypedDict('URLInspectResponse', {
+    "url": str,
+    "iso3": str | None,
+})

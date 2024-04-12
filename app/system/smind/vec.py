@@ -4,7 +4,16 @@ import time
 import uuid
 from collections.abc import Callable, Sequence
 from datetime import datetime
-from typing import Any, cast, get_args, Literal, TypeAlias, TypedDict, TypeVar
+from typing import (
+    Any,
+    cast,
+    get_args,
+    Literal,
+    NotRequired,
+    TypeAlias,
+    TypedDict,
+    TypeVar,
+)
 
 from qdrant_client import QdrantClient
 from qdrant_client.conversions.common_types import PayloadSchemaType
@@ -60,14 +69,14 @@ DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
 
 
 MetaObject = TypedDict('MetaObject', {
-    "date": str,
+    "date": NotRequired[str],
     "status": DocStatus,
     "doc_type": str,
     "language": dict[str, float],
     "iso3": dict[str, float],
 })
 MetaObjectOpt = TypedDict('MetaObjectOpt', {
-    "date": str,
+    "date": NotRequired[str],
     "status": DocStatus,
     "doc_type": str,
     "language": dict[str, float],
@@ -150,6 +159,7 @@ ResultChunk = TypedDict('ResultChunk', {
     "base": str,
     "url": str,
     "title": str,
+    "updated": str,
     "snippets": list[str],
     "meta": dict[MetaKey, list[str] | str | int],
 })
@@ -455,6 +465,7 @@ def to_data_payload(
         "base": data["base"],
         "url": data["url"],
         "title": data["title"],
+        "updated": get_time_str(),
         "hash": hash_str,
         "count": count,
     }
@@ -521,8 +532,7 @@ def add_embed(
         db,
         data_name,
         scroll_filter=filter_data,
-        with_payload=["hash", "count", convert_meta_key_data("date", None)])
-    prev_meta: MetaObjectOpt = {}
+        with_payload=["hash", "count"])
     prev_hash: str | None = None
     prev_count: int = 0
     if len(prev_data) > 0:
@@ -530,11 +540,10 @@ def add_embed(
         assert prev_payload is not None
         prev_hash = prev_payload["hash"]
         prev_count = prev_payload["count"]
-        prev_meta = fill_meta_data(prev_payload)  # prev_meta is incomplete
 
     meta_obj = data["meta"]
-    if prev_meta.get("date") is None and meta_obj.get("date") is None:
-        meta_obj["date"] = get_time_str()
+    if meta_obj.get("date") is None:
+        meta_obj.pop("date", None)
 
     base = data["base"]
     doc_type = meta_obj["doc_type"]
@@ -810,7 +819,11 @@ def query_embed(
         title = data_payload.get("title")
         if title is None:
             title = url
+        updated = data_payload["updated"]
         main_id = data_payload["main_id"]
+        meta = get_meta_from_data_payload(data_payload)
+        if meta.get("date") is None:
+            meta["date"] = updated
         return {
             "main_id": main_id,
             "score": score,
@@ -819,7 +832,8 @@ def query_embed(
             "snippets": snippets,
             "url": url,
             "title": title,
-            "meta": get_meta_from_data_payload(data_payload),
+            "updated": updated,
+            "meta": meta,
         }
 
     return [
@@ -869,7 +883,11 @@ def query_docs(
         title = data_payload.get("title")
         if title is None:
             title = url
+        updated = data_payload["updated"]
         main_id = data_payload["main_id"]
+        meta = get_meta_from_data_payload(data_payload)
+        if meta.get("date") is None:
+            meta["date"] = updated
         return {
             "main_id": main_id,
             "score": 1.0,
@@ -878,7 +896,8 @@ def query_docs(
             "snippets": [],
             "url": url,
             "title": title,
-            "meta": get_meta_from_data_payload(data_payload),
+            "updated": updated,
+            "meta": meta,
         }
 
     return [

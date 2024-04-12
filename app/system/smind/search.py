@@ -31,6 +31,7 @@ from app.system.smind.api import (
     get_text_results_immediate,
     GraphProfile,
 )
+from app.system.smind.cache import cached, clear_cache
 from app.system.smind.log import log_query
 from app.system.smind.vec import (
     add_embed,
@@ -47,6 +48,7 @@ from app.system.smind.vec import (
     StatEmbed,
     vec_flushall,
 )
+from app.system.urlinspect.inspect import inspect_url
 
 
 class GetVecDB(Protocol):  # pylint: disable=too-few-public-methods
@@ -141,7 +143,7 @@ def vec_clear(
             clear_rworker = False
     if clear_veccache:
         try:
-            qdrant_cache.flushall()
+            clear_cache(qdrant_cache)
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_veccache = False
@@ -209,7 +211,7 @@ def vec_add(
         url: str,
         title: str,
         meta_obj: MetaObject) -> AddEmbed:
-    qdrant_cache.flushall()
+    clear_cache(qdrant_cache)
     # validate title
     title = normalize_text(title)
     if not title:
@@ -278,6 +280,12 @@ def vec_add(
             meta_obj["iso3"] = {}
     else:
         meta_obj["iso3"] = dict(meta_obj["iso3"].items())
+    # inspect URL and amend iso3 if country found
+    # FIXME: make optional
+    url_iso3 = inspect_url(url)
+    if url_iso3 is not None:
+        print(f"overwriting {url_iso3} was {meta_obj['iso3'].get(url_iso3)}")
+        meta_obj["iso3"][url_iso3] = 2.0
     # compute embedding
     snippets = [
         snippet
@@ -350,15 +358,14 @@ def vec_filter_total(
             for key, value in filters.items()
             if to_list(value)
         }
-    cache_key = f"total:{articles}:{get_filter_hash(filters)}"
-    res = qdrant_cache.get_value(cache_key)
-    if res is not None:
-        print(f"TOTAL CACHE HIT {cache_key}")
-        return int(res)
-    print(f"TOTAL CACHE MISS {cache_key}")
-    ret_val = stat_total(vec_db, articles, filters=filters)
-    qdrant_cache.set_value(cache_key, f"{ret_val}")
-    return ret_val
+    return cached(
+        qdrant_cache,
+        cache_type="total",
+        db_name=articles,
+        cache_hash=get_filter_hash(filters),
+        compute_fn=lambda: stat_total(vec_db, articles, filters=filters),
+        pre_cache_fn=str,
+        post_fn=int)
 
 
 def vec_filter_field(
@@ -374,17 +381,15 @@ def vec_filter_field(
             for key, value in filters.items()
             if key != field and to_list(value)
         }
-    cache_key = f"field:{articles}:{field}:{get_filter_hash(filters)}"
-    res = qdrant_cache.get_value(cache_key)
-    if res is not None:
-        ret_val: dict[str, int] | None = json_maybe_read(res)
-        if ret_val is not None:
-            print(f"FIELD CACHE HIT {cache_key}")
-            return ret_val
-    print(f"FIELD CACHE MISS {cache_key}")
-    ret_val = stat_embed(vec_db, articles, field=field, filters=filters)
-    qdrant_cache.set_value(cache_key, json_compact_str(ret_val))
-    return ret_val
+    return cached(
+        qdrant_cache,
+        cache_type="field",
+        db_name=f"{articles}:{field}",
+        cache_hash=get_filter_hash(filters),
+        compute_fn=lambda: stat_embed(
+            vec_db, articles, field=field, filters=filters),
+        pre_cache_fn=json_compact_str,
+        post_fn=json_maybe_read)
 
 
 def vec_filter(
