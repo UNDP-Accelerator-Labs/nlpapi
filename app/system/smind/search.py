@@ -267,7 +267,9 @@ def vec_add(
                     continue
                 cur_country = geo_entity["location"]["country"]
                 prev_ccount = countries.get(cur_country, 0)
-                countries[cur_country] = prev_ccount + geo_entity["count"]
+                geo_count = geo_entity["count"]
+                total += geo_count
+                countries[cur_country] = prev_ccount + geo_count
             meta_obj["iso3"] = {
                 country: count / total
                 for country, count in countries.items()
