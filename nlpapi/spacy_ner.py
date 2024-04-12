@@ -118,6 +118,10 @@ class SpacyNERNode(Node):
             range_tensor = create_tensor([starts, ends], dtype="int")
             text_tensor = pad_list(ents, [max_len])
 
+            print(
+                f"NER {inputs.get_current_tasks()=} "
+                f"{range_tensor=} {text_tensor=}")
+
             state.push_results(
                 "out",
                 inputs.get_current_tasks(),
