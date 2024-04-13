@@ -464,7 +464,7 @@ def snippet_post(
         embed: list[float],
         articles_graph: GraphProfile,
         short_snippets: bool,
-        hit_limit: int) -> list[ResultChunk]:
+        hit_limit: int) -> tuple[list[ResultChunk], int]:
 
     def process_snippets(ix: int) -> list[str]:
         return [
@@ -473,7 +473,7 @@ def snippet_post(
         ]
 
     if not short_snippets:
-        return apply_snippets(hits, process_snippets)
+        return (apply_snippets(hits, process_snippets), 0)
     small_snippets: list[tuple[int, str]] = [
         (ix, snap.strip())
         for (ix, hit) in enumerate(hits)
@@ -497,7 +497,7 @@ def snippet_post(
     def apply_dot(ix: int) -> list[str]:
         return lookup.get(ix, [])
 
-    return apply_snippets(hits, apply_dot)
+    return (apply_snippets(hits, apply_dot), len(small_snippets))
 
 
 def vec_search(
@@ -561,7 +561,7 @@ def vec_search(
     query_time = time.monotonic() - query_start
 
     snippy_start = time.monotonic()
-    final_hits = snippet_post(
+    final_hits, snippy_embeds = snippet_post(
         hits,
         embed=embed,
         articles_graph=articles_graph,
@@ -572,7 +572,8 @@ def vec_search(
     full_time = time.monotonic() - full_start
     print(
         f"query for '{input_str}' took "
-        f"{full_time=}s {embed_time=}s {query_time=}s {snippy_time=}s")
+        f"{full_time=}s {embed_time=}s {query_time=}s {snippy_time=}s "
+        f"{snippy_embeds=}")
     return {
         "hits": final_hits,
         "status": "ok",
