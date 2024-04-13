@@ -1,5 +1,6 @@
 import hashlib
 import re
+import time
 import traceback
 import uuid
 from collections.abc import Callable
@@ -533,6 +534,8 @@ def vec_search(
             "hits": res,
             "status": "ok",
         }
+    full_start = time.monotonic()
+    embed_start = time.monotonic()
     embed = get_text_results_immediate(
         [input_str],
         graph_profile=articles_graph,
@@ -543,7 +546,9 @@ def vec_search(
             "hits": [],
             "status": "error",
         }
+    embed_time = time.monotonic() - embed_start
 
+    query_start = time.monotonic()
     hits = query_embed(
         vec_db,
         articles,
@@ -553,12 +558,22 @@ def vec_search(
         hit_limit=hit_limit,
         score_threshold=score_threshold,
         filters=filters)
+    query_time = time.monotonic() - query_start
+
+    snippy_start = time.monotonic()
+    final_hits = snippet_post(
+        hits,
+        embed=embed,
+        articles_graph=articles_graph,
+        short_snippets=short_snippets,
+        hit_limit=hit_limit)
+    snippy_time = time.monotonic() - snippy_start
+
+    full_time = time.monotonic() - full_start
+    print(
+        f"query for '{input_str}' took "
+        f"{full_time=} {embed_time=} {query_time=} {snippy_time=}")
     return {
-        "hits": snippet_post(
-            hits,
-            embed=embed,
-            articles_graph=articles_graph,
-            short_snippets=short_snippets,
-            hit_limit=hit_limit),
+        "hits": final_hits,
         "status": "ok",
     }
