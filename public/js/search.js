@@ -93,6 +93,7 @@ export default class Search {
         this._filter = JSON.parse(filter);
         this._page = p;
         this._state = { q, filter, p };
+        this._searchInput.value = this._input;
         this.updateStats(null);
         this.updateSearch();
       }
@@ -129,6 +130,7 @@ export default class Search {
       filter: this.getFiltersString(),
       p: this._page,
     };
+    this._searchInput.value = this._input;
   }
 
   getFiltersString() {
