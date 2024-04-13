@@ -751,20 +751,31 @@ def get_filter(
     return Filter(must=conds)
 
 
-def process_meta(meta_key: MetaKey, payload: Payload) -> list[str] | str | int:
-    res = payload[convert_meta_key_data(meta_key, None)]
+def process_meta(
+        meta_key: MetaKey,
+        payload: Payload,
+        defaults: dict[MetaKey, list[str] | str | int],
+        ) -> list[str] | str | int:
+    res = payload.get(convert_meta_key_data(meta_key, None))
+    if res is None:
+        res = defaults.get(meta_key)
+        if res is None:
+            raise KeyError(f"{meta_key=} not in {payload=}")
+        return res
     if meta_key not in META_SCALAR:
         return res
     return sorted(
         res,
-        key=lambda val: payload[convert_meta_key_data(meta_key, val)],
+        key=lambda val: payload.get(convert_meta_key_data(meta_key, val), 0),
         reverse=True)
 
 
 def get_meta_from_data_payload(
-        payload: Payload) -> dict[MetaKey, list[str] | str | int]:
+        payload: Payload,
+        defaults: dict[MetaKey, list[str] | str | int],
+        ) -> dict[MetaKey, list[str] | str | int]:
     return {
-        meta_key: process_meta(meta_key, payload)
+        meta_key: process_meta(meta_key, payload, defaults)
         for meta_key in META_KEYS
     }
 
@@ -821,9 +832,10 @@ def query_embed(
             title = url
         updated = data_payload["updated"]
         main_id = data_payload["main_id"]
-        meta = get_meta_from_data_payload(data_payload)
-        if meta.get("date") is None:
-            meta["date"] = updated
+        defaults: dict[MetaKey, list[str] | str | int] = {
+            "date": updated,
+        }
+        meta = get_meta_from_data_payload(data_payload, defaults)
         return {
             "main_id": main_id,
             "score": score,
@@ -885,9 +897,10 @@ def query_docs(
             title = url
         updated = data_payload["updated"]
         main_id = data_payload["main_id"]
-        meta = get_meta_from_data_payload(data_payload)
-        if meta.get("date") is None:
-            meta["date"] = updated
+        defaults: dict[MetaKey, list[str] | str | int] = {
+            "date": updated,
+        }
+        meta = get_meta_from_data_payload(data_payload, defaults)
         return {
             "main_id": main_id,
             "score": 1.0,
