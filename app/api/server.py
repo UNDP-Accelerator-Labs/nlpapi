@@ -165,6 +165,9 @@ def setup(
     write_token = config["write_token"]
     tanuki_token = config["tanuki"]  # the nuke key
 
+    # FIXME add snippify endpoint
+    # FIXME test no replication
+
     vec_cfg = config["vector"]
     server.bind_proxy(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
