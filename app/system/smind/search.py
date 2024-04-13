@@ -540,7 +540,7 @@ def vec_search(
         [input_str],
         graph_profile=articles_graph,
         output_sample=[1.0])[0]
-    log_query(db, db_name=articles, text=input_str)
+    log_query(db, db_name=articles, text=input_str, filters=filters)
     if embed is None:
         return {
             "hits": [],
@@ -572,7 +572,7 @@ def vec_search(
     full_time = time.monotonic() - full_start
     print(
         f"query for '{input_str}' took "
-        f"{full_time=} {embed_time=} {query_time=} {snippy_time=}")
+        f"{full_time=}s {embed_time=}s {query_time=}s {snippy_time=}s")
     return {
         "hits": final_hits,
         "status": "ok",

@@ -113,6 +113,10 @@ class QueryLog(Base):  # pylint: disable=too-few-public-methods
         sa.Text(),
         primary_key=True,
         nullable=False)
+    filters = sa.Column(
+        sa.Text(),
+        primary_key=True,
+        nullable=False)
     access_date = sa.Column(
         sa.String(DATE_STRING_LEN),
         primary_key=True,
