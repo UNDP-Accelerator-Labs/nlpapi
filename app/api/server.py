@@ -170,14 +170,17 @@ def setup(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
     # FIXME: fix for https://github.com/qdrant/qdrant-web-ui/issues/94
     server.bind_proxy(
-        "/dashboard/",
+        "/dashboard",
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/dashboard")
     server.bind_proxy(
-        "/collections/",
+        "/collections",
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/collections")
     server.bind_proxy(
-        "/cluster/",
+        "/cluster",
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/cluster")
+    server.bind_proxy(
+        "/telemetry",
+        f"http://{vec_cfg['host']}:{vec_cfg['port']}/telemetry")
 
     server.bind_path("/search/", "public/")
 

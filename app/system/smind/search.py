@@ -535,18 +535,23 @@ def vec_search(
             "status": "ok",
         }
     full_start = time.monotonic()
+
     embed_start = time.monotonic()
     embed = get_text_results_immediate(
         [input_str],
         graph_profile=articles_graph,
         output_sample=[1.0])[0]
+    embed_time = time.monotonic() - embed_start
+
+    log_start = time.monotonic()
     log_query(db, db_name=articles, text=input_str, filters=filters)
+    log_time = time.monotonic() - log_start
+
     if embed is None:
         return {
             "hits": [],
             "status": "error",
         }
-    embed_time = time.monotonic() - embed_start
 
     query_start = time.monotonic()
     hits = query_embed(
@@ -572,8 +577,8 @@ def vec_search(
     full_time = time.monotonic() - full_start
     print(
         f"query for '{input_str}' took "
-        f"{full_time=}s {embed_time=}s {query_time=}s {snippy_time=}s "
-        f"{snippy_embeds=}")
+        f"{full_time=}s {embed_time=}s {log_time=}s {query_time=}s "
+        f"{snippy_time=}s {snippy_embeds=}")
     return {
         "hits": final_hits,
         "status": "ok",
