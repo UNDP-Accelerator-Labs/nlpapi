@@ -12,6 +12,7 @@ const start = (/** @type {string} */ base) => {
     '#pagination',
     '#docCount',
     ['doc_type', 'iso3', 'language', 'status'],
+    base,
   );
   search.updateStats(null);
   search.updateSearch();
