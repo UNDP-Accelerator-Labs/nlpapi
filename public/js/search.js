@@ -38,10 +38,6 @@ import { getElement, setLoading } from './util.js';
  * }} SearchResult
  */
 
-const BASE = window.location.host.startsWith('localhost')
-  ? 'https://acclabs-nlpapi.azurewebsites.net/'
-  : '';
-
 const PAGE_SIZE = 10;
 const DISPLAY_PAGE_COUNT = 10;
 const MID_PAGE = Math.floor(DISPLAY_PAGE_COUNT / 2);
@@ -54,6 +50,7 @@ export default class Search {
     /** @type {string} */ paginationId,
     /** @type {string} */ docCountId,
     /** @type {string[]} */ fields,
+    /** @type {string} */ base,
   ) {
     /** @type {HTMLDivElement} */ this._filterDiv = getElement(filterId);
     /** @type {HTMLInputElement} */ this._searchInput = getElement(searchId);
@@ -62,8 +59,9 @@ export default class Search {
       getElement(paginationId);
     /** @type {HTMLDivElement} */ this._docCountDiv = getElement(docCountId);
     /** @type {{ [key: string]: HTMLUListElement }} */ this._groupElems = {};
-    /** @type {string[]} */ (this._allFields = fields);
-    /** @type {string} */ (this._input = '');
+    /** @type {string[]} */ this._allFields = fields;
+    /** @type {string} */ this._base = base;
+    /** @type {string} */ this._input = '';
     /** @type {{ [key: string]: string[] }} */ this._filter = {};
     /** @type {{ [key: string]: boolean }} */ this._groups = {};
     /** @type {number} */ this._page = 0;
@@ -99,7 +97,7 @@ export default class Search {
   /** @type {(fields: string[]) => Promise<StatResult>} */
   async getStats(fields) {
     try {
-      const res = await fetch(`${BASE}/api/stats`, {
+      const res = await fetch(`${this._base}/api/stats`, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -120,7 +118,7 @@ export default class Search {
   /** @type {() => Promise<SearchResult>} */
   async getSearch() {
     try {
-      const res = await fetch(`${BASE}/api/search`, {
+      const res = await fetch(`${this._base}/api/search`, {
         method: 'POST',
         headers: {
           Accept: 'application/json',

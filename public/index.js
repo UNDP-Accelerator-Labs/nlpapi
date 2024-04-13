@@ -2,7 +2,9 @@
 
 import Search from './js/search.js';
 
-const run = () => {
+const LIVE_API = 'https://nlpapi.sdg-innovation-commons.org/';
+
+const start = (/** @type {string} */ base) => {
   const search = new Search(
     '#filter',
     '#search',
@@ -15,8 +17,22 @@ const run = () => {
   search.updateSearch();
 };
 
+const run = async () => {
+  try {
+    const versionResponse = await fetch('/api/version');
+    const versionObj = await versionResponse.json();
+    if (versionObj.error) {
+      start(LIVE_API);
+    } else {
+      start('');
+    }
+  } catch (_) {
+    start(LIVE_API);
+  }
+};
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', run);
 } else {
-  run();
+  await run();
 }
