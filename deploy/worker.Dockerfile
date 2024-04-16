@@ -1,4 +1,4 @@
-FROM continuumio/miniconda3
+FROM continuumio/miniconda3:24.1.2-0
 RUN apt-get update && apt-get -y upgrade \
   && apt-get install -y --no-install-recommends \
     git \
@@ -6,7 +6,6 @@ RUN apt-get update && apt-get -y upgrade \
     gcc \
     linux-libc-dev \
     libc6-dev \
-    build-essential \
     make
 WORKDIR /usr/src/app
 # FIXME: change to cuda image once we move to GPU
