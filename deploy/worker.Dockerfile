@@ -6,6 +6,7 @@ RUN apt-get update && apt-get -y upgrade \
     gcc \
     linux-libc-dev \
     libc6-dev \
+    build-essential \
     make
 WORKDIR /usr/src/app
 # FIXME: change to cuda image once we move to GPU
