@@ -31,8 +31,6 @@ quick-server~=0.9.0
 redipy~=0.6.0
 requests==2.31.0
 scattermind~=0.4.0
-scikit-learn==1.2.0
-scipy==1.10.0
 SQLAlchemy==2.0.9
 SQLAlchemy[mypy]==2.0.9
 spacy==3.5.3
