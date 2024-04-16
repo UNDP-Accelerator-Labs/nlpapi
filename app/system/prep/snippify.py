@@ -9,6 +9,7 @@ MAX_PROCESSING_SIZE = 1000
 PROCESSING_GRACE = 50
 
 BOUNDARY = re.compile(r"\b")
+FRONT = re.compile(r"^[\W_]+", re.UNICODE)
 
 
 def next_chunk(
@@ -42,13 +43,21 @@ def snippify_text(
         chunk_padding: int) -> Iterable[Location]:
     next_loc = (text, 0)
     boundary_re = BOUNDARY
+    front_re = FRONT
     while True:
         chunk, remain = next_chunk(
             next_loc,
             chunk_size=chunk_size,
             chunk_padding=chunk_padding,
             boundary_re=boundary_re)
-        yield chunk
+        yield post_process(chunk, front_re=front_re)
         if remain is None:
             break
         next_loc = remain
+
+
+def post_process(loc: Location, *, front_re: re.Pattern) -> Location:
+    text, offset = loc
+    short_text = front_re.sub("", text)
+    offset += len(text) - len(short_text)
+    return (short_text.rstrip(), offset)

@@ -171,10 +171,7 @@ def setup(
     write_token = config["write_token"]
     tanuki_token = config["tanuki"]  # the nuke key
 
-    # FIXME add snippify endpoint
     # FIXME test no replication
-    # FIXME fix collections endpoint for UI
-    # FIXME avoid non-alpha starts of snippets
     # FIXME treat NUL as no country
 
     vec_cfg = config["vector"]
