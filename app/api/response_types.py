@@ -26,3 +26,11 @@ URLInspectResponse = TypedDict('URLInspectResponse', {
     "url": str,
     "iso3": str | None,
 })
+Snippy = TypedDict('Snippy', {
+    "text": str,
+    "offset": int,
+})
+SnippyResponse = TypedDict('SnippyResponse', {
+    "count": int,
+    "snippets": list[Snippy],
+})

@@ -13,6 +13,8 @@ from app.api.mod import Module
 from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
 from app.api.response_types import (
+    Snippy,
+    SnippyResponse,
     StatsResponse,
     URLInspectResponse,
     VersionResponse,
@@ -34,6 +36,7 @@ from app.system.location.response import (
     LanguageStr,
 )
 from app.system.prep.clean import normalize_text
+from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     get_queue_stats,
     get_redis,
@@ -43,9 +46,12 @@ from app.system.smind.api import (
 )
 from app.system.smind.search import (
     AddEmbed,
+    CHUNK_PADDING,
+    CHUNK_SIZE,
     ClearResponse,
     DEFAULT_HIT_LIMIT,
     QueryEmbed,
+    SMALL_CHUNK_SIZE,
     vec_add,
     vec_clear,
     vec_filter,
@@ -167,6 +173,9 @@ def setup(
 
     # FIXME add snippify endpoint
     # FIXME test no replication
+    # FIXME fix collections endpoint for UI
+    # FIXME avoid non-alpha starts of snippets
+    # FIXME treat NUL as no country
 
     vec_cfg = config["vector"]
     server.bind_proxy(
@@ -498,6 +507,33 @@ def setup(
         return {
             "url": url,
             "iso3": iso3,
+        }
+
+    @server.json_post(f"{prefix}/snippify")
+    @server.middleware(verify_readonly)
+    @server.middleware(verify_input)
+    def _post_snippify(_req: QSRH, rargs: ReqArgs) -> SnippyResponse:
+        args = rargs["post"]
+        meta = rargs["meta"]
+        input_str: str = meta["input"]
+        chunk_size = args.get("chunk_size")
+        chunk_padding = args.get("chunk_padding")
+        small_snippets = bool(args.get("small_snippets"))
+        if chunk_size is None:
+            chunk_size = SMALL_CHUNK_SIZE if small_snippets else CHUNK_SIZE
+        if chunk_padding is None:
+            chunk_padding = CHUNK_PADDING
+        res: list[Snippy] = [
+            {
+                "text": text,
+                "offset": offset,
+            }
+            for (text, offset) in snippify_text(
+                input_str, chunk_size=chunk_size, chunk_padding=chunk_padding)
+        ]
+        return {
+            "count": len(res),
+            "snippets": res,
         }
 
     # *** generic ***
