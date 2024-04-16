@@ -48,6 +48,7 @@ sentence-transformers
 spacy
 SQLAlchemy
 SQLAlchemy[mypy]
+thinc
 tokenizers
 tqdm
 transformers
