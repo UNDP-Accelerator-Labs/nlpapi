@@ -302,6 +302,7 @@ def build_db_name(
         raise ValueError(f"invalid distance name: {distance_fn}")
 
     def recreate() -> None:
+        # FIXME test no replication
         print(f"create {name} size={embed_size} distance={distance}")
         vec_name = get_db_name(name, is_vec=True)
         config = VectorParams(

@@ -25,7 +25,7 @@ from app.system.location.response import (
     GeoQuery,
     LanguageStr,
 )
-from app.system.prep.clean import normalize_text
+from app.system.prep.clean import normalize_text, sanity_check
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     clear_redis,
@@ -87,6 +87,7 @@ QueryEmbed = TypedDict('QueryEmbed', {
 
 CHUNK_SIZE = 600
 SMALL_CHUNK_SIZE = 150
+TITLE_CHUNK_SIZE = 60
 CHUNK_PADDING = 20
 DEFAULT_HIT_LIMIT = 1
 
@@ -197,6 +198,9 @@ def vec_clear(
     }
 
 
+LOW_CUTOFF_DATE = parse_time_str("1971-01-01T00:00:00.000+0000").date()
+
+
 def vec_add(
         db: DBConnector,
         vec_db: QdrantClient,
@@ -210,15 +214,29 @@ def vec_add(
         base: str,
         doc_id: int,
         url: str,
-        title: str,
+        title: str | None,
         meta_obj: MetaObject) -> AddEmbed:
+    # FIXME: make "smart" features optional
+    full_start = time.monotonic()
+    # clear caches
+    cache_start = time.monotonic()
     clear_cache(qdrant_cache)
+    cache_time = time.monotonic() - cache_start
+    preprocess_start = time.monotonic()
     # validate title
-    title = normalize_text(title)
+    title = normalize_text(sanity_check(title))
     if not title:
-        raise ValueError("title cannot be empty")
+        title_loc = next(
+            iter(snippify_text(
+                input_str,
+                chunk_size=TITLE_CHUNK_SIZE,
+                chunk_padding=CHUNK_PADDING)),
+            None)
+        if title_loc is None:
+            raise ValueError(f"cannot infer title for {input_str=}")
+        title, _ = title_loc
     # validate url
-    url = url.strip()
+    url = sanity_check(url.strip())
     if not url:
         raise ValueError("url cannot be empty")
     # validate status
@@ -240,9 +258,11 @@ def vec_add(
     if meta_obj.get("date") is not None:
         if isinstance(meta_obj["date"], list):
             raise TypeError(f"date {meta_obj['date']} must be string")
-        if meta_obj["date"] is not None:
-            meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
+        meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
+        if parse_time_str(meta_obj["date"]).date() < LOW_CUTOFF_DATE:
+            meta_obj.pop("date", None)  # NOTE: 1970 dates are invalid dates!
     # fill language if missing
+    language_start = time.monotonic()
     if meta_obj.get("language") is None:
         lang_res = extract_language(db, input_str, user)
         meta_obj["language"] = {
@@ -251,7 +271,9 @@ def vec_add(
         }
     else:
         meta_obj["language"] = dict(meta_obj["language"].items())
+    language_time = time.monotonic() - language_start
     # fill iso3 if missing
+    country_start = time.monotonic()
     if meta_obj.get("iso3") is None:
         geo_obj: GeoQuery = {
             "input": input_str,
@@ -282,12 +304,14 @@ def vec_add(
     else:
         meta_obj["iso3"] = dict(meta_obj["iso3"].items())
     # inspect URL and amend iso3 if country found
-    # FIXME: make optional
     url_iso3 = inspect_url(url)
     if url_iso3 is not None:
         print(f"overwriting {url_iso3} was {meta_obj['iso3'].get(url_iso3)}")
         meta_obj["iso3"][url_iso3] = 2.0
+    country_time = time.monotonic() - country_start
+    preprocess_time = time.monotonic() - preprocess_start
     # compute embedding
+    embed_start = time.monotonic()
     snippets = [
         snippet
         for (snippet, _) in snippify_text(
@@ -315,13 +339,22 @@ def vec_add(
         for chunk_id, (snippet, embed) in enumerate(zip(snippets, embeds))
         if embed is not None
     ]
+    embed_time = time.monotonic() - embed_start
     # add embedding to vecdb
+    vec_start = time.monotonic()
     prev_count, new_count = add_embed(
         vec_db,
         name=articles,
         data=embed_main,
         chunks=embed_chunks)
     failed = sum(1 if embed is None else 0 for embed in embeds)
+    vec_time = time.monotonic() - vec_start
+    full_time = time.monotonic() - full_start
+    print(
+        f"adding {base}:{doc_id} took "
+        f"{full_time=}s {preprocess_time=}s {embed_time=}s {vec_time=}s "
+        f"{language_time=}s {country_time=}s {cache_time=}s "
+        f"{prev_count=} {new_count=} {failed=}")
     return {
         "previous": prev_count,
         "snippets": new_count,

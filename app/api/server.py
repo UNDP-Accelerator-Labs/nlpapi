@@ -35,7 +35,7 @@ from app.system.location.response import (
     GeoQuery,
     LanguageStr,
 )
-from app.system.prep.clean import normalize_text
+from app.system.prep.clean import normalize_text, sanity_check
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     get_queue_stats,
@@ -171,9 +171,6 @@ def setup(
     write_token = config["write_token"]
     tanuki_token = config["tanuki"]  # the nuke key
 
-    # FIXME test no replication
-    # FIXME treat NUL as no country
-
     vec_cfg = config["vector"]
     server.bind_proxy(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
@@ -247,7 +244,7 @@ def setup(
         if len(text) > MAX_INPUT_LENGTH:
             return Response(
                 f"input length exceeds {MAX_INPUT_LENGTH} bytes", 413)
-        rargs["meta"]["input"] = normalize_text(text)
+        rargs["meta"]["input"] = normalize_text(sanity_check(text))
         return okay
 
     # *** misc ***
@@ -369,17 +366,21 @@ def setup(
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
-        vdb_str = args["db"]
+        vdb_str: str = args["db"]
         if vdb_str == "main":
             articles = articles_main
         elif vdb_str == "test":
             articles = articles_test
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
-        base = args["base"]
+        base: str = args["base"]
+        if not base:
+            raise ValueError(f"{base=} must be set")
         doc_id = int(args["doc_id"])
-        url = args["url"]
-        title = args["title"]
+        url: str = args["url"]
+        if not url:
+            raise ValueError(f"{url=} must be set")
+        title: str | None = args["title"]
         meta_obj = args.get("meta", {})
         user: uuid.UUID = meta["user"]
         return vec_add(

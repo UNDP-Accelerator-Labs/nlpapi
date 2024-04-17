@@ -143,6 +143,8 @@ def extract_locations(
         info = entity_map.get(query, None)
         if info is None:
             loc, status = get_resp(query)
+            if loc is not None and loc["country"] == "NUL":
+                print(f"WARNING: location '{query}' returned NUL country!")
             if status not in NO_COUNT_REQUESTS:
                 status_count[STATUS_MAP[status]] += 1
             status_ix = STATUS_ORDER.index(status)
