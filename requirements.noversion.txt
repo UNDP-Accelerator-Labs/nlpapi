@@ -52,6 +52,7 @@ thinc
 tokenizers
 tqdm
 transformers
+translators
 types-Pillow
 types-psycopg2
 types-python-dateutil

@@ -26,6 +26,9 @@ URLInspectResponse = TypedDict('URLInspectResponse', {
     "url": str,
     "iso3": str | None,
 })
+DateResponse = TypedDict('DateResponse', {
+    "date": str | None,
+})
 Snippy = TypedDict('Snippy', {
     "text": str,
     "offset": int,
