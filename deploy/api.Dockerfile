@@ -7,6 +7,7 @@ RUN apt-get update && apt-get -y upgrade \
     linux-libc-dev \
     libc6-dev \
     make
+RUN apt-get install -y --no-install-recommends nodejs
 WORKDIR /usr/src/app
 RUN pip install --progress-bar off --no-cache-dir 'torch~=2.2.0' torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 COPY Makefile .
