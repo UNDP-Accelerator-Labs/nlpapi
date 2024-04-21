@@ -23,7 +23,7 @@
   "executor_manager": {
     "name": "redis",
     "batch_size": 8,
-    "sleep_on_idle": 0.1,
+    "sleep_on_idle": 60.0,
     "reclaim_sleep": 600.0,
     "heartbeat_time": 30.0,
     "cfg": {
