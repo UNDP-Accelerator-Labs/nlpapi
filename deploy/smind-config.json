@@ -53,7 +53,8 @@
       "passwd": "",
       "prefix": "nlpapi",
       "path": "rcache"
-    }
+    },
+    "use_defer": true
   },
   "strategy": {
     "node": {
