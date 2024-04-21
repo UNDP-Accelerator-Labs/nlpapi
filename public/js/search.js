@@ -88,15 +88,23 @@ export default class Search {
     window.addEventListener('popstate', (event) => {
       /** @type {SearchState} */ const state = event.state;
       const { q, filter, p } = state;
-      if (q && filter && p) {
+      if (q) {
         this._input = q;
-        this._filter = JSON.parse(filter);
-        this._page = p;
-        this._state = { q, filter, p };
-        this._searchInput.value = this._input;
-        this.updateStats(null);
-        this.updateSearch();
       }
+      if (filter) {
+        this._filter = JSON.parse(filter);
+      }
+      if (p || p === 0) {
+        this._page = p;
+      }
+      this._state = {
+        q: this._input,
+        filter: this.getFiltersString(),
+        p: this._page,
+      };
+      this._searchInput.value = this._input;
+      this.updateStats(null);
+      this.updateSearch();
     });
 
     this.getFromParams();
