@@ -179,6 +179,7 @@ def setup(
     server.bind_proxy(
         "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
     # FIXME: fix for https://github.com/qdrant/qdrant-web-ui/issues/94
+    server.set_debug_proxy(True)
     server.bind_proxy(
         "/dashboard/",
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/dashboard")

@@ -578,13 +578,17 @@ def add_embed(
 
     def insert_chunks() -> None:
         vec_payload_template = to_snippet_payload_template(data)
-        db.upsert(
-            vec_name,
-            points=[
-                convert_chunk(chunk, vec_payload_template)
-                for chunk in chunks
-            ],
-            wait=False)
+        all_chunks = [
+            convert_chunk(chunk, vec_payload_template)
+            for chunk in chunks
+        ]
+        batch_size = 20
+        for offset in range(0, len(all_chunks), batch_size):
+            cur_chunks = all_chunks[offset:offset + batch_size]
+            db.upsert(
+                vec_name,
+                points=cur_chunks,
+                wait=False)
 
     def convert_chunk(
             chunk: EmbedChunk,
