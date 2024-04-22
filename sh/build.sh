@@ -327,5 +327,5 @@ if [ -z "${CI}" ]; then
     echo "================================================="
     cat "${DOCKER_COMPOSE_OUT}"
 else
-    echo "run `make build` locally (without dockerpush) to get the docker compose file"
+    echo "run 'make build' locally (without dockerpush) to get the docker compose file"
 fi
