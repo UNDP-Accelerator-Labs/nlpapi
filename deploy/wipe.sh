@@ -14,6 +14,7 @@ remove /rbody
 remove /rcache
 remove /rdata
 remove /rmain
-remove /qdrant_data
+remove /qdrant_1
+remove /qdrant_2
 
 echo "done"

@@ -1,4 +1,4 @@
-FROM continuumio/miniconda3
+FROM continuumio/miniconda3:24.1.2-0
 RUN apt-get update && apt-get -y upgrade \
   && apt-get install -y --no-install-recommends \
     git \
@@ -7,6 +7,7 @@ RUN apt-get update && apt-get -y upgrade \
     linux-libc-dev \
     libc6-dev \
     make
+RUN apt-get install -y --no-install-recommends nodejs  # for the translators python library
 WORKDIR /usr/src/app
 RUN pip install --progress-bar off --no-cache-dir 'torch~=2.2.0' torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 COPY Makefile .
@@ -20,6 +21,7 @@ COPY sh/ sh/
 COPY nlpapi/ nlpapi/
 COPY public/ public/
 COPY app/ app/
+COPY static/ static/
 RUN python -m compileall .
 COPY version.txt .
 ARG PORT=8080

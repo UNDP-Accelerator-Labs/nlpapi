@@ -1,10 +1,12 @@
 from typing import Literal, TypedDict
 
 from app.system.location.strategy import Strategy
-from app.system.spacy import LanguageStr
 
 
 DEFAULT_MAX_REQUESTS = 20
+
+
+LanguageStr = Literal["en", "xx"]
 
 
 GeoStatus = Literal[

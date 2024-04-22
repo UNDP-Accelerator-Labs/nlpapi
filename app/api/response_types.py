@@ -22,3 +22,18 @@ StatsResponse = TypedDict('StatsResponse', {
     "vecdbs": list[VecDBStat],
     "queues": list[QueueStat],
 })
+URLInspectResponse = TypedDict('URLInspectResponse', {
+    "url": str,
+    "iso3": str | None,
+})
+DateResponse = TypedDict('DateResponse', {
+    "date": str | None,
+})
+Snippy = TypedDict('Snippy', {
+    "text": str,
+    "offset": int,
+})
+SnippyResponse = TypedDict('SnippyResponse', {
+    "count": int,
+    "snippets": list[Snippy],
+})

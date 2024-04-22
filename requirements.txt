@@ -24,7 +24,7 @@ numpy~=1.26.0
 opencage==2.2.0
 pandas-stubs>=2.1
 pandas~=2.1.0
-Pillow~=10.2.0
+Pillow~=10.3.0
 pre-commit==3.0.3
 psycopg2-binary==2.9.6
 pyarrow==14.0.1
@@ -38,7 +38,7 @@ pytz>=2023.3
 qdrant-client~=1.8.0
 qtconsole==5.4.0
 quick-server~=0.9.0
-redipy~=0.6.0
+redipy~=0.7.0
 requests==2.31.0
 scattermind~=0.4.0
 scikit-learn==1.2.0
@@ -48,9 +48,11 @@ sentence-transformers~=2.3.0
 spacy==3.5.3
 SQLAlchemy==2.0.9
 SQLAlchemy[mypy]==2.0.9
+thinc==8.1.12
 tokenizers<0.19
 tqdm==4.65.0
 transformers~=4.38.0
+translators~=5.9.0
 types-Pillow==9.2.1
 types-psycopg2==2.9.21.10
 types-python-dateutil~=2.8.0

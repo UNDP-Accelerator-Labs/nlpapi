@@ -3,7 +3,6 @@ services:
   wipe:
     container_name: wipe
     image: $DOCKER_WIPE
-    pull_policy: always
     restart: always
     ports:
       - '8080:8080'
@@ -13,4 +12,6 @@ services:
       - ${WEBAPP_STORAGE_HOME}/rcache:/rcache
       - ${WEBAPP_STORAGE_HOME}/rdata:/rdata
       - ${WEBAPP_STORAGE_HOME}/rmain:/rmain
-      - ${WEBAPP_STORAGE_HOME}/qdrant:/qdrant_data
+      - ${WEBAPP_STORAGE_HOME}/qdrant_1:/qdrant_1
+      - ${WEBAPP_STORAGE_HOME}/qdrant_2:/qdrant_2
+# eof

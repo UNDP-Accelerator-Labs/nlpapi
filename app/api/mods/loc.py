@@ -5,12 +5,17 @@ from typing import Any
 from app.api.mod import Module
 from app.system.db.db import DBConnector
 from app.system.location.pipeline import extract_locations
-from app.system.location.response import GeoQuery
+from app.system.location.response import GeoQuery, LanguageStr
+from app.system.smind.api import GraphProfile
 
 
 class LocationModule(Module):
-    def __init__(self, db: DBConnector) -> None:
+    def __init__(
+            self,
+            db: DBConnector,
+            ner_graphs: dict[LanguageStr, GraphProfile]) -> None:
         self._db = db
+        self._ner_graphs = ner_graphs
 
     @staticmethod
     def name() -> str:
@@ -29,4 +34,4 @@ class LocationModule(Module):
             "language": args.get("language", "en"),
             "max_requests": args.get("max_requests", 5),
         }
-        return extract_locations(self._db, obj, user)
+        return extract_locations(self._db, self._ner_graphs, obj, user)

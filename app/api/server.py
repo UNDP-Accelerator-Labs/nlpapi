@@ -8,15 +8,24 @@ from typing import Any, get_args, Literal, TypeAlias, TypedDict
 from quick_server import create_server, QuickServer
 from quick_server import QuickServerRequestHandler as QSRH
 from quick_server import ReqArgs, ReqNext, Response
+from redipy.util import fmt_time
 
 from app.api.mod import Module
 from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
-from app.api.response_types import StatsResponse, VersionResponse
+from app.api.response_types import (
+    DateResponse,
+    Snippy,
+    SnippyResponse,
+    StatsResponse,
+    URLInspectResponse,
+    VersionResponse,
+)
 from app.misc.env import envload_int, envload_str
 from app.misc.util import get_time_str, maybe_float
 from app.misc.version import get_version
 from app.system.config import get_config
+from app.system.dates.datetranslate import extract_date
 from app.system.db.db import DBConnector
 from app.system.jwt import is_valid_token
 from app.system.language.langdetect import LangResponse
@@ -27,19 +36,25 @@ from app.system.location.response import (
     DEFAULT_MAX_REQUESTS,
     GeoOutput,
     GeoQuery,
+    LanguageStr,
 )
+from app.system.prep.clean import normalize_text, sanity_check
+from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     get_queue_stats,
     get_redis,
+    GraphProfile,
     load_graph,
     load_smind,
-    normalize_text,
 )
 from app.system.smind.search import (
     AddEmbed,
+    CHUNK_PADDING,
+    CHUNK_SIZE,
     ClearResponse,
     DEFAULT_HIT_LIMIT,
     QueryEmbed,
+    SMALL_CHUNK_SIZE,
     vec_add,
     vec_clear,
     vec_filter,
@@ -49,9 +64,12 @@ from app.system.smind.vec import (
     build_db_name,
     get_vec_client,
     get_vec_stats,
+    MetaKey,
     StatEmbed,
     VecDBStat,
 )
+from app.system.stats import create_length_counter
+from app.system.urlinspect.inspect import inspect_url
 
 
 DBName: TypeAlias = Literal["main", "test"]
@@ -134,10 +152,10 @@ def setup(
     smind = load_smind(smind_config)
     graph_embed = load_graph(config, smind, "graph_embed.json")
 
-    articles_ns, articles_input, articles_output, m_articles_size = graph_embed
-    if m_articles_size is None:
-        raise ValueError(f"graph {graph_embed} as variable shape")
-    articles_size = m_articles_size
+    ner_graphs: dict[LanguageStr, GraphProfile] = {
+        "en": load_graph(config, smind, "graph_ner_en.json"),
+        "xx": load_graph(config, smind, "graph_ner_xx.json"),
+    }
 
     qdrant_cache = get_redis(
         smind_config, redis_name="rcache", overwrite_prefix="qdrant")
@@ -147,15 +165,15 @@ def setup(
             f"articles_{name}",
             distance_fn="dot",
             db=vec_db,
-            embed_size=articles_size,
+            embed_size=graph_embed.get_output_size(),
             force_clear=force_clear,
             force_index=force_index)
 
     articles_main = get_vec_db("main", force_clear=False, force_index=False)
     articles_test = get_vec_db("test", force_clear=False, force_index=False)
 
-    write_token = envload_str("WRITE_TOKEN")
-    tanuki_token = envload_str("TANUKI")  # the nuke key
+    write_token = config["write_token"]
+    tanuki_token = config["tanuki"]  # the nuke key
 
     vec_cfg = config["vector"]
     server.bind_proxy(
@@ -170,6 +188,9 @@ def setup(
     server.bind_proxy(
         "/cluster/",
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/cluster")
+    server.bind_proxy(
+        "/telemetry/",
+        f"http://{vec_cfg['host']}:{vec_cfg['port']}/telemetry")
 
     server.bind_path("/search/", "public/")
 
@@ -227,7 +248,7 @@ def setup(
         if len(text) > MAX_INPUT_LENGTH:
             return Response(
                 f"input length exceeds {MAX_INPUT_LENGTH} bytes", 413)
-        rargs["meta"]["input"] = normalize_text(text)
+        rargs["meta"]["input"] = normalize_text(sanity_check(text))
         return okay
 
     # *** misc ***
@@ -263,7 +284,7 @@ def setup(
     def _post_stats(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
         args = rargs["post"]
         fields = set(args["fields"])
-        filters: dict[str, list[str]] = args.get("filters", {})
+        filters: dict[MetaKey, list[str]] = args.get("filters", {})
         filters["status"] = ["public"]  # NOTE: not logged in!
         return vec_filter(
             vec_db,
@@ -279,24 +300,23 @@ def setup(
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
-        filters: dict[str, list[str]] = args.get("filters", {})
+        filters: dict[MetaKey, list[str]] = args.get("filters", {})
         filters["status"] = ["public"]  # NOTE: not logged in!
         offset: int = int(args.get("offset", 0))
         limit: int = int(args["limit"])
         hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
         score_threshold: float | None = maybe_float(
             args.get("score_threshold"))
-        short_snippets = bool(args.get("short_snippets", False))
+        short_snippets = bool(args.get("short_snippets", True))
+        order_by: MetaKey = "date"  # FIXME: order_by
         return vec_search(
             db,
             vec_db,
-            smind,
             input_str,
             articles=articles_main,
-            articles_ns=articles_ns,
-            articles_input=articles_input,
-            articles_output=articles_output,
+            articles_graph=graph_embed,
             filters=filters,
+            order_by=order_by,
             offset=offset,
             limit=limit,
             hit_limit=hit_limit,
@@ -350,37 +370,37 @@ def setup(
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
-        vdb_str = args["db"]
+        vdb_str: str = args["db"]
         if vdb_str == "main":
             articles = articles_main
         elif vdb_str == "test":
             articles = articles_test
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
-        base = args["base"]
+        base: str = args["base"]
+        if not base:
+            raise ValueError(f"{base=} must be set")
         doc_id = int(args["doc_id"])
-        url = args["url"]
-        title = args["title"]
+        url: str = args["url"]
+        if not url:
+            raise ValueError(f"{url=} must be set")
+        title: str | None = args["title"]
         meta_obj = args.get("meta", {})
-        update_meta_only = bool(args.get("update_meta_only", False))
         user: uuid.UUID = meta["user"]
         return vec_add(
             db,
             vec_db,
-            smind,
             input_str,
             qdrant_cache=qdrant_cache,
             articles=articles,
-            articles_ns=articles_ns,
-            articles_input=articles_input,
-            articles_output=articles_output,
+            articles_graph=graph_embed,
+            ner_graphs=ner_graphs,
             user=user,
             base=base,
             doc_id=doc_id,
             url=url,
             title=title,
-            meta_obj=meta_obj,
-            update_meta_only=update_meta_only)
+            meta_obj=meta_obj)
 
     @server.json_post(f"{prefix}/stat_embed")
     @server.middleware(verify_readonly)
@@ -394,7 +414,7 @@ def setup(
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
         fields = set(args["fields"])
-        filters: dict[str, list[str]] | None = args.get("filters")
+        filters: dict[MetaKey, list[str]] | None = args.get("filters")
         return vec_filter(
             vec_db,
             qdrant_cache=qdrant_cache,
@@ -416,23 +436,22 @@ def setup(
             articles = articles_test
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
-        filters: dict[str, list[str]] | None = args.get("filters")
+        filters: dict[MetaKey, list[str]] | None = args.get("filters")
         offset: int = int(args.get("offset", 0))
         limit: int = int(args["limit"])
         hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
         score_threshold: float | None = maybe_float(
             args.get("score_threshold"))
-        short_snippets = bool(args.get("short_snippets", False))
+        short_snippets = bool(args.get("short_snippets", True))
+        order_by: MetaKey = "date"  # FIXME: order_by
         return vec_search(
             db,
             vec_db,
-            smind,
             input_str,
             articles=articles,
-            articles_ns=articles_ns,
-            articles_input=articles_input,
-            articles_output=articles_output,
+            articles_graph=graph_embed,
             filters=filters,
+            order_by=order_by,
             offset=offset,
             limit=limit,
             hit_limit=hit_limit,
@@ -466,7 +485,7 @@ def setup(
             "language": args.get("language", "en"),
             "max_requests": args.get("max_requests", DEFAULT_MAX_REQUESTS),
         }
-        return extract_locations(db, obj, user)
+        return extract_locations(db, ner_graphs, obj, user)
 
     # *** language ***
 
@@ -479,6 +498,65 @@ def setup(
         user: uuid.UUID = meta["user"]
         return extract_language(db, input_str, user)
 
+    # *** misc ***
+
+    @server.json_post(f"{prefix}/inspect")
+    @server.middleware(verify_readonly)
+    def _post_inspect(_req: QSRH, rargs: ReqArgs) -> URLInspectResponse:
+        args = rargs["post"]
+        url = args["url"]
+        iso3 = inspect_url(url)
+        return {
+            "url": url,
+            "iso3": iso3,
+        }
+
+    @server.json_post(f"{prefix}/date")
+    @server.middleware(verify_readonly)
+    def _post_date(_req: QSRH, rargs: ReqArgs) -> DateResponse:
+        args = rargs["post"]
+        raw_html = args["raw_html"]
+        posted_date_str = args.get("posted_date_str")
+        language = args.get("language")
+        use_date_str = bool(args.get("use_date_str", True))
+        lnc, _ = create_length_counter()
+        date = extract_date(
+            raw_html,
+            posted_date_str=posted_date_str,
+            language=language,
+            use_date_str=use_date_str,
+            lnc=lnc)
+        return {
+            "date": None if date is None else fmt_time(date),
+        }
+
+    @server.json_post(f"{prefix}/snippify")
+    @server.middleware(verify_readonly)
+    @server.middleware(verify_input)
+    def _post_snippify(_req: QSRH, rargs: ReqArgs) -> SnippyResponse:
+        args = rargs["post"]
+        meta = rargs["meta"]
+        input_str: str = meta["input"]
+        chunk_size = args.get("chunk_size")
+        chunk_padding = args.get("chunk_padding")
+        small_snippets = bool(args.get("small_snippets"))
+        if chunk_size is None:
+            chunk_size = SMALL_CHUNK_SIZE if small_snippets else CHUNK_SIZE
+        if chunk_padding is None:
+            chunk_padding = CHUNK_PADDING
+        res: list[Snippy] = [
+            {
+                "text": text,
+                "offset": offset,
+            }
+            for (text, offset) in snippify_text(
+                input_str, chunk_size=chunk_size, chunk_padding=chunk_padding)
+        ]
+        return {
+            "count": len(res),
+            "snippets": res,
+        }
+
     # *** generic ***
 
     mods: dict[str, Module] = {}
@@ -486,7 +564,7 @@ def setup(
     def add_mod(mod: Module) -> None:
         mods[mod.name()] = mod
 
-    add_mod(LocationModule(db))
+    add_mod(LocationModule(db, ner_graphs))
     add_mod(LanguageModule(db))
 
     @server.json_post(f"{prefix}/extract")

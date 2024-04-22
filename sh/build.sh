@@ -6,7 +6,6 @@ cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
 mkdir -p buildtmp
 
-DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io"
 PYTHON="${PYTHON:-python3}"
 
 DOCKER_CONFIG=docker.config.json
@@ -15,8 +14,6 @@ NO_CONFIG=noconfig.json
 DEFAULT_CONFIG=-
 SMIND_CONFIG="${SMIND_CONFIG:-deploy/smind-config.json}"
 SMIND_GRAPHS="${SMIND_GRAPHS:-deploy/graphs/}"
-
-QDRANT_API_TOKEN=$(make -s uuid)
 
 REDIS_VERSION_FILE="buildtmp/redis.version"
 QDRANT_VERSION_FILE="buildtmp/qdrant.version"
@@ -57,8 +54,10 @@ fi
 
 if [ ! -z "${DEV}" ]; then
     CONFIG_PATH="${CONFIG_PATH:-${DOCKER_CONFIG}}"
+    QDRANT_API_TOKEN=
 else
     CONFIG_PATH="${CONFIG_PATH:-${DEFAULT_CONFIG}}"
+    QDRANT_API_TOKEN=$(make -s uuid)
 fi
 echo "using config: ${CONFIG_PATH}"
 if [ "${CONFIG_PATH}" == "${LOCAL_CONFIG}" ]; then
@@ -155,7 +154,29 @@ if [ ! -z "${DEVMODE}" ]; then
     replace_lib "${REQUIREMENTS_WORKER_FILE}" "scattermind" "${SMIND_PATH}" "${SMIND_URL}" "${SMIND_BRANCH}"
 fi
 
+if [ ! -z "${DEV}" ]; then
+    DOCKER_COMPOSE_OUT="docker-compose.dev.yml"
+    WEBAPP_STORAGE_HOME="./userdata"
+    DOCKER_LOGIN_SERVER=
+else
+    DOCKER_COMPOSE_OUT="docker-compose.yml"
+    WEBAPP_STORAGE_HOME=
+    DOCKER_LOGIN_SERVER="acclabdocker.azurecr.io/"
+fi
+DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
+
 docker_build() {
+    ARGS=("$@")
+    if [ ! -z "${VERBOSE}" ]; then
+        ARGS+=("--progress=plain")
+    fi
+    if [ ! -z "${NO_CACHE}" ]; then
+        ARGS+=("--no-cache")
+    fi
+    _docker_build "${ARGS[@]}"
+}
+
+_docker_build() {
     TAG="$1"
     # if ! docker inspect --type=image "${TAG}" &> /dev/null ; then
     shift
@@ -241,13 +262,6 @@ docker_build \
     -f deploy/wipe.Dockerfile \
     .
 
-if [ ! -z "${DEV}" ]; then
-    DOCKER_COMPOSE_OUT="docker-compose.dev.yml"
-else
-    DOCKER_COMPOSE_OUT="docker-compose.yml"
-fi
-DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
-
 DEFAULT_ENV_FILE=deploy/default.env
 echo "# created by sh/build.sh" > "${DEFAULT_ENV_FILE}"
 echo "DOCKER_WORKER=${IMAGE_BASE}-worker:${IMAGE_TAG}" >> "${DEFAULT_ENV_FILE}"
@@ -256,10 +270,16 @@ echo "DOCKER_RMAIN=${IMAGE_BASE}-rmain:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_EN
 echo "DOCKER_RDATA=${IMAGE_BASE}-rdata:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_RCACHE=${IMAGE_BASE}-rcache:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "DOCKER_RBODY=${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
-echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
+if [ ! -z "${DEV}" ]; then
+    echo "DOCKER_QDRANT=qdrant/qdrant:v1.8.0" >> "${DEFAULT_ENV_FILE}"
+else
+    echo "DOCKER_QDRANT=${IMAGE_BASE}-qdrant:${QDRANT_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
+fi
 echo "DOCKER_WIPE=${IMAGE_BASE}-wipe:${WIPE_DOCKER_VERSION}" >> "${DEFAULT_ENV_FILE}"
 echo "QDRANT_API_TOKEN=${QDRANT_API_TOKEN}" >> "${DEFAULT_ENV_FILE}"
-echo "DEV_LOCAL=eof" >> "${DEFAULT_ENV_FILE}"  # put the correct values for local development if needed
+if [ ! -z "${WEBAPP_STORAGE_HOME}" ]; then
+    echo "{WEBAPP_STORAGE_HOME}=${WEBAPP_STORAGE_HOME}" >> "${DEFAULT_ENV_FILE}"
+fi
 
 ! read -r -d '' PY_COMPOSE <<'EOF'
 import os
@@ -279,7 +299,10 @@ with open(denv, "r", encoding="utf-8") as fin:
         variable = f"${variable}".strip()
         value = f"{value.strip()}"
         if variable.startswith("$DOCKER_"):
-            value = f"{prefix}/{value}"
+            value = f"{prefix}{value}"
+        if value.startswith("@"):
+            with open(value[1:], "r", encoding="utf-8") as tin:
+                value = tin.read()
         substitute[variable] = value
 with open(dcompose, "r", encoding="utf-8") as din:
     content = din.read()

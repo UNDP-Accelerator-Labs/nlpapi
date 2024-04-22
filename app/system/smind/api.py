@@ -1,11 +1,7 @@
 import json
 import os
-import re
 import time
 import traceback
-import unicodedata
-from collections.abc import Iterable
-from html import unescape
 from typing import cast, Literal, TypedDict, TypeVar
 
 import redis as redis_lib
@@ -32,6 +28,12 @@ QueueStat = TypedDict('QueueStat', {
     "name": str,
     "queue_length": int,
     "listeners": int,
+})
+
+
+NERResponse = TypedDict('NERResponse', {
+    "ranges": list[tuple[int, int]],
+    "text": list[str],
 })
 
 
@@ -96,23 +98,64 @@ def load_smind(config_fname: str) -> ScattermindAPI:
     return load_api(config_obj)
 
 
+class GraphProfile:
+    def __init__(self, smind: ScattermindAPI, ns: GNamespace) -> None:
+        self._smind = smind
+        self._ns = ns
+        inputs = list(smind.main_inputs(ns))
+        outputs = list(smind.main_outputs(ns))
+        if len(inputs) != 1:
+            raise ValueError(f"invalid graph inputs: {inputs}")
+        self._input = inputs[0]
+        self._outputs = outputs
+
+        self._output_field: str | None = None
+        self._output_size: int | None = None
+
+    def get_api(self) -> ScattermindAPI:
+        return self._smind
+
+    def get_ns(self) -> GNamespace:
+        return self._ns
+
+    def get_input_field(self) -> str:
+        return self._input
+
+    def get_outputs(self) -> list[str]:
+        return self._outputs
+
+    def get_output_field(self) -> str:
+        output_field = self._output_field
+        if output_field is None:
+            outputs = self._outputs
+            if len(outputs) != 1:
+                raise ValueError(f"invalid graph outputs: {outputs}")
+            output_field = outputs[0]
+            self._output_field = output_field
+        return output_field
+
+    def get_output_size(self) -> int:
+        output_size = self._output_size
+        if output_size is None:
+            _, output_shape = self._smind.output_format(
+                self._ns, self.get_output_field())
+            if len(output_shape) != 1:
+                raise ValueError(f"invalid graph output shape: {output_shape}")
+            output_size = output_shape[0]
+            if output_size is None:
+                raise ValueError(f"graph {self._ns} has variable shape")
+            self._output_size = output_size
+        return output_size
+
+
 def load_graph(
         config: Config,
         smind: ScattermindAPI,
-        graph_fname: str) -> tuple[GNamespace, str, str, int | None]:
+        graph_fname: str) -> GraphProfile:
     with open(os.path.join(config["graphs"], graph_fname), "rb") as fin:
         graph_def_obj = json.load(fin)
-    ns = smind.load_graph(graph_def_obj)
-    inputs = list(smind.main_inputs(ns))
-    outputs = list(smind.main_outputs(ns))
-    if len(inputs) != 1:
-        raise ValueError(f"invalid graph inputs: {inputs}")
-    if len(outputs) != 1:
-        raise ValueError(f"invalid graph outputs: {outputs}")
-    _, embed_shape = smind.output_format(ns, outputs[0])
-    if len(embed_shape) != 1:
-        raise ValueError(f"invalid graph output shape: {embed_shape}")
-    return ns, inputs[0], outputs[0], embed_shape[0]
+    ns: GNamespace = smind.load_graph(graph_def_obj)
+    return GraphProfile(smind, ns)
 
 
 def get_queue_stats(smind: ScattermindAPI) -> list[QueueStat]:
@@ -145,71 +188,17 @@ def get_token_count(prompts: list[str]) -> list[int]:
     return res
 
 
-def clean(text: str) -> str:
-    text = text.strip()
-    while True:
-        prev_text = text
-        text = unescape(text)
-        if prev_text == text:
-            break
-    text = unicodedata.normalize("NFKC", text)
-    text = re.sub(r"\r", "\n", text)
-    text = re.sub(r"\n\n+", "\n", text)
-    text = re.sub(r"\n[ \t]+", "\n", text)
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n\n\n+", "\n\n", text)
-    return text
-
-
-def strip_html(text: str) -> str:
-    text = re.sub(r"<br\s*/?\s*>", "\n", text.strip())
-    text = re.sub(r"<(?:\"[^\"]*\"['\"]*|'[^']*'['\"]*|[^'\">])+>", "", text)
-    return text
-
-
-def normalize_text(text: str) -> str:
-    return clean(strip_html(text))
-
-
-def snippify_text(
-        text: str, *, chunk_size: int, chunk_padding: int) -> Iterable[str]:
-    pos = 0
-    content = text.strip()
-    if not content:
-        return
-    while pos < len(content):
-        cur = content[pos:pos + chunk_size]
-        if len(cur) < chunk_size:
-            cur = cur.strip()
-            if cur:
-                yield cur
-            break
-        cur = cur.strip()
-        rpos = cur.rfind(" ", 0, -chunk_padding)
-        if rpos > 0:
-            small = cur[0:rpos].strip()
-            if small:
-                yield small
-            spos = small.rfind(" ")
-            if spos > 0:
-                pos += spos
-            else:
-                pos += len(small)
-        else:
-            yield cur
-            pos += len(cur)
-
-
 def get_text_results_immediate(
         texts: list[str],
         *,
-        smind: ScattermindAPI,
-        ns: GNamespace,
-        input_field: str,
-        output_field: str,
+        graph_profile: GraphProfile,
         output_sample: T) -> list[T | None]:
     if not texts:
         return []
+    smind = graph_profile.get_api()
+    ns = graph_profile.get_ns()
+    input_field = graph_profile.get_input_field()
+    output_field = graph_profile.get_output_field()
     lookup: dict[TaskId, int] = {}
     for ix, text in enumerate(texts):
         task_id = smind.enqueue_task(
@@ -242,6 +231,68 @@ def get_text_results_immediate(
                         f"{type(output)}<:{type(output_sample)}")
                 curix = lookup[tid]
                 res[curix] = output
+            print(
+                f"retrieved task {tid} ({resp['ns']}) {resp['status']} "
+                f"{resp['duration']}s retry={resp['retries']}")
+            tids.append(tid)
+        success = True
+    finally:
+        tasks = tids if success else sent_tasks
+        for tid in tasks:
+            smind.clear_task(tid)
+    return [res.get(ix, None) for ix in range(len(texts))]
+
+
+def get_ner_results_immediate(
+        texts: list[str],
+        *,
+        graph_profile: GraphProfile) -> list[NERResponse | None]:
+    if not texts:
+        return []
+    smind = graph_profile.get_api()
+    ns = graph_profile.get_ns()
+    input_field = graph_profile.get_input_field()
+    lookup: dict[TaskId, int] = {}
+    for ix, text in enumerate(texts):
+        task_id = smind.enqueue_task(
+            ns,
+            {
+                input_field: text,
+            })
+        print(f"enqueue task {task_id} ({len(text)})")
+        lookup[task_id] = ix
+    sent_tasks = list(lookup.keys())
+
+    res: dict[int, NERResponse] = {}
+    tids: list[TaskId] = []
+    success = False
+    try:
+        for tid, resp in smind.wait_for(sent_tasks, timeout=300):
+            if resp["error"] is not None:
+                error = resp["error"]
+                print(f"{error['code']} ({error['ctx']}): {error['message']}")
+                print("\n".join(error["traceback"]))
+            result = resp["result"]
+            if result is not None:
+                ranges: list[tuple[int, int]] = [
+                    tuple(cur_range)
+                    for cur_range in result["ranges"].T.cpu().tolist()
+                ]
+                res_texts: list[str] = [
+                    bytes(text).rstrip(b"\0").decode("utf-8")
+                    for text in result["text"].cpu().tolist()
+                ]
+                if (len(ranges) == 1
+                        and len(res_texts) == 1
+                        and ranges[0] == (0, 0)
+                        and not res_texts[0]):
+                    ranges = []
+                    res_texts = []
+                curix = lookup[tid]
+                res[curix] = {
+                    "ranges": ranges,
+                    "text": res_texts,
+                }
             print(
                 f"retrieved task {tid} ({resp['ns']}) {resp['status']} "
                 f"{resp['duration']}s retry={resp['retries']}")

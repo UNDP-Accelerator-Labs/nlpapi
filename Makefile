@@ -100,10 +100,10 @@ lint-all: \
 	lint-flake8
 
 build:
-	./sh/build.sh
+	VERBOSE=$(VERBOSE) NO_CACHE=$(NO_CACHE) ./sh/build.sh
 
 build-dev:
-	DEV=1 ./sh/build.sh
+	VERBOSE=$(VERBOSE) NO_CACHE=$(NO_CACHE) DEV=1 ./sh/build.sh
 
 compose:
 	./sh/compose.sh

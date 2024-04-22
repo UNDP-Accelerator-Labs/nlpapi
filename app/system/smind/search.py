@@ -1,14 +1,14 @@
 import hashlib
 import re
+import time
 import traceback
 import uuid
-from typing import get_args, Literal, Protocol, TypeAlias, TypedDict
+from collections.abc import Callable
+from typing import Literal, Protocol, TypedDict
 
 import numpy as np
 from qdrant_client import QdrantClient
 from redipy import Redis
-from scattermind.api.api import ScattermindAPI
-from scattermind.system.names import GNamespace
 
 from app.misc.util import (
     fmt_time,
@@ -20,26 +20,36 @@ from app.misc.util import (
 from app.system.db.db import DBConnector
 from app.system.language.pipeline import extract_language
 from app.system.location.pipeline import extract_locations
-from app.system.location.response import DEFAULT_MAX_REQUESTS, GeoQuery
+from app.system.location.response import (
+    DEFAULT_MAX_REQUESTS,
+    GeoQuery,
+    LanguageStr,
+)
+from app.system.prep.clean import normalize_text, sanity_check
+from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     clear_redis,
     get_text_results_immediate,
-    snippify_text,
+    GraphProfile,
 )
+from app.system.smind.cache import cached, clear_cache
 from app.system.smind.log import log_query
 from app.system.smind.vec import (
     add_embed,
+    DOC_STATUS,
     EmbedChunk,
     EmbedMain,
-    ExternalKey,
+    MetaKey,
+    MetaObject,
     query_docs,
-    query_embed_emu_filters,
+    query_embed,
     ResultChunk,
     stat_embed,
     stat_total,
     StatEmbed,
     vec_flushall,
 )
+from app.system.urlinspect.inspect import inspect_url
 
 
 class GetVecDB(Protocol):  # pylint: disable=too-few-public-methods
@@ -77,24 +87,9 @@ QueryEmbed = TypedDict('QueryEmbed', {
 
 CHUNK_SIZE = 600
 SMALL_CHUNK_SIZE = 150
-CHUNK_PADDING = 10
+TITLE_CHUNK_SIZE = 60
+CHUNK_PADDING = 20
 DEFAULT_HIT_LIMIT = 1
-
-
-DocStatus: TypeAlias = Literal["public", "preview"]
-DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
-
-
-KNOWN_DOC_TYPES: dict[str, set[str]] = {
-    "actionplan": {"action plan"},
-    "experiment": {"experiment"},
-    "solution": {"solution"},
-}
-DOC_TYPE_TO_BASE: dict[str, str] = {
-    doc_type: base
-    for base, doc_types in KNOWN_DOC_TYPES.items()
-    for doc_type in doc_types
-}
 
 
 def vec_clear(
@@ -150,7 +145,7 @@ def vec_clear(
             clear_rworker = False
     if clear_veccache:
         try:
-            qdrant_cache.flushall()
+            clear_cache(qdrant_cache)
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_veccache = False
@@ -203,31 +198,45 @@ def vec_clear(
     }
 
 
+LOW_CUTOFF_DATE = parse_time_str("1971-01-01T00:00:00.000+0000").date()
+
+
 def vec_add(
         db: DBConnector,
         vec_db: QdrantClient,
-        smind: ScattermindAPI,
         input_str: str,
         *,
         qdrant_cache: Redis,
         articles: str,
-        articles_ns: GNamespace,
-        articles_input: str,
-        articles_output: str,
+        articles_graph: GraphProfile,
+        ner_graphs: dict[LanguageStr, GraphProfile],
         user: uuid.UUID,
         base: str,
         doc_id: int,
         url: str,
-        title: str,
-        meta_obj: dict[ExternalKey, list[str] | str],
-        update_meta_only: bool) -> AddEmbed:
-    qdrant_cache.flushall()
+        title: str | None,
+        meta_obj: MetaObject) -> AddEmbed:
+    # FIXME: make "smart" features optional
+    full_start = time.monotonic()
+    # clear caches
+    cache_start = time.monotonic()
+    clear_cache(qdrant_cache)
+    cache_time = time.monotonic() - cache_start
+    preprocess_start = time.monotonic()
     # validate title
-    title = title.strip()
+    title = normalize_text(sanity_check(title))
     if not title:
-        raise ValueError("title cannot be empty")
+        title_loc = next(
+            iter(snippify_text(
+                input_str,
+                chunk_size=TITLE_CHUNK_SIZE,
+                chunk_padding=CHUNK_PADDING)),
+            None)
+        if title_loc is None:
+            raise ValueError(f"cannot infer title for {input_str=}")
+        title, _ = title_loc
     # validate url
-    url = url.strip()
+    url = sanity_check(url.strip())
     if not url:
         raise ValueError("url cannot be empty")
     # validate status
@@ -243,62 +252,76 @@ def vec_add(
     if "doc_type" not in meta_obj:
         raise ValueError(f"doc_type is a mandatory field: {meta_obj}")
     doc_type = meta_obj["doc_type"]
-    if isinstance(doc_type, list):
+    if not isinstance(doc_type, str):
         raise TypeError(f"doc_type {doc_type} must be string")
-    required_doc_types = KNOWN_DOC_TYPES.get(base)
-    if required_doc_types is not None and doc_type not in required_doc_types:
-        raise ValueError(
-            f"base {base} requires doc_type from "
-            f"{required_doc_types} not {doc_type}")
-    required_base = DOC_TYPE_TO_BASE.get(doc_type)
-    if required_base is not None and required_base != base:
-        raise ValueError(
-            f"doc_type {doc_type} requires base {required_base} != {base}")
     # validate date
-    if "date" in meta_obj:
+    if meta_obj.get("date") is not None:
         if isinstance(meta_obj["date"], list):
             raise TypeError(f"date {meta_obj['date']} must be string")
-        if meta_obj["date"] is not None:
-            meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
+        meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
+        if parse_time_str(meta_obj["date"]).date() < LOW_CUTOFF_DATE:
+            meta_obj.pop("date", None)  # NOTE: 1970 dates are invalid dates!
     # fill language if missing
-    if "language" not in meta_obj and not update_meta_only:
+    language_start = time.monotonic()
+    if meta_obj.get("language") is None:
         lang_res = extract_language(db, input_str, user)
-        meta_obj["language"] = sorted({
-            lang_obj["lang"]
+        meta_obj["language"] = {
+            lang_obj["lang"]: lang_obj["score"]
             for lang_obj in lang_res["languages"]
-        })
-    elif "language" in meta_obj:
-        meta_obj["language"] = sorted(set(to_list(meta_obj["language"])))
+        }
+    else:
+        meta_obj["language"] = dict(meta_obj["language"].items())
+    language_time = time.monotonic() - language_start
     # fill iso3 if missing
-    if "iso3" not in meta_obj and not update_meta_only:
+    country_start = time.monotonic()
+    if meta_obj.get("iso3") is None:
         geo_obj: GeoQuery = {
             "input": input_str,
             "return_input": False,
             "return_context": False,
             "strategy": "top",
-            "language": "en",
+            "language": "xx",
             "max_requests": DEFAULT_MAX_REQUESTS,
         }
-        geo_out = extract_locations(db, geo_obj, user)
+        geo_out = extract_locations(db, ner_graphs, geo_obj, user)
         if geo_out["status"] != "invalid":
-            meta_obj["iso3"] = sorted({
-                geo_entity["location"]["country"]
-                for geo_entity in geo_out["entities"]
-                if geo_entity["location"] is not None
-            })
-    elif "iso3" in meta_obj:
-        meta_obj["iso3"] = sorted(set(to_list(meta_obj["iso3"])))
+            total: int = 0
+            countries: dict[str, int] = {}
+            for geo_entity in geo_out["entities"]:
+                if geo_entity["location"] is None:
+                    continue
+                cur_country = geo_entity["location"]["country"]
+                prev_ccount = countries.get(cur_country, 0)
+                geo_count = geo_entity["count"]
+                total += geo_count
+                countries[cur_country] = prev_ccount + geo_count
+            meta_obj["iso3"] = {
+                country: count / total
+                for country, count in countries.items()
+            }
+        else:
+            meta_obj["iso3"] = {}
+    else:
+        meta_obj["iso3"] = dict(meta_obj["iso3"].items())
+    # inspect URL and amend iso3 if country found
+    url_iso3 = inspect_url(url)
+    if url_iso3 is not None:
+        print(f"overwriting {url_iso3} was {meta_obj['iso3'].get(url_iso3)}")
+        meta_obj["iso3"][url_iso3] = 2.0
+    country_time = time.monotonic() - country_start
+    preprocess_time = time.monotonic() - preprocess_start
     # compute embedding
-    snippets = list(snippify_text(
-        input_str,
-        chunk_size=CHUNK_SIZE,
-        chunk_padding=CHUNK_PADDING))
+    embed_start = time.monotonic()
+    snippets = [
+        snippet
+        for (snippet, _) in snippify_text(
+            input_str,
+            chunk_size=CHUNK_SIZE,
+            chunk_padding=CHUNK_PADDING)
+    ]
     embeds = get_text_results_immediate(
         snippets,
-        smind=smind,
-        ns=articles_ns,
-        input_field=articles_input,
-        output_field=articles_output,
+        graph_profile=articles_graph,
         output_sample=[1.0])
     embed_main: EmbedMain = {
         "base": base,
@@ -316,14 +339,22 @@ def vec_add(
         for chunk_id, (snippet, embed) in enumerate(zip(snippets, embeds))
         if embed is not None
     ]
+    embed_time = time.monotonic() - embed_start
     # add embedding to vecdb
+    vec_start = time.monotonic()
     prev_count, new_count = add_embed(
         vec_db,
         name=articles,
         data=embed_main,
-        chunks=embed_chunks,
-        update_meta_only=update_meta_only)
+        chunks=embed_chunks)
     failed = sum(1 if embed is None else 0 for embed in embeds)
+    vec_time = time.monotonic() - vec_start
+    full_time = time.monotonic() - full_start
+    print(
+        f"adding {base}:{doc_id} took "
+        f"{full_time=}s {preprocess_time=}s {embed_time=}s {vec_time=}s "
+        f"{language_time=}s {country_time=}s {cache_time=}s "
+        f"{prev_count=} {new_count=} {failed=}")
     return {
         "previous": prev_count,
         "snippets": new_count,
@@ -331,7 +362,7 @@ def vec_add(
     }
 
 
-def get_filter_hash(filters: dict[ExternalKey, list[str]] | None) -> str:
+def get_filter_hash(filters: dict[MetaKey, list[str]] | None) -> str:
     blake = hashlib.blake2b(digest_size=32)
     if filters is not None:
         for key, values in sorted(filters.items(), key=lambda kv: kv[0]):
@@ -354,48 +385,45 @@ def vec_filter_total(
         *,
         qdrant_cache: Redis,
         articles: str,
-        filters: dict[ExternalKey, list[str]] | None) -> int:
+        filters: dict[MetaKey, list[str]] | None) -> int:
     if filters is not None:
         filters = {
             key: to_list(value)
             for key, value in filters.items()
             if to_list(value)
         }
-    cache_key = f"total:{articles}:{get_filter_hash(filters)}"
-    res = qdrant_cache.get_value(cache_key)
-    if res is not None:
-        print(f"TOTAL CACHE HIT {cache_key}")
-        return int(res)
-    print(f"TOTAL CACHE MISS {cache_key}")
-    ret_val = stat_total(vec_db, articles, filters=filters)
-    qdrant_cache.set_value(cache_key, f"{ret_val}")
-    return ret_val
+    return cached(
+        qdrant_cache,
+        cache_type="total",
+        db_name=articles,
+        cache_hash=get_filter_hash(filters),
+        compute_fn=lambda: stat_total(vec_db, articles, filters=filters),
+        pre_cache_fn=str,
+        post_fn=int)
 
 
 def vec_filter_field(
         vec_db: QdrantClient,
-        field: ExternalKey,
+        field: MetaKey,
         *,
         qdrant_cache: Redis,
         articles: str,
-        filters: dict[ExternalKey, list[str]] | None) -> dict[str, int]:
+        filters: dict[MetaKey, list[str]] | None) -> dict[str, int]:
     if filters is not None:
         filters = {
             key: to_list(value)
             for key, value in filters.items()
             if key != field and to_list(value)
         }
-    cache_key = f"field:{articles}:{field}:{get_filter_hash(filters)}"
-    res = qdrant_cache.get_value(cache_key)
-    if res is not None:
-        ret_val: dict[str, int] | None = json_maybe_read(res)
-        if ret_val is not None:
-            print(f"FIELD CACHE HIT {cache_key}")
-            return ret_val
-    print(f"FIELD CACHE MISS {cache_key}")
-    ret_val = stat_embed(vec_db, articles, field=field, filters=filters)
-    qdrant_cache.set_value(cache_key, json_compact_str(ret_val))
-    return ret_val
+    return cached(
+        qdrant_cache,
+        cache_type="field",
+        db_name=f"{articles}:{field}",
+        cache_hash=get_filter_hash(filters),
+        compute_fn=lambda: stat_embed(
+            vec_db, articles, field=field, filters=filters),
+        pre_cache_fn=json_compact_str,
+        post_fn=json_maybe_read)
 
 
 def vec_filter(
@@ -403,8 +431,8 @@ def vec_filter(
         *,
         qdrant_cache: Redis,
         articles: str,
-        fields: set[ExternalKey],
-        filters: dict[ExternalKey, list[str]] | None) -> StatEmbed:
+        fields: set[MetaKey],
+        filters: dict[MetaKey, list[str]] | None) -> StatEmbed:
     return {
         "doc_count": vec_filter_total(
             vec_db,
@@ -423,17 +451,97 @@ def vec_filter(
     }
 
 
+def apply_snippets(
+        hits: list[ResultChunk],
+        fn: Callable[[int], list[str]]) -> list[ResultChunk]:
+
+    def apply(ix: int, hit: ResultChunk) -> ResultChunk:
+        res = hit.copy()
+        res["snippets"] = fn(ix)
+        return res
+
+    return [apply(ix, hit) for (ix, hit) in enumerate(hits)]
+
+
+def dot_order(
+        embed: list[float],
+        sembeds: list[tuple[tuple[int, str], list[float]]],
+        hit_limit: int) -> dict[int, list[str]]:
+    mat_ref = np.array([embed])  # 1 x len(embed)
+
+    def dot_hit(group: list[tuple[str, list[float]]]) -> list[str]:
+        mat_embed = np.array([
+            sembed
+            for (_, sembed) in group
+        ]).T  # len(embed) x len(group)
+        dots = np.matmul(mat_ref, mat_embed).ravel()
+        ixs = list(np.argsort(dots))[::-1]
+        return [group[ix][0] for ix in ixs[:hit_limit]]
+
+    lookup: dict[int, list[tuple[str, list[float]]]] = {}
+    for ((pos, txt), cur_embed) in sembeds:
+        cur: list[tuple[str, list[float]]] | None = lookup.get(pos)
+        if cur is None:
+            cur = []
+            lookup[pos] = cur
+        cur.append((txt, cur_embed))
+    return {
+        pos: dot_hit(cur_group)
+        for (pos, cur_group) in lookup.items()
+    }
+
+
+def snippet_post(
+        hits: list[ResultChunk],
+        *,
+        embed: list[float],
+        articles_graph: GraphProfile,
+        short_snippets: bool,
+        hit_limit: int) -> tuple[list[ResultChunk], int]:
+
+    def process_snippets(ix: int) -> list[str]:
+        return [
+            re.sub(r"\s+", " ", snip).strip()
+            for snip in hits[ix]["snippets"]
+        ]
+
+    if not short_snippets:
+        return (apply_snippets(hits, process_snippets), 0)
+    small_snippets: list[tuple[int, str]] = [
+        (ix, snap.strip())
+        for (ix, hit) in enumerate(hits)
+        for snip in hit["snippets"]
+        for (snap, _) in snippify_text(
+            re.sub(r"\s+", " ", snip).strip(),
+            chunk_size=SMALL_CHUNK_SIZE,
+            chunk_padding=CHUNK_PADDING)
+        if snap.strip()
+    ]
+    sembeds: list[tuple[tuple[int, str], list[float]]] = [
+        (ssnip, sembed)
+        for ssnip, sembed in zip(small_snippets, get_text_results_immediate(
+            [snip for (_, snip) in small_snippets],
+            graph_profile=articles_graph,
+            output_sample=[1.0]))
+        if sembed is not None
+    ]
+    lookup = dot_order(embed, sembeds, hit_limit)
+
+    def apply_dot(ix: int) -> list[str]:
+        return lookup.get(ix, [])
+
+    return (apply_snippets(hits, apply_dot), len(small_snippets))
+
+
 def vec_search(
         db: DBConnector,
         vec_db: QdrantClient,
-        smind: ScattermindAPI,
         input_str: str,
         *,
         articles: str,
-        articles_ns: GNamespace,
-        articles_input: str,
-        articles_output: str,
-        filters: dict[ExternalKey, list[str]] | None,
+        articles_graph: GraphProfile,
+        filters: dict[MetaKey, list[str]] | None,
+        order_by: MetaKey | tuple[MetaKey, str] | None,
         offset: int | None,
         limit: int,
         hit_limit: int,
@@ -445,19 +553,6 @@ def vec_search(
             for key, value in filters.items()
             if to_list(value)
         }
-        # NOTE: utilizing base vec index for known doc_types
-        # each doc_type can only be in one base
-        doc_type_filter = filters.get("doc_type")
-        if doc_type_filter and "base" not in filters:
-            bases: set[str] = set()
-            for doc_type in doc_type_filter:
-                fixed_base = DOC_TYPE_TO_BASE.get(doc_type)
-                if fixed_base is None:
-                    bases = set()
-                    break
-                bases.add(fixed_base)
-            if bases:
-                filters["base"] = sorted(bases)
     if offset == 0:
         offset = None
     if not input_str:
@@ -466,58 +561,33 @@ def vec_search(
             articles,
             offset=offset,
             limit=limit,
-            filters=filters)
+            filters=filters,
+            order_by=order_by)
         return {
             "hits": res,
             "status": "ok",
         }
+    full_start = time.monotonic()
+
+    embed_start = time.monotonic()
     embed = get_text_results_immediate(
         [input_str],
-        smind=smind,
-        ns=articles_ns,
-        input_field=articles_input,
-        output_field=articles_output,
+        graph_profile=articles_graph,
         output_sample=[1.0])[0]
-    log_query(db, db_name=articles, text=input_str)
+    embed_time = time.monotonic() - embed_start
+
+    log_start = time.monotonic()
+    log_query(db, db_name=articles, text=input_str, filters=filters)
+    log_time = time.monotonic() - log_start
+
     if embed is None:
         return {
             "hits": [],
             "status": "error",
         }
 
-    def snippet_post(snippets: list[str]) -> list[str]:
-        if not short_snippets:
-            return [re.sub(r"\s+", " ", snip).strip() for snip in snippets]
-        small_snippets = [
-            snap.strip()
-            for snip in snippets
-            for snap in snippify_text(
-                re.sub(r"\s+", " ", snip).strip(),
-                chunk_size=SMALL_CHUNK_SIZE,
-                chunk_padding=CHUNK_PADDING)
-            if snap.strip()
-        ]
-        sembeds = [
-            (stxt, sembed)
-            for stxt, sembed in zip(small_snippets, get_text_results_immediate(
-                small_snippets,
-                smind=smind,
-                ns=articles_ns,
-                input_field=articles_input,
-                output_field=articles_output,
-                output_sample=[1.0]))
-            if sembed is not None
-        ]
-        mat_ref = np.array([embed])  # 1 x len(embed)
-        mat_embed = np.array([
-            sembed
-            for (_, sembed) in sembeds
-        ]).T  # len(embed) x len(semebds)
-        dots = np.matmul(mat_ref, mat_embed).ravel()
-        ixs = list(np.argsort(dots))[::-1]
-        return [sembeds[ix][0] for ix in ixs[:hit_limit]]
-
-    hits = query_embed_emu_filters(
+    query_start = time.monotonic()
+    hits = query_embed(
         vec_db,
         articles,
         embed,
@@ -525,9 +595,24 @@ def vec_search(
         limit=limit,
         hit_limit=hit_limit,
         score_threshold=score_threshold,
-        filters=filters,
-        snippet_post_processing=snippet_post)
+        filters=filters)
+    query_time = time.monotonic() - query_start
+
+    snippy_start = time.monotonic()
+    final_hits, snippy_embeds = snippet_post(
+        hits,
+        embed=embed,
+        articles_graph=articles_graph,
+        short_snippets=short_snippets,
+        hit_limit=hit_limit)
+    snippy_time = time.monotonic() - snippy_start
+
+    full_time = time.monotonic() - full_start
+    print(
+        f"query for '{input_str}' took "
+        f"{full_time=}s {embed_time=}s {log_time=}s {query_time=}s "
+        f"{snippy_time=}s {snippy_embeds=}")
     return {
-        "hits": hits,
+        "hits": final_hits,
         "status": "ok",
     }

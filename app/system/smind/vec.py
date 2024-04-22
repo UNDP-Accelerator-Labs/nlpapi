@@ -1,12 +1,22 @@
 import collections
-import re
+import hashlib
 import time
 import uuid
 from collections.abc import Callable, Sequence
 from datetime import datetime
-from typing import Any, cast, Literal, TypeAlias, TypedDict, TypeVar
+from typing import (
+    Any,
+    cast,
+    get_args,
+    Literal,
+    NotRequired,
+    TypeAlias,
+    TypedDict,
+    TypeVar,
+)
 
 from qdrant_client import QdrantClient
+from qdrant_client.conversions.common_types import PayloadSchemaType
 from qdrant_client.http.exceptions import (
     ResponseHandlingException,
     UnexpectedResponse,
@@ -43,20 +53,62 @@ REF_KEY: Literal["main_uuid"] = "main_uuid"
 DUMMY_VEC: list[float] = [1.0]
 
 
-KEY_REGEX = re.compile(r"[a-z_0-9]+")
-META_PREFIX = "meta_"
-FORBIDDEN_META = ["base", "main_id"]
+META_CAT = "_"
+META_PREFIX = f"meta{META_CAT}"
 
-ExternalKey: TypeAlias = str
-InternalKey: TypeAlias = str
 
-FIELDS_PREFIX = "fields"
-VEC_SEARCHABLE: list[ExternalKey] = ["base", "status"]
+InternalDataKey: TypeAlias = str
+InternalSnippetKey: TypeAlias = str
+
+
+HashTup: TypeAlias = tuple[str, int]
+
+
+DocStatus: TypeAlias = Literal["public", "preview"]
+DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
+
+
+MetaObject = TypedDict('MetaObject', {
+    "date": NotRequired[str],
+    "status": DocStatus,
+    "doc_type": str,
+    "language": dict[str, float],
+    "iso3": dict[str, float],
+})
+MetaObjectOpt = TypedDict('MetaObjectOpt', {
+    "date": NotRequired[str],
+    "status": DocStatus,
+    "doc_type": str,
+    "language": dict[str, float],
+    "iso3": dict[str, float],
+}, total=False)
+MetaKey = Literal["date", "status", "doc_type", "language", "iso3"]
+META_KEYS: set[MetaKey] = set(get_args(MetaKey))
+META_SCALAR: set[MetaKey] = {"language", "iso3"}
+META_SNIPPET_INDEX: dict[MetaKey, PayloadSchemaType] = {
+    "date": "datetime",
+    "status": "keyword",
+    "doc_type": "keyword",
+    "language": "keyword",
+    "iso3": "keyword",
+}
+
+
+KNOWN_DOC_TYPES: dict[str, set[str]] = {
+    "actionplan": {"action plan"},
+    "experiment": {"experiment"},
+    "solution": {"solution"},
+}
+DOC_TYPE_TO_BASE: dict[str, str] = {
+    doc_type: base
+    for base, doc_types in KNOWN_DOC_TYPES.items()
+    for doc_type in doc_types
+}
 
 
 StatEmbed = TypedDict('StatEmbed', {
     "doc_count": int,
-    "fields": dict[ExternalKey, dict[str, int]],
+    "fields": dict[MetaKey, dict[str, int]],
 })
 
 
@@ -89,7 +141,7 @@ EmbedMain = TypedDict('EmbedMain', {
     "base": str,
     "url": str,
     "title": str,
-    "meta": dict[ExternalKey, list[str] | str],
+    "meta": MetaObject,
 })
 
 
@@ -107,33 +159,52 @@ ResultChunk = TypedDict('ResultChunk', {
     "base": str,
     "url": str,
     "title": str,
+    "updated": str,
     "snippets": list[str],
-    "meta": dict[ExternalKey, list[str] | str],
+    "meta": dict[MetaKey, list[str] | str | int],
 })
 
 
 FILE_PROTOCOL = "file://"
 
 
-def convert_meta_key(key: ExternalKey) -> InternalKey:
-    if KEY_REGEX.fullmatch(key) is None:
-        raise ValueError(f"key '{key}' is not valid as meta key")
-    if key in FORBIDDEN_META:
-        raise ValueError(f"key '{key}' cannot be one of {FORBIDDEN_META}")
+def convert_meta_key_data(
+        key: MetaKey, variant: str | None) -> InternalDataKey:
+    if key not in META_KEYS:
+        raise ValueError(f"{key} is not a valid meta key")
+    if key in META_SCALAR and variant is not None:
+        return f"{META_PREFIX}{key}{META_CAT}{variant}"
     return f"{META_PREFIX}{key}"
 
 
-def maybe_convert_meta_key(key: ExternalKey) -> InternalKey:
-    if key in FORBIDDEN_META:
-        return key
-    return convert_meta_key(key)
+def convert_meta_key_snippet(key: MetaKey) -> InternalSnippetKey:
+    if key not in META_KEYS:
+        raise ValueError(f"{key} is not a valid meta key")
+    return f"{META_PREFIX}{key}"
 
 
-def unconvert_meta_key(key: InternalKey) -> ExternalKey | None:
+def unconvert_meta_key_data(
+        key: InternalDataKey) -> tuple[MetaKey, str | None] | None:
     res = key.removeprefix(META_PREFIX)
     if res == key:
         return None
-    return res
+    for mkey in META_KEYS:
+        m_value = res.removeprefix(mkey)
+        if res != m_value:
+            value = m_value.removeprefix(META_CAT)
+            if value == m_value:
+                return (mkey, None)
+            return (mkey, value)
+    return None
+
+
+def unconvert_meta_key_snippet(key: InternalSnippetKey) -> MetaKey | None:
+    res = key.removeprefix(META_PREFIX)
+    if res == key:
+        return None
+    if res not in META_KEYS:
+        return None
+    return cast(MetaKey, res)
 
 
 def ensure_valid_name(name: str) -> str:
@@ -231,6 +302,7 @@ def build_db_name(
         raise ValueError(f"invalid distance name: {distance_fn}")
 
     def recreate() -> None:
+        # FIXME test no replication
         print(f"create {name} size={embed_size} distance={distance}")
         vec_name = get_db_name(name, is_vec=True)
         config = VectorParams(
@@ -250,6 +322,8 @@ def build_db_name(
             vectors_config=config,
             optimizers_config=optimizers,
             on_disk_payload=True,
+            replication_factor=2,
+            shard_number=6,
             timeout=600)
 
         data_name = get_db_name(name, is_vec=False)
@@ -257,17 +331,19 @@ def build_db_name(
             data_name,
             vectors_config=VectorParams(size=1, distance=distance),
             on_disk_payload=True,
+            replication_factor=2,
+            shard_number=6,
             timeout=600)
 
     def recreate_index() -> None:
+        # * vec keys *
         vec_name = get_db_name(name, is_vec=True)
 
-        for key_name in VEC_SEARCHABLE:
-            vec_key = maybe_convert_meta_key(key_name)
-            retry_err(
-                lambda key: db.delete_payload_index(vec_name, key), vec_key)
-            db.create_payload_index(vec_name, vec_key, "keyword", wait=False)
+        retry_err(
+            lambda key: db.delete_payload_index(vec_name, key), "base")
+        db.create_payload_index(vec_name, "base", "keyword", wait=False)
 
+        # * data keys *
         data_name = get_db_name(name, is_vec=False)
 
         retry_err(lambda: db.delete_payload_index(data_name, "main_id"))
@@ -276,25 +352,21 @@ def build_db_name(
         retry_err(lambda: db.delete_payload_index(data_name, "base"))
         db.create_payload_index(data_name, "base", "keyword", wait=False)
 
-        date_key = convert_meta_key("date")
-        retry_err(lambda: db.delete_payload_index(data_name, date_key))
-        db.create_payload_index(data_name, date_key, "datetime", wait=False)
-
-        status_key = convert_meta_key("status")
-        retry_err(lambda: db.delete_payload_index(data_name, status_key))
-        db.create_payload_index(data_name, status_key, "keyword", wait=False)
-
-        language_key = convert_meta_key("language")
-        retry_err(lambda: db.delete_payload_index(data_name, language_key))
-        db.create_payload_index(data_name, language_key, "keyword", wait=False)
-
-        iso3_key = convert_meta_key("iso3")
-        retry_err(lambda: db.delete_payload_index(data_name, iso3_key))
-        db.create_payload_index(data_name, iso3_key, "keyword", wait=False)
-
-        doc_type_key = convert_meta_key("doc_type")
-        retry_err(lambda: db.delete_payload_index(data_name, doc_type_key))
-        db.create_payload_index(data_name, doc_type_key, "keyword", wait=False)
+        # * meta keys *
+        for meta_key in META_KEYS:
+            snippet_meta_key = convert_meta_key_snippet(meta_key)
+            index_type = META_SNIPPET_INDEX[meta_key]
+            retry_err(
+                lambda mkey: db.delete_payload_index(vec_name, mkey),
+                snippet_meta_key)
+            db.create_payload_index(
+                vec_name, snippet_meta_key, index_type, wait=False)
+            data_meta_key = convert_meta_key_data(meta_key, None)
+            retry_err(
+                lambda mkey: db.delete_payload_index(data_name, mkey),
+                data_meta_key)
+            db.create_payload_index(
+                data_name, data_meta_key, index_type, wait=False)
 
     need_create = False
     if not force_clear and not force_index:
@@ -324,6 +396,20 @@ def build_db_name(
     return name
 
 
+def build_scalar_index(db: QdrantClient, name: str) -> None:
+    data_name = get_db_name(name, is_vec=False)
+    for meta_key in META_SCALAR:
+        # NOTE: no caching!
+        stats = stat_embed(db, name, field=meta_key, filters=None)
+        for variant in stats.keys():
+            data_meta_key = convert_meta_key_data(meta_key, variant)
+            retry_err(
+                lambda mkey: db.delete_payload_index(data_name, mkey),
+                data_meta_key)
+            db.create_payload_index(
+                data_name, data_meta_key, "float", wait=False)
+
+
 def full_scroll(
         db: QdrantClient,
         name: str,
@@ -351,94 +437,163 @@ def full_scroll(
     return res
 
 
+def compute_chunk_hash(chunks: list[EmbedChunk]) -> HashTup:
+    blake = hashlib.blake2b(digest_size=32)
+    blake.update(f"{len(chunks)}:".encode("utf-8"))
+    for chunk in chunks:
+        snippet = chunk["snippet"]
+        blake.update(f"{len(snippet)}:".encode("utf-8"))
+        blake.update(snippet.encode("utf-8"))
+    return (blake.hexdigest(), len(chunks))
+
+
+def get_main_id(data: EmbedMain) -> str:
+    return f"{data['base']}:{data['doc_id']}"
+
+
+def get_main_uuid(data: EmbedMain) -> str:
+    return f"{uuid.uuid5(QDRANT_UUID, get_main_id(data))}"
+
+
+def to_data_payload(
+        data: EmbedMain,
+        chunk_hash: HashTup,
+        ) -> dict[InternalDataKey, list[str] | str | float | int]:
+    hash_str, count = chunk_hash
+    res: dict[InternalDataKey, list[str] | str | float | int] = {
+        "main_id": get_main_id(data),
+        "doc_id": data["doc_id"],
+        "base": data["base"],
+        "url": data["url"],
+        "title": data["title"],
+        "updated": get_time_str(),
+        "hash": hash_str,
+        "count": count,
+    }
+    for (mkey, value) in data["meta"].items():
+        key = cast(MetaKey, mkey)
+        if key in META_SCALAR:
+            inner: dict[str, float] = cast(dict, value)
+            for variant, scalar in inner.items():
+                if scalar > 0.0:
+                    res[convert_meta_key_data(key, variant)] = scalar
+            res[convert_meta_key_data(key, None)] = [
+                variant
+                for variant, scalar in sorted(
+                    inner.items(), key=lambda item: item[1], reverse=True)
+                if scalar > 0.0
+            ]
+        else:
+            val = cast(str | int, value)
+            res[convert_meta_key_data(key, None)] = val
+    return res
+
+
+def to_snippet_payload_template(
+        data: EmbedMain,
+        ) -> dict[InternalSnippetKey, list[str] | str | int]:
+    res: dict[InternalSnippetKey, list[str] | str | int] = {
+        REF_KEY: get_main_uuid(data),
+    }
+    for mkey, value in data["meta"].items():
+        key = cast(MetaKey, mkey)
+        if key in META_SCALAR:
+            inner: dict[str, float] = cast(dict, value)
+            res[convert_meta_key_snippet(key)] = [
+                variant
+                for variant, scalar in sorted(
+                    inner.items(), key=lambda item: item[1], reverse=True)
+                if scalar > 0.0
+            ]
+        else:
+            val = cast(str | int, value)
+            res[convert_meta_key_snippet(key)] = val
+    return res
+
+
 def add_embed(
         db: QdrantClient,
         *,
         name: str,
         data: EmbedMain,
-        chunks: list[EmbedChunk],
-        update_meta_only: bool) -> tuple[int, int]:
-    new_count = len(chunks)
-    if update_meta_only and new_count > 0:
-        raise ValueError("'update_meta_only' requires chunks to be empty")
-    print(f"add_embed {name} {new_count} items")
-    base = data["base"]
-    main_id = f"{base}:{data['doc_id']}"
-    main_uuid = f"{uuid.uuid5(QDRANT_UUID, main_id)}"
+        chunks: list[EmbedChunk]) -> tuple[int, int]:
+    chunk_hash = compute_chunk_hash(chunks)
+    cur_hash, new_count = chunk_hash
+    main_id = get_main_id(data)
+    main_uuid = get_main_uuid(data)
 
-    meta_obj = data["meta"]
     data_name = get_db_name(name, is_vec=False)
     filter_data = Filter(
         must=[
-            FieldCondition(key="main_id", match=MatchValue(value=main_id)),
+            FieldCondition(
+                key="main_id",
+                match=MatchValue(value=main_id)),
         ])
     prev_data = full_scroll(
-        db, data_name, scroll_filter=filter_data, with_payload=True)
-    meta_keys: set[ExternalKey] = set(meta_obj.keys())
-    prev_meta: dict[ExternalKey, list[str] | str] = {}
+        db,
+        data_name,
+        scroll_filter=filter_data,
+        with_payload=["hash", "count"])
+    prev_hash: str | None = None
+    prev_count: int = 0
     if len(prev_data) > 0:
         prev_payload = prev_data[0].payload
         assert prev_payload is not None
-        prev_meta = fill_meta(prev_payload)
-        meta_keys.update(prev_meta.keys())
+        prev_hash = prev_payload["hash"]
+        prev_count = prev_payload["count"]
 
-    if "date" not in prev_meta and "date" not in meta_obj:
-        meta_obj["date"] = get_time_str()
-        meta_keys.add("date")
+    meta_obj = data["meta"]
+    if meta_obj.get("date") is None:
+        meta_obj.pop("date", None)
 
-    main_payload: dict[InternalKey, list[str] | str | int] = {
-        "main_id": main_id,
-        "doc_id": data["doc_id"],
-        "base": base,
-        "url": data["url"],
-        "title": data["title"],
-    }
-    for key, value in meta_obj.items():
-        meta_key = convert_meta_key(key)
-        main_payload[meta_key] = value
+    base = data["base"]
+    doc_type = meta_obj["doc_type"]
+    required_doc_types = KNOWN_DOC_TYPES.get(base)
+    if required_doc_types is not None and doc_type not in required_doc_types:
+        raise ValueError(
+            f"base {base} requires doc_type from "
+            f"{required_doc_types} not {doc_type}")
+    required_base = DOC_TYPE_TO_BASE.get(doc_type)
+    if required_base is not None and required_base != base:
+        raise ValueError(
+            f"doc_type {doc_type} requires base {required_base} != {base}")
 
-    db.upsert(
-        data_name,
-        points=[
-            PointStruct(
-                id=main_uuid,
-                vector=DUMMY_VEC,
-                payload=main_payload),
-        ],
-        wait=False)
-    if update_meta_only:
-        return (0, 0)
     vec_name = get_db_name(name, is_vec=True)
-    filter_docs = Filter(
-        must=[
-            FieldCondition(key=REF_KEY, match=MatchValue(value=main_uuid)),
-        ])
-    count_res = db.count(vec_name, count_filter=filter_docs, exact=True)
-    prev_count = count_res.count
-    if prev_count > new_count or new_count == 0:
-        db.delete(vec_name, points_selector=FilterSelector(filter=filter_docs))
-        if new_count == 0:
+
+    def empty_previous() -> None:
+        if prev_count > new_count or new_count == 0:
+            filter_docs = Filter(
+                must=[
+                    FieldCondition(
+                        key=REF_KEY,
+                        match=MatchValue(value=main_uuid)),
+                ])
             db.delete(
-                data_name, points_selector=FilterSelector(filter=filter_docs))
+                vec_name,
+                points_selector=FilterSelector(filter=filter_docs))
+            if new_count == 0:
+                db.delete(
+                    data_name,
+                    points_selector=FilterSelector(filter=filter_docs))
 
-    if not chunks:
-        return (prev_count, new_count)
+    def insert_chunks() -> None:
+        vec_payload_template = to_snippet_payload_template(data)
+        db.upsert(
+            vec_name,
+            points=[
+                convert_chunk(chunk, vec_payload_template)
+                for chunk in chunks
+            ],
+            wait=False)
 
-    vec_searchable: list[InternalKey] = [
-        maybe_convert_meta_key(key_name)
-        for key_name in VEC_SEARCHABLE
-    ]
-    vec_payload_template: dict[InternalKey, list[str] | str | int] = {
-        vec_name: main_payload[vec_name]
-        for vec_name in vec_searchable
-        if vec_name in main_payload
-    }
-
-    def convert_chunk(chunk: EmbedChunk) -> PointStruct:
+    def convert_chunk(
+            chunk: EmbedChunk,
+            vec_payload_template: dict[
+                InternalSnippetKey, list[str] | str | int],
+            ) -> PointStruct:
         point_id = f"{main_id}:{chunk['chunk_id']}"
         point_uuid = f"{uuid.uuid5(QDRANT_UUID, point_id)}"
-        point_payload: dict[InternalKey, list[str] | str | int] = {
-            REF_KEY: main_uuid,
+        point_payload: dict[InternalSnippetKey, list[str] | str | int] = {
             "vector_id": point_id,
             "snippet": chunk["snippet"],
             **vec_payload_template,
@@ -449,10 +604,22 @@ def add_embed(
             vector=chunk["embed"],
             payload=point_payload)
 
-    db.upsert(
-        vec_name,
-        points=[convert_chunk(chunk) for chunk in chunks],
-        wait=False)
+    if prev_hash != cur_hash and prev_count != new_count:
+        empty_previous()
+        if chunks:
+            insert_chunks()
+
+    if new_count != 0:
+        db.upsert(
+            data_name,
+            points=[
+                PointStruct(
+                    id=main_uuid,
+                    vector=DUMMY_VEC,
+                    payload=to_data_payload(data, chunk_hash)),
+            ],
+            wait=False)
+
     return (prev_count, new_count)
 
 
@@ -460,10 +627,11 @@ def stat_total(
         db: QdrantClient,
         name: str,
         *,
-        filters: dict[ExternalKey, list[str]] | None) -> int:
+        filters: dict[MetaKey, list[str]] | None) -> int:
     query_filter = get_filter(filters, for_vec=False, skip_fields=None)
     data_name = get_db_name(name, is_vec=False)
-    count_res = db.count(data_name, count_filter=query_filter, exact=True)
+    count_res = retry_err(
+        lambda: db.count(data_name, count_filter=query_filter, exact=True))
     return count_res.count
 
 
@@ -471,13 +639,13 @@ def stat_embed(
         db: QdrantClient,
         name: str,
         *,
-        field: ExternalKey,
-        filters: dict[ExternalKey, list[str]] | None,
+        field: MetaKey,
+        filters: dict[MetaKey, list[str]] | None,
         ) -> dict[str, int]:
     query_filter = get_filter(filters, for_vec=False, skip_fields={field})
     data_name = get_db_name(name, is_vec=False)
 
-    field_key = convert_meta_key(field)
+    field_key = convert_meta_key_data(field, None)
     main_ids_data = full_scroll(
         db,
         data_name,
@@ -493,7 +661,7 @@ def stat_embed(
         if isinstance(val, datetime):
             dt = val
         else:
-            dt = parse_time_str(f"{val}")
+            dt = parse_time_str(val)
         return dt.date().isoformat()
 
     def convert_for_value(val: str) -> str:
@@ -513,120 +681,104 @@ def stat_embed(
     return dict(counts)
 
 
-def fill_meta(payload: Payload) -> dict[ExternalKey, list[str] | str]:
-    meta = {}
+def fill_meta_data(payload: Payload) -> MetaObjectOpt:
+    meta: MetaObjectOpt = {}
     for key, value in payload.items():
-        meta_key = unconvert_meta_key(key)
-        if meta_key is None:
+        meta_info = unconvert_meta_key_data(key)
+        if meta_info is None:
             continue
-        meta[meta_key] = value
+        meta_key, meta_value = meta_info
+        if meta_value is not None:
+            inner: dict[str, float] = cast(dict, meta.get(meta_key))
+            if inner is None:
+                inner = {}
+                meta[meta_key] = inner
+            inner[meta_value] = value
+        elif meta_key not in META_SCALAR:
+            meta[meta_key] = value
     return meta
 
 
 def get_filter(
-        filters: dict[ExternalKey, list[str]] | None,
+        filters: dict[MetaKey, list[str]] | None,
         *,
         for_vec: bool,
-        skip_fields: set[ExternalKey] | None) -> Filter | None:
+        skip_fields: set[MetaKey] | None) -> Filter | None:
     if filters is None:
         return None
+
+    def cmkd(key: MetaKey) -> InternalDataKey:
+        return convert_meta_key_data(key, None)
+
+    if for_vec:
+        convert_meta_key = convert_meta_key_snippet
+    else:
+        convert_meta_key = cmkd
+
     conds: list[Condition] = []
     for key, values in filters.items():
         if skip_fields is not None and key in skip_fields:
             continue
         if not values:
             continue
-        if for_vec and key not in VEC_SEARCHABLE:
-            continue
         if key == "date":
             if len(values) != 2:
                 raise ValueError(
                     f"date filter must be exactly two dates got {values}")
-            key = convert_meta_key(key)
+            ikey = convert_meta_key(key)
             dates = [parse_time_str(value) for value in values]
             conds.append(FieldCondition(
-                key=key, range=DatetimeRange(gte=min(dates), lte=max(dates))))
+                key=ikey, range=DatetimeRange(gte=min(dates), lte=max(dates))))
             continue
-        key = maybe_convert_meta_key(key)
-        conds.append(FieldCondition(key=key, match=MatchAny(any=values)))
+        if key == "doc_type":
+            # NOTE: utilizing base vec index for known doc_types
+            # each doc_type can only be in one base
+            bases: set[str] = set()
+            for doc_type in values:
+                fixed_base = DOC_TYPE_TO_BASE.get(doc_type)
+                if fixed_base is None:
+                    bases = set()
+                    break
+                bases.add(fixed_base)
+            if bases:
+                conds.append(FieldCondition(
+                    key="base",
+                    match=MatchAny(any=sorted(bases))))
+                continue
+        ikey = convert_meta_key(key)
+        conds.append(FieldCondition(key=ikey, match=MatchAny(any=values)))
     if not conds:
         return None
     return Filter(must=conds)
 
 
-def create_filter_fn(
-        filters: dict[ExternalKey, list[str]] | None,
-        ) -> Callable[[ResultChunk], bool]:
-    if filters is None:
-        return lambda _: True
-    filters_conv: dict[ExternalKey, set[str]] = {
-        key: set(values)
-        for key, values in filters.items()
+def process_meta(
+        meta_key: MetaKey,
+        payload: Payload,
+        defaults: dict[MetaKey, list[str] | str | int],
+        ) -> list[str] | str | int:
+    res = payload.get(convert_meta_key_data(meta_key, None))
+    if res is None:
+        res = defaults.get(meta_key)
+        if res is None:
+            raise KeyError(f"{meta_key=} not in {payload=}")
+        return res
+    if meta_key not in META_SCALAR:
+        return res
+    return sorted(
+        res,
+        key=lambda val: payload.get(convert_meta_key_data(meta_key, val), 0),
+        reverse=True)
+
+
+def get_meta_from_data_payload(
+        payload: Payload,
+        defaults: dict[MetaKey, list[str] | str | int],
+        ) -> dict[MetaKey, list[str] | str | int]:
+    return {
+        meta_key: process_meta(meta_key, payload, defaults)
+        for meta_key in META_KEYS
     }
-
-    def filter_fn(chunk: ResultChunk) -> bool:
-        for key, values in filters_conv.items():
-            if key in FORBIDDEN_META:
-                other_val: str | None = cast(dict, chunk).get(key)
-                if other_val is None:
-                    continue
-                other_vals: list[str] | None = [other_val]
-            else:
-                vals = chunk["meta"].get(key)
-                if vals is None or isinstance(vals, list):
-                    other_vals = vals
-                else:
-                    other_vals = [vals]
-            if other_vals is None:
-                continue
-            if values.isdisjoint(other_vals):
-                return False
-        return True
-
-    return filter_fn
-
-
-def query_embed_emu_filters(
-        db: QdrantClient,
-        name: str,
-        embed: list[float],
-        *,
-        offset: int | None,
-        limit: int,
-        hit_limit: int,
-        score_threshold: float | None,
-        filters: dict[ExternalKey, list[str]] | None,
-        snippet_post_processing: Callable[[list[str]], list[str]],
-        ) -> list[ResultChunk]:
-    real_offset = 0 if offset is None else offset
-    total_limit = real_offset + limit
-    filter_fn = create_filter_fn(filters)
-    vec_filter = get_filter(filters, for_vec=True, skip_fields=None)
-    cur_offset = 0
-    cur_limit = limit
-    cur_res: list[ResultChunk] = []
-    reached_end = False
-    while not reached_end and len(cur_res) < total_limit:
-        candidates = query_embed(
-            db,
-            name,
-            embed,
-            offset=cur_offset,
-            limit=cur_limit,
-            hit_limit=hit_limit,
-            score_threshold=score_threshold,
-            vec_filter=vec_filter,
-            snippet_post_processing=snippet_post_processing)
-        if len(candidates) < cur_limit:
-            reached_end = True
-        for cand in candidates:
-            if not filter_fn(cand):
-                continue
-            cur_res.append(cand)
-        cur_offset += cur_limit
-        cur_limit = int(max(1, min(100, cur_limit * 1.2)))
-        # cur_limit = int(max(1, min(100, cur_limit * 2)))
-    return cur_res[real_offset:total_limit]
 
 
 def query_embed(
@@ -638,12 +790,13 @@ def query_embed(
         limit: int,
         hit_limit: int,
         score_threshold: float | None,
-        vec_filter: Filter | None,
-        snippet_post_processing: Callable[[list[str]], list[str]],
+        filters: dict[MetaKey, list[str]] | None,
         ) -> list[ResultChunk]:
+    # FIXME https://github.com/qdrant/qdrant/issues/3970 would be nice
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     print(f"query {name} offset={real_offset} limit={total_limit}")
+    vec_filter = get_filter(filters, for_vec=True, skip_fields=None)
     vec_name = get_db_name(name, is_vec=True)
     data_name = get_db_name(name, is_vec=False)
     hits = retry_err(
@@ -667,18 +820,23 @@ def query_embed(
             hit_payload = hit.payload
             assert hit_payload is not None
             snippets.append(hit_payload["snippet"])
-        snippets = snippet_post_processing(snippets)
         assert score is not None
         lookup = group.lookup
         assert lookup is not None
         data_payload = lookup.payload
         assert data_payload is not None
-        meta = fill_meta(data_payload)
         base = data_payload["base"]
         doc_id = data_payload["doc_id"]
         url = data_payload["url"]
-        title = data_payload.get("title", url)
+        title = data_payload.get("title")
+        if title is None:
+            title = url
+        updated = data_payload["updated"]
         main_id = data_payload["main_id"]
+        defaults: dict[MetaKey, list[str] | str | int] = {
+            "date": updated,
+        }
+        meta = get_meta_from_data_payload(data_payload, defaults)
         return {
             "main_id": main_id,
             "score": score,
@@ -687,6 +845,7 @@ def query_embed(
             "snippets": snippets,
             "url": url,
             "title": title,
+            "updated": updated,
             "meta": meta,
         }
 
@@ -702,17 +861,27 @@ def query_docs(
         *,
         offset: int | None,
         limit: int,
-        filters: dict[ExternalKey, list[str]] | None) -> list[ResultChunk]:
+        filters: dict[MetaKey, list[str]] | None,
+        order_by: MetaKey | tuple[MetaKey, str] | None,
+        ) -> list[ResultChunk]:
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     print(f"scroll {name} offset={real_offset} limit={total_limit}")
     data_name = get_db_name(name, is_vec=False)
     query_filter = get_filter(filters, for_vec=False, skip_fields=None)
+    if order_by is None:
+        order_by = "date"
+    if isinstance(order_by, tuple):
+        order_by_tup = order_by
+    else:
+        order_by_tup = cast(tuple, (order_by, None))
+    order_key, order_variant = order_by_tup
+    # FIXME emulate offset in order by
     hits, _ = retry_err(
         lambda: db.scroll(
             data_name,
             order_by=OrderBy(
-                key=convert_meta_key("date"),
+                key=convert_meta_key_data(order_key, order_variant),
                 direction=Direction.DESC),
             limit=total_limit,
             scroll_filter=query_filter,
@@ -721,12 +890,18 @@ def query_docs(
     def convert_hit(hit: Record) -> ResultChunk:
         data_payload = hit.payload
         assert data_payload is not None
-        meta = fill_meta(data_payload)
         base = data_payload["base"]
         doc_id = data_payload["doc_id"]
         url = data_payload["url"]
-        title = data_payload.get("title", url)
+        title = data_payload.get("title")
+        if title is None:
+            title = url
+        updated = data_payload["updated"]
         main_id = data_payload["main_id"]
+        defaults: dict[MetaKey, list[str] | str | int] = {
+            "date": updated,
+        }
+        meta = get_meta_from_data_payload(data_payload, defaults)
         return {
             "main_id": main_id,
             "score": 1.0,
@@ -735,6 +910,7 @@ def query_docs(
             "snippets": [],
             "url": url,
             "title": title,
+            "updated": updated,
             "meta": meta,
         }
 

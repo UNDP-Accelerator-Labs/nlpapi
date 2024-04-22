@@ -38,9 +38,13 @@ import { getElement, setLoading } from './util.js';
  * }} SearchResult
  */
 
-const BASE = window.location.host.startsWith('localhost')
-  ? 'https://acclabs-nlpapi.azurewebsites.net/'
-  : '';
+/**
+ * @typedef {{
+ *   q: string;
+ *   filter: string;
+ *   p: number;
+ * }} SearchState
+ */
 
 const PAGE_SIZE = 10;
 const DISPLAY_PAGE_COUNT = 10;
@@ -54,6 +58,7 @@ export default class Search {
     /** @type {string} */ paginationId,
     /** @type {string} */ docCountId,
     /** @type {string[]} */ fields,
+    /** @type {string} */ base,
   ) {
     /** @type {HTMLDivElement} */ this._filterDiv = getElement(filterId);
     /** @type {HTMLInputElement} */ this._searchInput = getElement(searchId);
@@ -62,8 +67,9 @@ export default class Search {
       getElement(paginationId);
     /** @type {HTMLDivElement} */ this._docCountDiv = getElement(docCountId);
     /** @type {{ [key: string]: HTMLUListElement }} */ this._groupElems = {};
-    /** @type {string[]} */ (this._allFields = fields);
-    /** @type {string} */ (this._input = '');
+    /** @type {string[]} */ this._allFields = fields;
+    /** @type {string} */ this._base = base;
+    /** @type {string} */ this._input = '';
     /** @type {{ [key: string]: string[] }} */ this._filter = {};
     /** @type {{ [key: string]: boolean }} */ this._groups = {};
     /** @type {number} */ this._page = 0;
@@ -74,8 +80,87 @@ export default class Search {
       doc_count: null,
       fields: {},
     };
+    /** @type {SearchState} */ this._state = {
+      q: this._input,
+      filter: this.getFiltersString(),
+      p: this._page,
+    };
+    window.addEventListener('popstate', (event) => {
+      /** @type {SearchState} */ const state = event.state;
+      const { q, filter, p } = state;
+      if (q) {
+        this._input = q;
+      }
+      if (filter) {
+        this._filter = JSON.parse(filter);
+      }
+      if (p || p === 0) {
+        this._page = p;
+      }
+      this._state = {
+        q: this._input,
+        filter: this.getFiltersString(),
+        p: this._page,
+      };
+      this._searchInput.value = this._input;
+      this.updateStats(null);
+      this.updateSearch();
+    });
 
+    this.getFromParams();
     this.setupInput();
+  }
+
+  getFromParams() {
+    const params = new URL(window.location.href).searchParams;
+    const query = params.get('q');
+    if (query) {
+      this._input = query;
+    }
+    const filters = params.get('filters');
+    try {
+      if (filters) {
+        const filtersObj = JSON.parse(filters);
+        this._filter = filtersObj;
+      }
+    } catch (_) {
+      // nop
+    }
+    const page = params.get('p');
+    if (page !== undefined && page !== null) {
+      const pageNum = +page;
+      if (Number.isFinite(pageNum)) {
+        this._page = pageNum;
+      }
+    }
+    this._state = {
+      q: this._input,
+      filter: this.getFiltersString(),
+      p: this._page,
+    };
+    this._searchInput.value = this._input;
+  }
+
+  getFiltersString() {
+    const filter = this._filter;
+    return JSON.stringify(filter, Object.keys(filter).sort());
+  }
+
+  pushHistory() {
+    const { q: oldQ, filter: oldFilter, p: oldP } = this._state;
+    const q = this._input;
+    const filter = this.getFiltersString();
+    const p = this._page;
+    if (q !== oldQ || filter !== oldFilter || p !== oldP) {
+      const history = window.history;
+      const params = new URLSearchParams();
+      params.set('q', q);
+      params.set('filter', filter);
+      params.set('p', `${p}`);
+      const url = new URL(window.location.href);
+      url.search = params.toString();
+      history.pushState({ q, filter, p }, '', url);
+    }
   }
 
   setupInput() {
@@ -99,7 +184,7 @@ export default class Search {
   /** @type {(fields: string[]) => Promise<StatResult>} */
   async getStats(fields) {
     try {
-      const res = await fetch(`${BASE}/api/stats`, {
+      const res = await fetch(`${this._base}/api/stats`, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -120,7 +205,7 @@ export default class Search {
   /** @type {() => Promise<SearchResult>} */
   async getSearch() {
     try {
-      const res = await fetch(`${BASE}/api/search`, {
+      const res = await fetch(`${this._base}/api/search`, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -222,6 +307,7 @@ export default class Search {
             ul.classList.add('groupSelected');
           }
           fieldName.addEventListener('click', () => {
+            const groups = this._groups;
             if (groups[field]) {
               fieldName.classList.remove('groupSelected');
               ul.classList.remove('groupSelected');
@@ -251,6 +337,8 @@ export default class Search {
                 ? `${value}`
                 : `${value} (${fieldVals[value]})`;
             fieldValue.addEventListener('click', () => {
+              const filter = this._filter;
+              const isSelected = filter[field]?.includes(value);
               console.log(filter[field]);
               if (isSelected) {
                 filter[field] = filter[field].filter((f) => f !== value);
@@ -313,6 +401,7 @@ export default class Search {
     this._searchId += 1;
     const searchId = this._searchId;
     setTimeout(async () => {
+      this.pushHistory();
       await this.doUpdateSearch(searchId);
     }, 0);
   }
