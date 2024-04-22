@@ -319,5 +319,13 @@ ${PYTHON} -c "${PY_COMPOSE}" "${DOCKER_LOGIN_SERVER}" "deploy/docker-compose.wip
 echo "docker compose is ready at ${DOCKER_COMPOSE_OUT}"
 echo "make sure to call make dockerpush before updating"
 echo "wipe is at ${DOCKER_COMPOSE_WIPE_OUT} be careful with it!"
-echo "================================================="
-cat "${DOCKER_COMPOSE_OUT}"
+if [ -z "${DEV}" ] && [ -z "${CI}" ]; then
+    echo "make sure to set the qdrant api key in your env. example:"
+    echo "QDRANT__SERVICE__API_KEY=${QDRANT_API_TOKEN}"
+fi
+if [ -z "${CI}" ]; then
+    echo "================================================="
+    cat "${DOCKER_COMPOSE_OUT}"
+else
+    echo "run `make build` locally (without dockerpush) to get the docker compose file"
+fi
