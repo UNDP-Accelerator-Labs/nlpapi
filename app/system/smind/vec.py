@@ -585,10 +585,10 @@ def add_embed(
         batch_size = 20
         for offset in range(0, len(all_chunks), batch_size):
             cur_chunks = all_chunks[offset:offset + batch_size]
-            db.upsert(
-                vec_name,
-                points=cur_chunks,
-                wait=False)
+            print(f"insert range {offset}:{offset + len(cur_chunks)}")
+            retry_err(
+                lambda cur: db.upsert(vec_name, points=cur, wait=False),
+                cur_chunks)
 
     def convert_chunk(
             chunk: EmbedChunk,
@@ -602,7 +602,6 @@ def add_embed(
             "snippet": chunk["snippet"],
             **vec_payload_template,
         }
-        print(f"insert {point_id} ({len(chunk['embed'])})")
         return PointStruct(
             id=point_uuid,
             vector=chunk["embed"],
