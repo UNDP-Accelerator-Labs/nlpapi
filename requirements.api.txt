@@ -25,7 +25,7 @@ python-dateutil~=2.8.0
 pytz>=2023.3
 qdrant-client~=1.8.0
 quick-server~=0.9.0
-redipy~=0.6.0
+redipy~=0.7.0
 requests==2.31.0
 scattermind~=0.4.0
 spacy==3.5.3
