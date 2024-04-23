@@ -306,7 +306,9 @@ def vec_add(
     # inspect URL and amend iso3 if country found
     url_iso3 = inspect_url(url)
     if url_iso3 is not None:
-        print(f"overwriting {url_iso3} was {meta_obj['iso3'].get(url_iso3)}")
+        print(
+            f"overwriting iso3 with {url_iso3} "
+            f"was {meta_obj['iso3'].get(url_iso3)}")
         meta_obj["iso3"][url_iso3] = 2.0
     country_time = time.monotonic() - country_start
     preprocess_time = time.monotonic() - preprocess_start
