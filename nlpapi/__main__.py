@@ -6,7 +6,8 @@ import time
 from typing import TypedDict
 
 import pandas as pd
-from gemma import tokenizer
+
+# from gemma import tokenizer
 from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
@@ -79,15 +80,15 @@ def load_graph(
 GEMMA_FOLDER = "study/mdata/gemma2b/"
 
 
-def get_token_count(prompts: list[str]) -> list[int]:
-    start_time = time.monotonic()
-    token_fn = tokenizer.Tokenizer(
-        os.path.join(GEMMA_FOLDER, "tokenizer.model"))
-    prompt_tokens = [token_fn.encode(prompt) for prompt in prompts]
-    res = [len(p) for p in prompt_tokens]
-    duration = time.monotonic() - start_time
-    print(f"tokenization time: {duration}s")
-    return res
+# def get_token_count(prompts: list[str]) -> list[int]:
+#     start_time = time.monotonic()
+#     token_fn = tokenizer.Tokenizer(
+#         os.path.join(GEMMA_FOLDER, "tokenizer.model"))
+#     prompt_tokens = [token_fn.encode(prompt) for prompt in prompts]
+#     res = [len(p) for p in prompt_tokens]
+#     duration = time.monotonic() - start_time
+#     print(f"tokenization time: {duration}s")
+#     return res
 
 
 def run() -> None:
@@ -158,7 +159,8 @@ def run() -> None:
             direct_in = True
 
     if direct_in:
-        counts = get_token_count([cp["title"] for cp in pads["pads"]])
+        counts = 0
+    #     counts = get_token_count([cp["title"] for cp in pads["pads"]])
         print(f"input token counts: {counts}")
     real_start = time.monotonic()
     pad_lookup: dict[TaskId, Pad] = {}
@@ -258,8 +260,8 @@ def run() -> None:
                 pd.DataFrame(res, columns=columns).to_csv(
                     output_fname, mode="a", index=False, header=False)
     if out_strs:
-        tc_out = get_token_count(out_strs)
-        print(f"output token count: {tc_out}")
+        # tc_out = get_token_count(out_strs)
+        # print(f"output token count: {tc_out}")
         print(f"last ready: {last_ready}s")
         print(f"max real: {max_real_time}s")
         print(f"avg: {avg_real_time}s/task")

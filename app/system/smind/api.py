@@ -1,11 +1,9 @@
 import json
 import os
-import time
 import traceback
 from typing import cast, Literal, TypedDict, TypeVar
 
 import redis as redis_lib
-from gemma import tokenizer
 from redipy import Redis, RedisConfig
 from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
@@ -172,20 +170,6 @@ def get_queue_stats(smind: ScattermindAPI) -> list[QueueStat]:
     except redis_lib.ConnectionError:
         print(traceback.format_exc())
         return []
-
-
-GEMMA_FOLDER = "study/mdata/gemma2b/"
-
-
-def get_token_count(prompts: list[str]) -> list[int]:
-    start_time = time.monotonic()
-    token_fn = tokenizer.Tokenizer(
-        os.path.join(GEMMA_FOLDER, "tokenizer.model"))
-    prompt_tokens = [token_fn.encode(prompt) for prompt in prompts]
-    res = [len(p) for p in prompt_tokens]
-    duration = time.monotonic() - start_time
-    print(f"tokenization time: {duration}s")
-    return res
 
 
 def get_text_results_immediate(
