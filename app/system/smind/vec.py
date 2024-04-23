@@ -561,20 +561,17 @@ def add_embed(
     vec_name = get_db_name(name, is_vec=True)
 
     def empty_previous() -> None:
-        if prev_count > new_count or new_count == 0:
-            filter_docs = Filter(
-                must=[
-                    FieldCondition(
-                        key=REF_KEY,
-                        match=MatchValue(value=main_uuid)),
-                ])
-            db.delete(
-                vec_name,
-                points_selector=FilterSelector(filter=filter_docs))
-            if new_count == 0:
-                db.delete(
-                    data_name,
-                    points_selector=FilterSelector(filter=filter_docs))
+        if prev_count <= new_count and new_count > 0:
+            return
+        filter_docs = Filter(
+            must=[
+                FieldCondition(
+                    key=REF_KEY,
+                    match=MatchValue(value=main_uuid)),
+            ])
+        retry_err(lambda: db.delete(
+            vec_name,
+            points_selector=FilterSelector(filter=filter_docs)))
 
     def insert_chunks() -> None:
         vec_payload_template = to_snippet_payload_template(data)
@@ -613,7 +610,7 @@ def add_embed(
             insert_chunks()
 
     if new_count != 0:
-        db.upsert(
+        retry_err(lambda: db.upsert(
             data_name,
             points=[
                 PointStruct(
@@ -621,7 +618,11 @@ def add_embed(
                     vector=DUMMY_VEC,
                     payload=to_data_payload(data, chunk_hash)),
             ],
-            wait=False)
+            wait=False))
+    else:
+        retry_err(lambda: db.delete(
+            data_name,
+            points_selector=filter_data))
 
     return (prev_count, new_count)
 
