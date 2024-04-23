@@ -54,9 +54,10 @@ def geo_result(query: str) -> GeoResult:
     # pylint: disable=global-statement
     global EXCEEDED_FOR_TODAY
 
-    if EXCEEDED_FOR_TODAY is not None:
-        cur_time = datetime.now(EXCEEDED_FOR_TODAY.tzinfo)
-        if cur_time < EXCEEDED_FOR_TODAY:
+    eft = EXCEEDED_FOR_TODAY
+    if eft is not None:
+        cur_time = datetime.now(eft.tzinfo)
+        if cur_time < eft:
             return (None, "ratelimit")
         EXCEEDED_FOR_TODAY = None
 
