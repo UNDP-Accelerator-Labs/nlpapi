@@ -4,7 +4,6 @@ fastcluster
 flake8
 flake8-commas
 flake8-isort
-git+https://github.com/JosuaKrause/gemma_pytorch.git
 huggingface-hub
 ipykernel
 ipywidgets
