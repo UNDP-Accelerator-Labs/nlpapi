@@ -14,39 +14,39 @@ services:
       QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
       QDRANT__TELEMETRY_DISABLED: true
-      QDRANT__CLUSTER__ENABLED: true
-      QDRANT__CLUSTER__CONSENSUS__TICK_PERIOD_MS: 2000
-    command: ["/bin/sh", "-c", "./qdrant --uri http://qdrant-1:6335"]
-  qdrant-2:
-    image: $DOCKER_QDRANT
-    restart: always
-    expose:
-      - 6334
-      - 6335
-    volumes:
-      - ${WEBAPP_STORAGE_HOME}/qdrant_2:/qdrant_data
-    environment:
-      QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
-      QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
-      QDRANT__TELEMETRY_DISABLED: true
-      QDRANT__CLUSTER__ENABLED: true
-      QDRANT__CLUSTER__CONSENSUS__TICK_PERIOD_MS: 2000
-    command: ["/bin/sh", "-c", "sleep 10 && ./qdrant --bootstrap http://qdrant-1:6335"]
-  qdrant-3:
-    image: $DOCKER_QDRANT
-    restart: always
-    expose:
-      - 6334
-      - 6335
-    volumes:
-      - ${WEBAPP_STORAGE_HOME}/qdrant_3:/qdrant_data
-    environment:
-      QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
-      QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
-      QDRANT__TELEMETRY_DISABLED: true
-      QDRANT__CLUSTER__ENABLED: true
-      QDRANT__CLUSTER__CONSENSUS__TICK_PERIOD_MS: 2000
-    command: ["/bin/sh", "-c", "sleep 10 && ./qdrant --bootstrap http://qdrant-1:6335"]
+  #     QDRANT__CLUSTER__ENABLED: true
+  #     QDRANT__CLUSTER__CONSENSUS__TICK_PERIOD_MS: 2000
+  #   command: ["/bin/sh", "-c", "./qdrant --uri http://qdrant-1:6335"]
+  # qdrant-2:
+  #   image: $DOCKER_QDRANT
+  #   restart: always
+  #   expose:
+  #     - 6334
+  #     - 6335
+  #   volumes:
+  #     - ${WEBAPP_STORAGE_HOME}/qdrant_2:/qdrant_data
+  #   environment:
+  #     QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
+  #     QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
+  #     QDRANT__TELEMETRY_DISABLED: true
+  #     QDRANT__CLUSTER__ENABLED: true
+  #     QDRANT__CLUSTER__CONSENSUS__TICK_PERIOD_MS: 2000
+  #   command: ["/bin/sh", "-c", "sleep 10 && ./qdrant --bootstrap http://qdrant-1:6335"]
+  # qdrant-3:
+  #   image: $DOCKER_QDRANT
+  #   restart: always
+  #   expose:
+  #     - 6334
+  #     - 6335
+  #   volumes:
+  #     - ${WEBAPP_STORAGE_HOME}/qdrant_3:/qdrant_data
+  #   environment:
+  #     QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
+  #     QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
+  #     QDRANT__TELEMETRY_DISABLED: true
+  #     QDRANT__CLUSTER__ENABLED: true
+  #     QDRANT__CLUSTER__CONSENSUS__TICK_PERIOD_MS: 2000
+  #   command: ["/bin/sh", "-c", "sleep 10 && ./qdrant --bootstrap http://qdrant-1:6335"]
   rmain:
     container_name: rmain
     image: $DOCKER_RMAIN

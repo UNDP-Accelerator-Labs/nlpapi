@@ -314,19 +314,19 @@ def build_db_name(
         # FIXME test no replication
         print(f"create {name} size={embed_size} distance={distance}")
         vec_name = get_db_name(name, is_vec=True)
+        hnsw_config = HnswConfigDiff(
+            m=64,
+            ef_construct=512,
+            full_scan_threshold=10000,
+            on_disk=True)
+        quant_config = ScalarQuantization(
+            scalar=ScalarQuantizationConfig(type=ScalarType.INT8))
         config = VectorParams(
             size=embed_size,
             distance=distance,
             on_disk=True,
-            hnsw_config=HnswConfigDiff(
-                m=64,
-                ef_construct=512,
-                full_scan_threshold=10000,
-                on_disk=True),
-            quantization_config=ScalarQuantization(
-                scalar=ScalarQuantizationConfig(
-                    type=ScalarType.INT8,
-                    always_ram=True)))
+            hnsw_config=hnsw_config,
+            quantization_config=quant_config)
         optimizers = OptimizersConfig(
             deleted_threshold=0.2,
             vacuum_min_vector_number=1000,
@@ -339,9 +339,12 @@ def build_db_name(
             vec_name,
             vectors_config=config,
             optimizers_config=optimizers,
+            hnsw_config=hnsw_config,
+            quantization_config=quant_config,
             on_disk_payload=True,
-            replication_factor=3,
-            shard_number=6,
+            # replication_factor=3,
+            # shard_number=6,
+            shard_number=2,
             timeout=600)
 
         data_name = get_db_name(name, is_vec=False)
@@ -349,8 +352,9 @@ def build_db_name(
             data_name,
             vectors_config=VectorParams(size=1, distance=distance),
             on_disk_payload=True,
-            replication_factor=3,
-            shard_number=6,
+            # replication_factor=3,
+            # shard_number=6,
+            shard_number=2,
             timeout=600)
 
     need_create = False
@@ -396,7 +400,7 @@ def create_index(
         schema = db_schema.get(field_name)
         if schema is not None and schema.data_type == field_schema:
             return
-    db.create_payload_index(db_name, field_name, field_schema, wait=False)
+    db.create_payload_index(db_name, field_name, field_schema, wait=True)
 
 
 def recreate_index(
