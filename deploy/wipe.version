@@ -1,2 +1,2 @@
 # update this version when the wipe docker image changes
-WIPE_DOCKER_VERSION=v0.0.2
+WIPE_DOCKER_VERSION=v0.0.3

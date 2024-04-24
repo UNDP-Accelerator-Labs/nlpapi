@@ -29,6 +29,7 @@ from qdrant_client.models import (
     FieldCondition,
     Filter,
     FilterSelector,
+    HnswConfigDiff,
     MatchAny,
     MatchValue,
     OptimizersConfig,
@@ -38,6 +39,9 @@ from qdrant_client.models import (
     PointGroup,
     PointStruct,
     Record,
+    ScalarQuantization,
+    ScalarQuantizationConfig,
+    ScalarType,
     VectorParams,
     WithLookup,
 )
@@ -310,13 +314,22 @@ def build_db_name(
         config = VectorParams(
             size=embed_size,
             distance=distance,
-            on_disk=True)
+            on_disk=True,
+            hnsw_config=HnswConfigDiff(
+                m=64,
+                ef_construct=512,
+                full_scan_threshold=10000,
+                on_disk=True),
+            quantization_config=ScalarQuantization(
+                scalar=ScalarQuantizationConfig(
+                    type=ScalarType.INT8,
+                    always_ram=True)))
         optimizers = OptimizersConfig(
             deleted_threshold=0.2,
             vacuum_min_vector_number=1000,
             default_segment_number=0,
-            memmap_threshold=512*1024,
-            indexing_threshold=512*1024,
+            memmap_threshold=20000,
+            indexing_threshold=20000,
             flush_interval_sec=60,
             max_optimization_threads=4)
         db.recreate_collection(
