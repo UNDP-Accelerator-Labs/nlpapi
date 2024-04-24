@@ -100,7 +100,7 @@ services:
     image: $DOCKER_API
     restart: always
     ports:
-      - '8080:8080'
+      - 8080
     environment:
       QDRANT_HOST: qdrant-1
       QDRANT_REST_PORT: 6333
