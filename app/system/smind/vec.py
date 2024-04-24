@@ -335,39 +335,6 @@ def build_db_name(
             shard_number=6,
             timeout=600)
 
-    def recreate_index() -> None:
-        # * vec keys *
-        vec_name = get_db_name(name, is_vec=True)
-
-        retry_err(
-            lambda key: db.delete_payload_index(vec_name, key), "base")
-        db.create_payload_index(vec_name, "base", "keyword", wait=False)
-
-        # * data keys *
-        data_name = get_db_name(name, is_vec=False)
-
-        retry_err(lambda: db.delete_payload_index(data_name, "main_id"))
-        db.create_payload_index(data_name, "main_id", "keyword", wait=False)
-
-        retry_err(lambda: db.delete_payload_index(data_name, "base"))
-        db.create_payload_index(data_name, "base", "keyword", wait=False)
-
-        # * meta keys *
-        for meta_key in META_KEYS:
-            snippet_meta_key = convert_meta_key_snippet(meta_key)
-            index_type = META_SNIPPET_INDEX[meta_key]
-            retry_err(
-                lambda mkey: db.delete_payload_index(vec_name, mkey),
-                snippet_meta_key)
-            db.create_payload_index(
-                vec_name, snippet_meta_key, index_type, wait=False)
-            data_meta_key = convert_meta_key_data(meta_key, None)
-            retry_err(
-                lambda mkey: db.delete_payload_index(data_name, mkey),
-                data_meta_key)
-            db.create_payload_index(
-                data_name, data_meta_key, index_type, wait=False)
-
     need_create = False
     if not force_clear and not force_index:
         vec_name_read = get_db_name(name, is_vec=True)
@@ -392,11 +359,46 @@ def build_db_name(
         recreate()
         force_index = True
     if force_index:
-        recreate_index()
+        recreate_index(db, name)
     return name
 
 
+def recreate_index(db: QdrantClient, name: str) -> None:
+    # * vec keys *
+    vec_name = get_db_name(name, is_vec=True)
+
+    retry_err(
+        lambda key: db.delete_payload_index(vec_name, key), "base")
+    db.create_payload_index(vec_name, "base", "keyword", wait=False)
+
+    # * data keys *
+    data_name = get_db_name(name, is_vec=False)
+
+    retry_err(lambda: db.delete_payload_index(data_name, "main_id"))
+    db.create_payload_index(data_name, "main_id", "keyword", wait=False)
+
+    retry_err(lambda: db.delete_payload_index(data_name, "base"))
+    db.create_payload_index(data_name, "base", "keyword", wait=False)
+
+    # * meta keys *
+    for meta_key in META_KEYS:
+        snippet_meta_key = convert_meta_key_snippet(meta_key)
+        index_type = META_SNIPPET_INDEX[meta_key]
+        retry_err(
+            lambda mkey: db.delete_payload_index(vec_name, mkey),
+            snippet_meta_key)
+        db.create_payload_index(
+            vec_name, snippet_meta_key, index_type, wait=False)
+        data_meta_key = convert_meta_key_data(meta_key, None)
+        retry_err(
+            lambda mkey: db.delete_payload_index(data_name, mkey),
+            data_meta_key)
+        db.create_payload_index(
+            data_name, data_meta_key, index_type, wait=False)
+
+
 def build_scalar_index(db: QdrantClient, name: str) -> None:
+    recreate_index(db, name)
     data_name = get_db_name(name, is_vec=False)
     for meta_key in META_SCALAR:
         # NOTE: no caching!

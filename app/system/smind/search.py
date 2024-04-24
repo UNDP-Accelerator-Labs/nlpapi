@@ -307,7 +307,7 @@ def vec_add(
     url_iso3 = inspect_url(url)
     if url_iso3 is not None:
         print(
-            f"overwriting iso3 with {url_iso3} "
+            f"overwriting iso3 score of {url_iso3} "
             f"was {meta_obj['iso3'].get(url_iso3)}")
         meta_obj["iso3"][url_iso3] = 2.0
     country_time = time.monotonic() - country_start

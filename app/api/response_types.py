@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from app.system.smind.api import QueueStat
 from app.system.smind.vec import VecDBStat
@@ -36,4 +36,7 @@ Snippy = TypedDict('Snippy', {
 SnippyResponse = TypedDict('SnippyResponse', {
     "count": int,
     "snippets": list[Snippy],
+})
+BuildIndexResponse = TypedDict('BuildIndexResponse', {
+    "ok": Literal["ok"],
 })

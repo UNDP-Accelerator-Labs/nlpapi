@@ -14,6 +14,7 @@ from app.api.mod import Module
 from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
 from app.api.response_types import (
+    BuildIndexResponse,
     DateResponse,
     Snippy,
     SnippyResponse,
@@ -62,6 +63,7 @@ from app.system.smind.search import (
 )
 from app.system.smind.vec import (
     build_db_name,
+    build_scalar_index,
     get_vec_client,
     get_vec_stats,
     MetaKey,
@@ -402,6 +404,22 @@ def setup(
             url=url,
             title=title,
             meta_obj=meta_obj)
+
+    @server.json_post(f"{prefix}/build_index")
+    @server.middleware(verify_write)
+    def _post_build_index(_req: QSRH, rargs: ReqArgs) -> BuildIndexResponse:
+        args = rargs["post"]
+        vdb_str = args["db"]
+        if vdb_str == "main":
+            articles = articles_main
+        elif vdb_str == "test":
+            articles = articles_test
+        else:
+            raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
+        build_scalar_index(vec_db, articles)
+        return {
+            "ok": "ok",
+        }
 
     @server.json_post(f"{prefix}/stat_embed")
     @server.middleware(verify_readonly)
