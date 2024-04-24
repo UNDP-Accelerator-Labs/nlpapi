@@ -34,6 +34,7 @@ from qdrant_client.models import (
     OptimizersConfig,
     OrderBy,
     Payload,
+    PayloadIndexInfo,
     PointGroup,
     PointStruct,
     Record,
@@ -370,10 +371,15 @@ def create_index(
         field_name: str,
         field_schema: PayloadSchemaType,
         *,
+        db_schema: dict[str, PayloadIndexInfo],
         force_recreate: bool) -> None:
     if force_recreate:
         retry_err(
             lambda key: db.delete_payload_index(db_name, key), field_name)
+    else:
+        schema = db_schema.get(field_name)
+        if schema is not None and schema.data_type == field_schema:
+            return
     db.create_payload_index(db_name, field_name, field_schema, wait=False)
 
 
@@ -381,17 +387,34 @@ def recreate_index(
         db: QdrantClient, name: str, *, force_recreate: bool) -> None:
     # * vec keys *
     vec_name = get_db_name(name, is_vec=True)
+    vec_schema = db.get_collection(vec_name).payload_schema
 
     create_index(
-        db, vec_name, "base", "keyword", force_recreate=force_recreate)
+        db,
+        vec_name,
+        "base",
+        "keyword",
+        db_schema=vec_schema,
+        force_recreate=force_recreate)
 
     # * data keys *
     data_name = get_db_name(name, is_vec=False)
+    data_schema = db.get_collection(vec_name).payload_schema
 
     create_index(
-        db, data_name, "main_id", "keyword", force_recreate=force_recreate)
+        db,
+        data_name,
+        "main_id",
+        "keyword",
+        db_schema=data_schema,
+        force_recreate=force_recreate)
     create_index(
-        db, data_name, "base", "keyword", force_recreate=force_recreate)
+        db,
+        data_name,
+        "base",
+        "keyword",
+        db_schema=data_schema,
+        force_recreate=force_recreate)
 
     # * meta keys *
     for meta_key in META_KEYS:
@@ -402,6 +425,7 @@ def recreate_index(
             vec_name,
             snippet_meta_key,
             index_type,
+            db_schema=vec_schema,
             force_recreate=force_recreate)
         data_meta_key = convert_meta_key_data(meta_key, None)
         create_index(
@@ -409,19 +433,26 @@ def recreate_index(
             data_name,
             data_meta_key,
             index_type,
+            db_schema=vec_schema,
             force_recreate=force_recreate)
 
 
 def build_scalar_index(db: QdrantClient, name: str) -> None:
     recreate_index(db, name, force_recreate=False)
     data_name = get_db_name(name, is_vec=False)
+    data_schema = db.get_collection(data_name).payload_schema
     for meta_key in META_SCALAR:
         # NOTE: no caching!
         stats = stat_embed(db, name, field=meta_key, filters=None)
         for variant in stats.keys():
             data_meta_key = convert_meta_key_data(meta_key, variant)
             create_index(
-                db, data_name, data_meta_key, "float", force_recreate=False)
+                db,
+                data_name,
+                data_meta_key,
+                "float",
+                db_schema=data_schema,
+                force_recreate=False)
 
 
 def full_scroll(
