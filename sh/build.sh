@@ -323,7 +323,9 @@ if [ -z "${DEV}" ] && [ -z "${CI}" ]; then
     echo "make sure to set the qdrant api key in your env. example:"
     echo "QDRANT__SERVICE__API_KEY=${QDRANT_API_TOKEN}"
 fi
-if [ -z "${CI}" ]; then
+if [ ! -z "${DEV}" ]; then
+    echo "run 'make compose' next to start the app on http://localhost:8080/search/"
+elif [ -z "${CI}" ]; then
     echo "================================================="
     cat "${DOCKER_COMPOSE_OUT}"
 else

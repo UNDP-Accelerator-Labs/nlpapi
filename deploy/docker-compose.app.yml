@@ -5,9 +5,9 @@ services:
     image: $DOCKER_QDRANT
     restart: always
     expose:
-      - '6333'
-      - '6334'
-      - '6335'
+      - 6333
+      - 6334
+      - 6335
     volumes:
       - ${WEBAPP_STORAGE_HOME}/qdrant_1:/qdrant_data
     environment:
@@ -17,11 +17,10 @@ services:
       QDRANT__CLUSTER__ENABLED: true
     command: ["./qdrant", "--uri", "http://qdrant-1:6335"]
   qdrant-2:
-    container_name: qdrant-2
     image: $DOCKER_QDRANT
     restart: always
     expose:
-      - '6335'
+      - 6335
     volumes:
       - ${WEBAPP_STORAGE_HOME}/qdrant_2:/qdrant_data
     environment:
@@ -31,11 +30,10 @@ services:
       QDRANT__CLUSTER__ENABLED: true
     command: ["./qdrant", "--bootstrap", "http://qdrant-1:6335"]
   qdrant-3:
-    container_name: qdrant-3
     image: $DOCKER_QDRANT
     restart: always
     expose:
-      - '6335'
+      - 6335
     volumes:
       - ${WEBAPP_STORAGE_HOME}/qdrant_3:/qdrant_data
     environment:
@@ -49,7 +47,7 @@ services:
     image: $DOCKER_RMAIN
     restart: always
     expose:
-      - '6379'
+      - 6379
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rmain:/data
   rdata:
@@ -57,7 +55,7 @@ services:
     image: $DOCKER_RDATA
     restart: always
     expose:
-      - '6379'
+      - 6379
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rdata:/data
   rcache:
@@ -65,7 +63,7 @@ services:
     image: $DOCKER_RCACHE
     restart: always
     expose:
-      - '6379'
+      - 6379
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rcache:/data
   rbody:
@@ -73,27 +71,24 @@ services:
     image: $DOCKER_RBODY
     restart: always
     expose:
-      - '6379'
+      - 6379
     volumes:
       - ${WEBAPP_STORAGE_HOME}/rbody:/data
   worker-1:
-    container_name: worker-1
     image: $DOCKER_WORKER
     restart: always
     expose:
-      - '6380'
+      - 6380
     volumes:
       - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
   worker-2:
-    container_name: worker-2
     image: $DOCKER_WORKER
     restart: always
     expose:
-      - '6380'
+      - 6380
     volumes:
       - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
   api:
-    container_name: api
     image: $DOCKER_API
     restart: always
     ports:
