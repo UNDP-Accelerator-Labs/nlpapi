@@ -878,7 +878,7 @@ def query_embed(
             score_threshold=score_threshold,
             query_filter=vec_filter,
             with_lookup=WithLookup(collection=data_name, with_payload=True),
-            timeout=300))
+            timeout=600))
 
     def convert_chunk(group: PointGroup) -> ResultChunk:
         score = None
