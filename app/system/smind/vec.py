@@ -224,7 +224,9 @@ def get_vec_client(config: Config) -> QdrantClient:
     host = vec_db["host"]
     if host.startswith(FILE_PROTOCOL):
         print(f"loading db file: {host.removeprefix(FILE_PROTOCOL)}")
-        db = QdrantClient(path=host.removeprefix(FILE_PROTOCOL))
+        db = QdrantClient(
+            path=host.removeprefix(FILE_PROTOCOL),
+            timeout=600)
     else:
         print(f"loading db: {host}")
         token = vec_db["token"]
@@ -236,7 +238,8 @@ def get_vec_client(config: Config) -> QdrantClient:
             grpc_port=vec_db["grpc"],
             https=False,
             # prefer_grpc=True,
-            api_key=token)
+            api_key=token,
+            timeout=600)
     return db
 
 
