@@ -30,6 +30,20 @@ services:
       QDRANT__TELEMETRY_DISABLED: true
       QDRANT__CLUSTER__ENABLED: true
     command: ["./qdrant", "--bootstrap", "http://qdrant-1:6335"]
+  qdrant-3:
+    container_name: qdrant-3
+    image: $DOCKER_QDRANT
+    restart: always
+    expose:
+      - '6335'
+    volumes:
+      - ${WEBAPP_STORAGE_HOME}/qdrant_3:/qdrant_data
+    environment:
+      QDRANT__STORAGE__STORAGE_PATH: /qdrant_data/storage
+      QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant_data/snapshots
+      QDRANT__TELEMETRY_DISABLED: true
+      QDRANT__CLUSTER__ENABLED: true
+    command: ["./qdrant", "--bootstrap", "http://qdrant-1:6335"]
   rmain:
     container_name: rmain
     image: $DOCKER_RMAIN

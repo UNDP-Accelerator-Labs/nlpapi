@@ -16,5 +16,6 @@ remove /rdata
 remove /rmain
 remove /qdrant_1
 remove /qdrant_2
+remove /qdrant_3
 
 echo "done"

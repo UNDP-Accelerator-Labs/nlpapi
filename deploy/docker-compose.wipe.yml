@@ -14,4 +14,5 @@ services:
       - ${WEBAPP_STORAGE_HOME}/rmain:/rmain
       - ${WEBAPP_STORAGE_HOME}/qdrant_1:/qdrant_1
       - ${WEBAPP_STORAGE_HOME}/qdrant_2:/qdrant_2
+      - ${WEBAPP_STORAGE_HOME}/qdrant_3:/qdrant_3
 # eof
