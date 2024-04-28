@@ -416,9 +416,9 @@ def setup(
             articles = articles_test
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
-        build_scalar_index(vec_db, articles, full_stats=None)
+        count = build_scalar_index(vec_db, articles, full_stats=None)
         return {
-            "ok": "ok",
+            "new_index_count": count,
         }
 
     @server.json_post(f"{prefix}/stat_embed")

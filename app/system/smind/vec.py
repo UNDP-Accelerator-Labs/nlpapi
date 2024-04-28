@@ -392,24 +392,26 @@ def create_index(
         field_schema: PayloadSchemaType,
         *,
         db_schema: dict[str, PayloadIndexInfo],
-        force_recreate: bool) -> None:
+        force_recreate: bool) -> int:
     if force_recreate:
         retry_err(
             lambda key: db.delete_payload_index(db_name, key), field_name)
     else:
         schema = db_schema.get(field_name)
         if schema is not None and schema.data_type == field_schema:
-            return
+            return 0
     db.create_payload_index(db_name, field_name, field_schema, wait=True)
+    return 1
 
 
 def recreate_index(
-        db: QdrantClient, name: str, *, force_recreate: bool) -> None:
+        db: QdrantClient, name: str, *, force_recreate: bool) -> int:
+    count = 0
     # * vec keys *
     vec_name = get_db_name(name, is_vec=True)
     vec_schema = db.get_collection(vec_name).payload_schema
 
-    create_index(
+    count += create_index(
         db,
         vec_name,
         "base",
@@ -421,14 +423,14 @@ def recreate_index(
     data_name = get_db_name(name, is_vec=False)
     data_schema = db.get_collection(vec_name).payload_schema
 
-    create_index(
+    count += create_index(
         db,
         data_name,
         "main_id",
         "keyword",
         db_schema=data_schema,
         force_recreate=force_recreate)
-    create_index(
+    count += create_index(
         db,
         data_name,
         "base",
@@ -440,7 +442,7 @@ def recreate_index(
     for meta_key in META_KEYS:
         snippet_meta_key = convert_meta_key_snippet(meta_key)
         index_type = META_SNIPPET_INDEX[meta_key]
-        create_index(
+        count += create_index(
             db,
             vec_name,
             snippet_meta_key,
@@ -448,13 +450,14 @@ def recreate_index(
             db_schema=vec_schema,
             force_recreate=force_recreate)
         data_meta_key = convert_meta_key_data(meta_key, None)
-        create_index(
+        count += create_index(
             db,
             data_name,
             data_meta_key,
             index_type,
             db_schema=vec_schema,
             force_recreate=force_recreate)
+    return count
 
 
 def build_scalar_index(
@@ -462,9 +465,10 @@ def build_scalar_index(
         name: str,
         *,
         full_stats: dict[MetaKey, dict[str, int] | dict[str, float]] | None,
-        ) -> None:
+        ) -> int:
+    count = 0
     if full_stats is None:
-        recreate_index(db, name, force_recreate=False)
+        count += recreate_index(db, name, force_recreate=False)
     data_name = get_db_name(name, is_vec=False)
     data_schema = db.get_collection(data_name).payload_schema
     for meta_key in META_SCALAR:
@@ -476,13 +480,14 @@ def build_scalar_index(
             stats = full_stats.get(meta_key, {})
         for variant in stats.keys():
             data_meta_key = convert_meta_key_data(meta_key, variant)
-            create_index(
+            count += create_index(
                 db,
                 data_name,
                 data_meta_key,
                 "float",
                 db_schema=data_schema,
                 force_recreate=False)
+    return count
 
 
 def full_scroll(
@@ -685,13 +690,15 @@ def add_embed(
             insert_chunks()
 
     if new_count != 0:
-        build_scalar_index(
+        new_index_count = build_scalar_index(
             db,
             name,
             full_stats={
                 meta_key: meta_obj.get(meta_key, {})
                 for meta_key in META_SCALAR
             })
+        if new_index_count > 0:
+            print(f"created {new_index_count=}")
         retry_err(lambda: db.upsert(
             data_name,
             points=[
