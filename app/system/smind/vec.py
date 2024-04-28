@@ -90,7 +90,7 @@ MetaObjectOpt = TypedDict('MetaObjectOpt', {
 }, total=False)
 MetaKey = Literal["date", "status", "doc_type", "language", "iso3"]
 META_KEYS: set[MetaKey] = set(get_args(MetaKey))
-META_SCALAR: set[MetaKey] = {"language", "iso3"}
+META_SCALAR: set[Literal["language", "iso3"]] = {"language", "iso3"}
 META_SNIPPET_INDEX: dict[MetaKey, PayloadSchemaType] = {
     "date": "datetime",
     "status": "keyword",
@@ -457,13 +457,23 @@ def recreate_index(
             force_recreate=force_recreate)
 
 
-def build_scalar_index(db: QdrantClient, name: str) -> None:
-    recreate_index(db, name, force_recreate=False)
+def build_scalar_index(
+        db: QdrantClient,
+        name: str,
+        *,
+        full_stats: dict[MetaKey, dict[str, int] | dict[str, float]] | None,
+        ) -> None:
+    if full_stats is None:
+        recreate_index(db, name, force_recreate=False)
     data_name = get_db_name(name, is_vec=False)
     data_schema = db.get_collection(data_name).payload_schema
     for meta_key in META_SCALAR:
-        # NOTE: no caching!
-        stats = stat_embed(db, name, field=meta_key, filters=None)
+        if full_stats is None:
+            # NOTE: no caching!
+            stats: dict[str, int] | dict[str, float] = stat_embed(
+                db, name, field=meta_key, filters=None)
+        else:
+            stats = full_stats.get(meta_key, {})
         for variant in stats.keys():
             data_meta_key = convert_meta_key_data(meta_key, variant)
             create_index(
@@ -675,6 +685,13 @@ def add_embed(
             insert_chunks()
 
     if new_count != 0:
+        build_scalar_index(
+            db,
+            name,
+            full_stats={
+                meta_key: meta_obj.get(meta_key, {})
+                for meta_key in META_SCALAR
+            })
         retry_err(lambda: db.upsert(
             data_name,
             points=[
@@ -699,6 +716,10 @@ def stat_total(
         filters: dict[MetaKey, list[str]] | None) -> int:
     query_filter = get_filter(filters, for_vec=False, skip_fields=None)
     data_name = get_db_name(name, is_vec=False)
+    if query_filter is None:
+        res = db.get_collection(data_name).points_count
+        if res is not None:
+            return res
     count_res = retry_err(
         lambda: db.count(data_name, count_filter=query_filter, exact=True))
     return count_res.count

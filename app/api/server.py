@@ -416,7 +416,7 @@ def setup(
             articles = articles_test
         else:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
-        build_scalar_index(vec_db, articles)
+        build_scalar_index(vec_db, articles, full_stats=None)
         return {
             "ok": "ok",
         }

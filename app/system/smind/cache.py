@@ -1,8 +1,7 @@
-import time
 from collections.abc import Callable
 from typing import TypeVar
 
-from redipy import Redis, RSM_MISSING
+from redipy import Redis
 
 
 T = TypeVar('T')
@@ -21,29 +20,31 @@ def cached(
         compute_fn: Callable[[], T],
         pre_cache_fn: Callable[[T], str],
         post_fn: Callable[[str], T | None],
-        timeout: float = 300.0,
-        wait_sleep: float = 0.1,
+        timeout: float = 300.0,  # pylint: disable=unused-argument
+        wait_sleep: float = 0.1,  # pylint: disable=unused-argument
         ) -> T:
     cache_key = f"{cache_type}:{db_name}:{cache_hash}"
     res = cache.get_value(cache_key)
     if res is not None:
         if not res:
-            print(f"{cache_type.upper()} CACHE DEFERRED {cache_key}")
-            start_time = time.monotonic()
-            while (
-                    res is not None
-                    and not res
-                    and time.monotonic() - start_time < timeout):
-                if wait_sleep > 0.0:
-                    time.sleep(wait_sleep)
-                res = cache.get_value(cache_key)
+            pass
+            # FIXME: implement properly
+            # print(f"{cache_type.upper()} CACHE DEFERRED {cache_key}")
+            # start_time = time.monotonic()
+            # while (
+            #         res is not None
+            #         and not res
+            #         and time.monotonic() - start_time < timeout):
+            #     if wait_sleep > 0.0:
+            #         time.sleep(wait_sleep)
+            #     res = cache.get_value(cache_key)
         if res:
             response = post_fn(res)
             if response is not None:
                 print(f"{cache_type.upper()} CACHE HIT {cache_key}")
                 return response
     print(f"{cache_type.upper()} CACHE MISS {cache_key}")
-    cache.set_value(cache_key, "", mode=RSM_MISSING)
+    # cache.set_value(cache_key, "", mode=RSM_MISSING)
     ret_val = compute_fn()
     ret_str = pre_cache_fn(ret_val)
     if not ret_str:
