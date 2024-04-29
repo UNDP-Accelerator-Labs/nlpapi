@@ -328,6 +328,7 @@ if [ ! -z "${DEV}" ]; then
 elif [ -z "${CI}" ]; then
     echo "================================================="
     grep -Ev '^\s*$|^\s*\#' "${DOCKER_COMPOSE_OUT}"
+    echo "# eof"
 else
     echo "run 'make build' locally (without dockerpush) to get the docker compose file"
 fi
