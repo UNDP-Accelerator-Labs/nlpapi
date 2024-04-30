@@ -5,7 +5,11 @@ from typing import Any
 from app.api.mod import Module
 from app.system.db.db import DBConnector
 from app.system.location.pipeline import extract_locations
-from app.system.location.response import GeoQuery, LanguageStr
+from app.system.location.response import (
+    DEFAULT_MAX_REQUESTS,
+    GeoQuery,
+    LanguageStr,
+)
 from app.system.smind.api import GraphProfile
 
 
@@ -32,6 +36,6 @@ class LocationModule(Module):
             "return_context": args.get("return_context", True),
             "strategy": args.get("strategy", "top"),
             "language": args.get("language", "en"),
-            "max_requests": args.get("max_requests", 5),
+            "max_requests": args.get("max_requests", DEFAULT_MAX_REQUESTS),
         }
         return extract_locations(self._db, self._ner_graphs, obj, user)

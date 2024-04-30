@@ -3,7 +3,7 @@ from typing import Literal, TypedDict
 from app.system.location.strategy import Strategy
 
 
-DEFAULT_MAX_REQUESTS = 20
+DEFAULT_MAX_REQUESTS: int | None = None
 
 
 LanguageStr = Literal["en", "xx"]
