@@ -1,4 +1,3 @@
-# pylint: disable=unused-argument
 import hmac
 import sys
 import threading
@@ -196,8 +195,6 @@ def setup(
         f"http://{vec_cfg['host']}:{vec_cfg['port']}/telemetry")
 
     server.bind_path("/search/", "public/")
-
-    # TODO: add date module
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
