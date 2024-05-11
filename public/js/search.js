@@ -160,6 +160,11 @@ export default class Search {
       const url = new URL(window.location.href);
       url.search = params.toString();
       history.pushState({ q, filter, p }, '', url);
+      this._state = {
+        q,
+        filter,
+        p,
+      };
     }
   }
 
