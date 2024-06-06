@@ -5,7 +5,7 @@
       "description": "multilingual spacy NER",
       "input": "node_0",
       "input_format": {
-        "text": ["uint8", [null]]
+        "text": "string"
       },
       "output_format": {
         "ranges": ["int", [2, null]],

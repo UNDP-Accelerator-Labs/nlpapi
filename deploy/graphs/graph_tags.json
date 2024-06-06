@@ -5,10 +5,10 @@
       "description": "tag input text",
       "input": "node_0",
       "input_format": {
-        "text": ["uint8", [null]]
+        "text": "string"
       },
       "output_format": {
-        "tags": ["uint8", [null]]
+        "tags": "string"
       },
       "nodes": [
         {
