@@ -119,13 +119,19 @@ def setup(
 
     server.suppress_noise = True
 
+    server.register_shutdown()
+
     def report_slow_requests(
-            method_str: str, path: str, duration: float) -> None:
-        print(f"slow request {method_str} {path} ({duration}s)")
+            method_str: str,
+            path: str,
+            duration: float,
+            complete: bool) -> None:
+        duration_str = f"({duration}s)" if complete else "pending"
+        print(f"slow request {method_str} {path} {duration_str}")
 
     max_upload = 120 * 1024 * 1024  # 120MiB
     server_timeout = 10 * 60
-    server.report_slow_requests = report_slow_requests
+    server.report_slow_requests = (30.0, report_slow_requests)
     server.max_file_size = max_upload
     server.max_chunk_size = max_upload
     server.timeout = server_timeout

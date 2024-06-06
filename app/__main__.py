@@ -1,6 +1,8 @@
 import argparse
 import traceback
 
+from quick_server import setup_shutdown
+
 from app.api.server import (
     fallback_server,
     get_version_strs,
@@ -39,6 +41,7 @@ def run() -> None:
     print(f"app commit: {versions['commit']}")
     print(f"deploy time: {versions['deploy_time']}")
     print(f"start time: {versions['start_time']}")
+    setup_shutdown()
     try:
         server, prefix = setup_server(
             addr=args.address,
