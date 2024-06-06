@@ -150,6 +150,9 @@ class ModelNode(Node):
     def get_load_cost(self) -> float:
         return 1.0  # TODO
 
+    def session_field(self) -> str | None:
+        return None
+
     def do_load(self, roa: ReadonlyAccess) -> None:
         device = get_system_device()
         model = create_model({
