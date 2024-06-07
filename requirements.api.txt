@@ -9,7 +9,7 @@ keybert~=0.8.0
 langdetect==1.0.9
 mypy-extensions~=1.0.0
 mypy~=1.10.0
-numpy~=1.26.0
+numpy==1.26.3
 opencage==2.2.0
 pandas-stubs>=2.1
 pandas~=2.1.0

@@ -108,6 +108,8 @@ build-dev:
 compose:
 	./sh/compose.sh
 
+run-docker-api: build-dev compose
+
 publish:
 	./sh/deploy.sh
 
