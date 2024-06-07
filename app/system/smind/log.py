@@ -75,5 +75,5 @@ def sample_query_log(
         QUERY_LOG_CACHE = log_cache
         QUERY_LOG_DATE = date_str
     if not QUERY_LOG_CACHE:
-        return ""
+        return "test"
     return QUERY_LOG_CACHE[random.randrange(len(QUERY_LOG_CACHE))]
