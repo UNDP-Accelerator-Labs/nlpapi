@@ -54,6 +54,7 @@ from app.system.smind.search import (
     ClearResponse,
     DEFAULT_HIT_LIMIT,
     QueryEmbed,
+    set_main_articles,
     SMALL_CHUNK_SIZE,
     vec_add,
     vec_clear,
@@ -178,6 +179,9 @@ def setup(
 
     articles_main = get_vec_db("main", force_clear=False, force_index=False)
     articles_test = get_vec_db("test", force_clear=False, force_index=False)
+
+    set_main_articles(
+        db, vec_db, articles=articles_main, articles_graph=graph_embed)
 
     write_token = config["write_token"]
     tanuki_token = config["tanuki"]  # the nuke key

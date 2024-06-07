@@ -1,5 +1,6 @@
 import hashlib
 import re
+import threading
 import time
 import traceback
 import uuid
@@ -33,7 +34,7 @@ from app.system.smind.api import (
     GraphProfile,
 )
 from app.system.smind.cache import cached, clear_cache
-from app.system.smind.log import log_query
+from app.system.smind.log import log_query, sample_query_log
 from app.system.smind.vec import (
     add_embed,
     DOC_STATUS,
@@ -83,6 +84,103 @@ QueryEmbed = TypedDict('QueryEmbed', {
     "hits": list[ResultChunk],
     "status": Literal["ok", "error"],
 })
+
+
+MAIN_DB: DBConnector | None = None
+MAIN_VEC_DB: QdrantClient | None = None
+MAIN_ARTICLES: str | None = None
+MAIN_GRAPH: GraphProfile | None = None
+LAST_QUERY: float = 0.0
+KEEP_ALIVE_LOCK: 'threading.RLock | None' = None  # FIXME: type fixed in p3.13
+KEEP_ALIVE_TH: threading.Thread | None = None
+KEEP_ALIVE_FREQ: float = 60.0  # 1min
+
+
+def set_main_articles(
+        db: DBConnector,
+        vec_db: QdrantClient,
+        *,
+        articles: str,
+        articles_graph: GraphProfile) -> None:
+    global MAIN_DB  # pylint: disable=global-statement
+    global MAIN_VEC_DB  # pylint: disable=global-statement
+    global MAIN_ARTICLES  # pylint: disable=global-statement
+    global MAIN_GRAPH  # pylint: disable=global-statement
+    global KEEP_ALIVE_LOCK  # pylint: disable=global-statement
+
+    if MAIN_ARTICLES is not None or KEEP_ALIVE_LOCK is not None:
+        raise ValueError(
+            f"{set_main_articles.__name__} can only be called once!")
+
+    MAIN_DB = db
+    MAIN_VEC_DB = vec_db
+    MAIN_ARTICLES = articles
+    MAIN_GRAPH = articles_graph
+    KEEP_ALIVE_LOCK = threading.RLock()
+    update_last_query(update_time=False)
+
+
+def update_last_query(*, update_time: bool = True) -> None:
+    global LAST_QUERY  # pylint: disable=global-statement
+    global KEEP_ALIVE_TH  # pylint: disable=global-statement
+
+    if update_time:
+        LAST_QUERY = time.monotonic()
+    if KEEP_ALIVE_TH is not None and KEEP_ALIVE_TH.is_alive():
+        return
+    m_db = MAIN_DB
+    m_vec_db = MAIN_VEC_DB
+    m_lock = KEEP_ALIVE_LOCK
+    m_articles = MAIN_ARTICLES
+    m_articles_graph = MAIN_GRAPH
+    if (
+            m_db is None
+            or m_vec_db is None
+            or m_lock is None
+            or m_articles is None
+            or m_articles_graph is None):
+        raise ValueError(f"must call {set_main_articles.__name__} first!")
+    db = m_db
+    vec_db = m_vec_db
+    lock = m_lock
+    articles = m_articles
+    articles_graph = m_articles_graph
+
+    def run() -> None:
+        freq = KEEP_ALIVE_FREQ
+        while th is KEEP_ALIVE_TH:
+            last_query = time.monotonic() - LAST_QUERY
+            if last_query >= freq:
+                input_str = sample_query_log(db, db_name=articles)
+                res = vec_search(
+                    db,
+                    vec_db,
+                    input_str,
+                    articles=articles,
+                    articles_graph=articles_graph,
+                    filters=None,
+                    order_by=None,
+                    offset=None,
+                    limit=10,
+                    hit_limit=1,
+                    score_threshold=None,
+                    short_snippets=True)
+                if res["status"] != "ok":
+                    print(
+                        f"WARNING: keepalive query {input_str} was not okay! "
+                        f"{res}")
+                    time.sleep(freq)
+            else:
+                sleep = freq - last_query
+                if sleep > 0.0:
+                    time.sleep(sleep)
+
+    with lock:
+        if KEEP_ALIVE_TH is not None and KEEP_ALIVE_TH.is_alive():
+            return
+        th = threading.Thread(target=run, daemon=True)
+        KEEP_ALIVE_TH = th
+        th.start()
 
 
 CHUNK_SIZE = 600
@@ -216,6 +314,7 @@ def vec_add(
         url: str,
         title: str | None,
         meta_obj: MetaObject) -> AddEmbed:
+    update_last_query()
     # FIXME: make "smart" features optional
     full_start = time.monotonic()
     # clear caches
@@ -549,6 +648,7 @@ def vec_search(
         hit_limit: int,
         score_threshold: float | None,
         short_snippets: bool) -> QueryEmbed:
+    update_last_query()
     if filters is not None:
         filters = {
             key: to_list(value)
