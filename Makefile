@@ -37,6 +37,7 @@ export LANG=C
 
 PYTHON?=python3
 NS?=default
+DOCKER_COMPOSE_OUT?=docker-compose.yml
 
 lint-comment:
 	! ./sh/findpy.sh \
@@ -108,10 +109,20 @@ build-dev:
 compose:
 	./sh/compose.sh
 
+show-compose:
+	@echo "================================================="
+	@grep -Ev '^\s*$|^\s*\#' "${DOCKER_COMPOSE_OUT}"
+	@echo "# eof"
+
 run-docker-api: build-dev compose
 
 publish:
 	./sh/deploy.sh
+
+publish-local: \
+	build \
+	dockerpush \
+	show-compose
 
 azlogin:
 	./sh/azlogin.sh

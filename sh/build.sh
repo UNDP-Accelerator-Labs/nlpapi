@@ -326,9 +326,7 @@ fi
 if [ ! -z "${DEV}" ]; then
     echo "run 'make compose' next to start the app on http://localhost:8080/search/"
 elif [ -z "${CI}" ]; then
-    echo "================================================="
-    grep -Ev '^\s*$|^\s*\#' "${DOCKER_COMPOSE_OUT}"
-    echo "# eof"
+    DOCKER_COMPOSE_OUT="${DOCKER_COMPOSE_OUT}" make -s show-compose
 else
     echo "run 'make build' locally (without dockerpush) to get the docker compose file"
 fi
