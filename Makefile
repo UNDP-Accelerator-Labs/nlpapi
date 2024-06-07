@@ -35,8 +35,8 @@ help:
 export LC_ALL=C
 export LANG=C
 
-PYTHON=python3
-NS=default
+PYTHON?=python3
+NS?=default
 
 lint-comment:
 	! ./sh/findpy.sh \
@@ -133,28 +133,28 @@ requirements-complete:
 	PYTHON=$(PYTHON) ./sh/requirements_complete.sh $(FILE)
 
 uuid:
-	python -c "import uuid; print(f'{uuid.uuid4().hex}')"
+	@python -c "import uuid; print(f'{uuid.uuid4().hex}')"
 
 name:
-	git describe --tags --match `git tag --merged | sort -rV | head -n 1`
+	@git describe --tags --match `git tag --merged | sort -rV | head -n 1`
 
 commit:
-	git describe --match NOTATAG --always --abbrev=40 --dirty='*'
+	@git describe --match NOTATAG --always --abbrev=40 --dirty='*'
 
 branch:
-	git rev-parse --abbrev-ref HEAD
+	@git rev-parse --abbrev-ref HEAD
 
 version-file:
-	./sh/versionfile.sh
+	@./sh/versionfile.sh
 
 current-version:
-	./sh/version.sh --current
+	@./sh/version.sh --current
 
 next-version:
-	./sh/version.sh
+	@./sh/version.sh
 
 git-check:
-	./sh/git_check.sh
+	@./sh/git_check.sh
 
 pre-commit:
 	pre-commit install
