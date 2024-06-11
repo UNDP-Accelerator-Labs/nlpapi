@@ -4,7 +4,62 @@ def replacer(text: str, mapping: dict[str, str]) -> str:
     return text.strip()
 
 
-RATING_PROMPT = """
+BR_O = "{"
+BR_C = "}"
+
+
+EXAMPLE_RATE_0 = (
+    "The article primarily talks about the political challenges of "
+    "implementing circular economy in Panama. However, it also briefly "
+    "discusses economical benefits and portraits a long term view that "
+    "is rooted in education")
+
+
+EXAMPLE_RATE_1 = (
+    "The article discusses technical challenges of circular economies. "
+    "It identifies institutions as driver of technological advancements "
+    "of the topic. In addition to that, it also considers legal aspects "
+    "or circular economies. It briefly mentions cultural hurdles.")
+
+
+RATING_PROMPT = f"""
+You are a knowledgeable assistant that rates articles about <topic> on how
+much they focus on the given categories. The categories are:
+
+<categories>
+
+Your entire response is a JSON and nothing else. The JSON is an object with
+several fields: "reason" which provides a short (50 - 100 words) justification
+for your assessment and one numeric field for every category. The numbers
+indicate the weight of each category in the article.
+
+## Examples
+
+```
+{BR_O}
+    "reason": "{EXAMPLE_RATE_0}",
+    "institutional": 0,
+    "legal": 0,
+    "technological": 0,
+    "economic": 2,
+    "political": 5,
+    "cultural": 0,
+    "educational": 2,
+{BR_C}
+```
+
+```
+{BR_O}
+    "reason": "{EXAMPLE_RATE_1}",
+    "institutional": 3,
+    "legal": 3,
+    "technological": 4,
+    "economic": 0,
+    "political": 0,
+    "cultural": 1,
+    "educational": 0,
+{BR_C}
+```
 """
 
 CATEGORIES = {
@@ -32,14 +87,57 @@ CATEGORIES = {
 }
 
 
-VERIFY_PROMPT = """
-You are a knowledgeable assistant that decides whether the content that the
+RATING_CIRCULAR_ECONOMY = replacer(
+    RATING_PROMPT,
+    {
+        "topic": "circular economy",
+        "categories": ", ".join(
+            [f"'{cat}'" for cat in sorted(CATEGORIES.keys())]),
+    })
+
+
+EXAMPLE_VERIFY_0 = (
+    "The article talks about circular economy as it discusses "
+    "the concept of reducing waste, reusing, recycling, and upcycling "
+    "products and materials. It also highlights the importance of "
+    "designing products that can be easily disassembled, recycled, "
+    "or upcycled at the end of their life cycle, which is a key "
+    "principle of the circular economy.")
+
+EXAMPLE_VERIFY_1 = (
+    "The article does not discuss circular economy as it focuses "
+    "on the socio-economic impact of COVID-19 on women-led micro, small, "
+    "and medium enterprises (MSMEs) in Palestine, including their "
+    "challenges, resilience, and potential solutions such as online "
+    "platforms and e-payments.")
+
+
+VERIFY_PROMPT = f"""
+You are a knowledgeable assistant that decides whether the article that the
 user provides to you talks about <topic>.
 
 <topic_definition>
 
-You only respond with a short (50 - 100 words) justification for your decicion
-and after that with a single `yes` or `no` on its own line.
+Your entire response is a JSON and nothing else. The JSON is an object with
+two fields: "reason" which provides a short (50 - 100 words) justification for
+your decision and "is_hit" which is a boolean value indicating your final
+answer.
+
+## Examples
+
+```
+{BR_O}
+    "reason": "{EXAMPLE_VERIFY_0}",
+    "is_hit": true,
+{BR_C}
+```
+
+```
+{BR_O}
+    "reason": "{EXAMPLE_VERIFY_1}",
+    "is_hit": false,
+{BR_C}
+```
 """
 
 CIRCULAR_ECONOMY_DEFINITION = """
@@ -65,7 +163,7 @@ being discarded in landfills.
 
 Circular economy is still an evolving concept, but it has the potential to
 transform the way we produce, consume, and interact with goods and services.
-"""
+""".strip()
 
 VERIFY_CIRCULAR_ECONOMY = replacer(
     VERIFY_PROMPT,
@@ -77,4 +175,5 @@ VERIFY_CIRCULAR_ECONOMY = replacer(
 
 SYSTEM_PROMPTS: dict[str, str] = {
     "verify_circular_economy": VERIFY_CIRCULAR_ECONOMY,
+    "rate_circular_economy": RATING_CIRCULAR_ECONOMY,
 }

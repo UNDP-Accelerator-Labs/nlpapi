@@ -94,6 +94,7 @@ class LlamaNode(Node):
         messages = load_system_prompt(
             cache_dir=cache_dir,
             system_prompt_key=system_prompt_key)
+        print(f"SYSTEM PROMPT: '{messages[0]['content']}'")
         if prompt:
             append_new_message(messages, text=prompt, role=ROLE_USER)
         response: list[str] = []

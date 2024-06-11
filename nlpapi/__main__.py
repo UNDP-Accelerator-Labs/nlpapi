@@ -3,7 +3,8 @@ import json
 import os
 import sys
 import time
-from typing import TypedDict
+from collections.abc import Iterable
+from typing import TypedDict, TypeVar
 
 import pandas as pd
 from scattermind.api.api import ScattermindAPI
@@ -11,6 +12,9 @@ from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
 from scattermind.system.names import GNamespace
 from scattermind.system.torch_util import tensor_to_str
+
+from app.system.prep.clean import normalize_text
+from app.system.prep.snippify import snippify_text
 
 
 Pad = TypedDict('Pad', {
@@ -94,6 +98,15 @@ def load_graph(
 #     return res
 
 
+T = TypeVar('T')
+
+
+def first(iterator: Iterable[T]) -> T:
+    for res in iterator:
+        return res
+    raise ValueError("empty iterator!")
+
+
 def run() -> None:
     # ./run.sh
     # python -m nlpapi --config study/config.json --graph
@@ -129,10 +142,12 @@ def run() -> None:
     ns, input_field, output_field = load_graph(smind, graph_fname)
 
     def from_str(ix: int, text: str) -> JSONPad:
+        content = normalize_text(text)
+        print(f"reduced length of article from {len(text)} to {len(content)}")
         return {
             "id": ix,
             "is_public": True,
-            "title": text,
+            "title": content,
             "content": "",
         }
 
@@ -260,7 +275,12 @@ def run() -> None:
             res = {
                 "id": [curpad["id"]],
                 "is_public": [curpad["is_public"]],
-                input_field: [curpad["text"]],
+                input_field: [
+                    first(snippify_text(
+                        curpad["text"],
+                        chunk_size=100,
+                        chunk_padding=10))[0],
+                ],
                 output_field: [output],
             }
             if is_stdout:
