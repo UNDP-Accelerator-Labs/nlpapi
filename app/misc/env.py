@@ -33,6 +33,7 @@ EnvInt = Literal[
 ]
 EnvBool = Literal[
     "NO_QDRANT",
+    "HAS_LLAMA",
 ]
 
 

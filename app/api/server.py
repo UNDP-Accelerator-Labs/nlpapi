@@ -23,7 +23,7 @@ from app.api.response_types import (
     URLInspectResponse,
     VersionResponse,
 )
-from app.misc.env import envload_int, envload_str
+from app.misc.env import envload_bool, envload_int, envload_str
 from app.misc.util import get_time_str, maybe_float
 from app.misc.version import get_version
 from app.system.config import get_config
@@ -429,6 +429,11 @@ def setup(
     smind = load_smind(smind_config)
     graph_embed = load_graph(config, smind, "graph_embed.json")
 
+    if envload_bool("HAS_LLAMA", default=False):
+        graph_llama = load_graph(config, smind, "graph_llama.json")
+    else:
+        graph_llama = None
+
     ner_graphs: dict[LanguageStr, GraphProfile] = {
         "en": load_graph(config, smind, "graph_ner_en.json"),
         "xx": load_graph(config, smind, "graph_ner_xx.json"),
@@ -540,6 +545,8 @@ def setup(
             "python": versions["python_version"],
             "deploy_date": versions["deploy_time"],
             "start_date": versions["start_time"],
+            "has_vecdb": vec_db is not None,
+            "has_llm": graph_llama is not None,
             "error": None,
         }
 
@@ -779,6 +786,8 @@ def fallback_server(
             "python": versions["python_version_detail"],
             "deploy_date": versions["deploy_time"],
             "start_date": versions["start_time"],
+            "has_vecdb": False,
+            "has_llm": False,
             "error": exc_strs,
         }
 

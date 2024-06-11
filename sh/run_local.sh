@@ -44,6 +44,7 @@ start_smind() {
 start_smind
 
 NO_QDRANT='true' \
+HAS_LLAMA='true' \
 SMIND_CFG='local/smind-config.json' \
 GRAPH_PATH='local/graphs/' \
 CONFIG_PATH='-' \
