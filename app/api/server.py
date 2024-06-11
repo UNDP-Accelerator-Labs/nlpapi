@@ -4,9 +4,11 @@ import threading
 import uuid
 from typing import Any, get_args, Literal, TypeAlias, TypedDict
 
-from quick_server import create_server, QuickServer
+from qdrant_client import QdrantClient
+from quick_server import create_server, MiddlewareF, QuickServer
 from quick_server import QuickServerRequestHandler as QSRH
 from quick_server import ReqArgs, ReqNext, Response
+from redipy import Redis
 from redipy.util import fmt_time
 
 from app.api.mod import Module
@@ -111,183 +113,47 @@ def get_version_strs() -> VersionDict:
     }
 
 
-def setup(
-        server: QuickServer,
+def get_vec_db(
+        vec_db: QdrantClient,
         *,
-        deploy: bool,
-        versions: VersionDict) -> tuple[QuickServer, str]:
-    prefix = "/api"
+        name: DBName,
+        graph_embed: GraphProfile,
+        force_clear: bool,
+        force_index: bool) -> str:
+    return build_db_name(
+        f"articles_{name}",
+        distance_fn="dot",
+        db=vec_db,
+        embed_size=graph_embed.get_output_size(),
+        force_clear=force_clear,
+        force_index=force_index)
 
-    server.suppress_noise = True
 
-    server.register_shutdown()
-
-    def report_slow_requests(
-            method_str: str,
-            path: str,
-            duration: float,
-            complete: bool) -> None:
-        duration_str = f"({duration}s)" if complete else "pending"
-        print(f"slow request {method_str} {path} {duration_str}")
-
-    max_upload = 120 * 1024 * 1024  # 120MiB
-    server_timeout = 10 * 60
-    server.report_slow_requests = (30.0, report_slow_requests)
-    server.max_file_size = max_upload
-    server.max_chunk_size = max_upload
-    server.timeout = server_timeout
-    server.socket.settimeout(server_timeout)
-
-    server.link_empty_favicon_fallback()
-
-    server.cross_origin = True  # FIXME: for now...
-
-    if deploy:
-        server.no_command_loop = True
-
-    server.update_version_string(versions["server_version"])
-
-    server.set_common_invalid_paths(["/", "//"])
-
-    server.set_default_token_expiration(48 * 60 * 60)  # 2 days
-
-    config = get_config()
-    db = DBConnector(config["db"])
-
-    vec_db = get_vec_client(config)
-
-    smind_config = config["smind"]
-    smind = load_smind(smind_config)
-    graph_embed = load_graph(config, smind, "graph_embed.json")
-
-    ner_graphs: dict[LanguageStr, GraphProfile] = {
-        "en": load_graph(config, smind, "graph_ner_en.json"),
-        "xx": load_graph(config, smind, "graph_ner_xx.json"),
-    }
-
-    qdrant_cache = get_redis(
-        smind_config, redis_name="rcache", overwrite_prefix="qdrant")
-
-    def get_vec_db(name: DBName, force_clear: bool, force_index: bool) -> str:
-        return build_db_name(
-            f"articles_{name}",
-            distance_fn="dot",
-            db=vec_db,
-            embed_size=graph_embed.get_output_size(),
-            force_clear=force_clear,
-            force_index=force_index)
-
-    articles_main = get_vec_db("main", force_clear=False, force_index=False)
-    articles_test = get_vec_db("test", force_clear=False, force_index=False)
+def add_vec_features(
+        server: QuickServer,
+        db: DBConnector,
+        vec_db: QdrantClient,
+        *,
+        prefix: str,
+        qdrant_cache: Redis,
+        graph_embed: GraphProfile,
+        verify_readonly: MiddlewareF,
+        verify_input: MiddlewareF) -> list[str]:
+    articles_main = get_vec_db(
+        vec_db,
+        name="main",
+        graph_embed=graph_embed,
+        force_clear=False,
+        force_index=False)
+    articles_test = get_vec_db(
+        vec_db,
+        name="test",
+        graph_embed=graph_embed,
+        force_clear=False,
+        force_index=False)
 
     set_main_articles(
         db, vec_db, articles=articles_main, articles_graph=graph_embed)
-
-    write_token = config["write_token"]
-    tanuki_token = config["tanuki"]  # the nuke key
-
-    vec_cfg = config["vector"]
-    server.bind_proxy(
-        "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
-    # FIXME: fix for https://github.com/qdrant/qdrant-web-ui/issues/94
-    # server.set_debug_proxy(True)
-    server.bind_proxy(
-        "/dashboard/",
-        f"http://{vec_cfg['host']}:{vec_cfg['port']}/dashboard")
-    server.bind_proxy(
-        "/collections/",
-        f"http://{vec_cfg['host']}:{vec_cfg['port']}/collections")
-    server.bind_proxy(
-        "/cluster/",
-        f"http://{vec_cfg['host']}:{vec_cfg['port']}/cluster")
-    server.bind_proxy(
-        "/telemetry/",
-        f"http://{vec_cfg['host']}:{vec_cfg['port']}/telemetry")
-
-    server.bind_path("/search/", "public/")
-
-    def verify_token(
-            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
-        token = rargs.get("post", {}).get("token")
-        if token is None:
-            token = rargs.get("query", {}).get("token")
-        if token is None:
-            raise KeyError("'token' not set")
-        user = is_valid_token(config, f"{token}")
-        if user is None:
-            return Response("invalid token provided", 401)
-        rargs["meta"]["user"] = user
-        return okay
-
-    def verify_readonly(
-            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
-        token = rargs.get("post", {}).get("write_access")
-        if token is not None:
-            raise ValueError(
-                "'write_access' was passed for readonly operation! this might "
-                "be an error in the script that is accessing the API")
-        return okay
-
-    def verify_write(
-            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
-        token = rargs.get("post", {}).get("write_access")
-        if token is None:
-            raise KeyError("'write_access' not set")
-        if not hmac.compare_digest(write_token, token):
-            raise ValueError("invalid 'write_access' token!")
-        return okay
-
-    def verify_tanuki(
-            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
-        req_tanuki = rargs.get("post", {}).get("tanuki")
-        if req_tanuki is None:
-            raise KeyError("'tanuki' not set")
-        if not hmac.compare_digest(tanuki_token, req_tanuki):
-            raise ValueError("invalid 'tanuki'!")
-        return okay
-
-    def verify_input(
-            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
-        args = rargs.get("post", {})
-        text = args.get("input")
-        if text is None:
-            text = rargs.get("query", {}).get("q")
-        if text is None:
-            raise KeyError("POST 'input' or GET 'q' not set")
-        text = f"{text}"
-        if len(text) > MAX_INPUT_LENGTH:
-            return Response(
-                f"input length exceeds {MAX_INPUT_LENGTH} bytes", 413)
-        rargs["meta"]["input"] = normalize_text(sanity_check(text))
-        return okay
-
-    # *** misc ***
-
-    @server.json_get(f"{prefix}/version")
-    @server.middleware(verify_readonly)
-    def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
-        return {
-            "app_name": versions["app_version"],
-            "app_commit": versions["commit"],
-            "python": versions["python_version"],
-            "deploy_date": versions["deploy_time"],
-            "start_date": versions["start_time"],
-            "error": None,
-        }
-
-    @server.json_get(f"{prefix}/info")
-    @server.middleware(verify_readonly)
-    def _get_info(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
-        vecdbs: list[VecDBStat] = []
-        for articles in [articles_main, articles_test]:
-            for is_vec in [False, True]:
-                articles_stats = get_vec_stats(vec_db, articles, is_vec=is_vec)
-                if articles_stats is not None:
-                    vecdbs.append(articles_stats)
-        return {
-            "vecdbs": vecdbs,
-            "queues": get_queue_stats(smind),
-        }
 
     @server.json_post(f"{prefix}/stats")
     @server.middleware(verify_readonly)
@@ -333,8 +199,37 @@ def setup(
             score_threshold=score_threshold,
             short_snippets=short_snippets)
 
-    # # # SECURE # # #
-    server.add_middleware(verify_token)
+    return [articles_main, articles_test]
+
+
+def add_secure_vec_features(
+        server: QuickServer,
+        db: DBConnector,
+        vec_db: QdrantClient,
+        *,
+        prefix: str,
+        articles: list[str],
+        qdrant_cache: Redis,
+        smind_config: str,
+        graph_embed: GraphProfile,
+        ner_graphs: dict[LanguageStr, GraphProfile],
+        verify_readonly: MiddlewareF,
+        verify_input: MiddlewareF,
+        verify_write: MiddlewareF,
+        verify_tanuki: MiddlewareF) -> None:
+    articles_main, articles_test = articles
+
+    def get_ctx_vec_db(
+            *,
+            name: Literal["main", "test"],
+            force_clear: bool,
+            force_index: bool) -> str:
+        return get_vec_db(
+            vec_db,
+            name=name,
+            graph_embed=graph_embed,
+            force_clear=force_clear,
+            force_index=force_index)
 
     # *** system ***
 
@@ -358,7 +253,7 @@ def setup(
             vec_db,
             smind_config,
             qdrant_cache=qdrant_cache,
-            get_vec_db=get_vec_db,
+            get_vec_db=get_ctx_vec_db,
             clear_rmain=clear_rmain,
             clear_rdata=clear_rdata,
             clear_rcache=clear_rcache,
@@ -483,6 +378,205 @@ def setup(
             hit_limit=hit_limit,
             score_threshold=score_threshold,
             short_snippets=short_snippets)
+
+
+def setup(
+        server: QuickServer,
+        *,
+        deploy: bool,
+        versions: VersionDict) -> tuple[QuickServer, str]:
+    prefix = "/api"
+
+    server.suppress_noise = True
+
+    server.register_shutdown()
+
+    def report_slow_requests(
+            method_str: str,
+            path: str,
+            duration: float,
+            complete: bool) -> None:
+        duration_str = f"({duration}s)" if complete else "pending"
+        print(f"slow request {method_str} {path} {duration_str}")
+
+    max_upload = 120 * 1024 * 1024  # 120MiB
+    server_timeout = 10 * 60
+    server.report_slow_requests = (30.0, report_slow_requests)
+    server.max_file_size = max_upload
+    server.max_chunk_size = max_upload
+    server.timeout = server_timeout
+    server.socket.settimeout(server_timeout)
+
+    server.link_empty_favicon_fallback()
+
+    server.cross_origin = True  # FIXME: for now...
+
+    if deploy:
+        server.no_command_loop = True
+
+    server.update_version_string(versions["server_version"])
+
+    server.set_common_invalid_paths(["/", "//"])
+
+    server.set_default_token_expiration(48 * 60 * 60)  # 2 days
+
+    config = get_config()
+    db = DBConnector(config["db"])
+
+    vec_db = get_vec_client(config)
+
+    smind_config = config["smind"]
+    smind = load_smind(smind_config)
+    graph_embed = load_graph(config, smind, "graph_embed.json")
+
+    ner_graphs: dict[LanguageStr, GraphProfile] = {
+        "en": load_graph(config, smind, "graph_ner_en.json"),
+        "xx": load_graph(config, smind, "graph_ner_xx.json"),
+    }
+
+    qdrant_cache = get_redis(
+        smind_config, redis_name="rcache", overwrite_prefix="qdrant")
+
+    write_token = config["write_token"]
+    tanuki_token = config["tanuki"]  # the nuke key
+
+    vec_cfg = config["vector"]
+    if vec_cfg is not None:
+        server.bind_proxy(
+            "/qdrant/", f"http://{vec_cfg['host']}:{vec_cfg['port']}")
+        # FIXME: fix for https://github.com/qdrant/qdrant-web-ui/issues/94
+        # server.set_debug_proxy(True)
+        server.bind_proxy(
+            "/dashboard/",
+            f"http://{vec_cfg['host']}:{vec_cfg['port']}/dashboard")
+        server.bind_proxy(
+            "/collections/",
+            f"http://{vec_cfg['host']}:{vec_cfg['port']}/collections")
+        server.bind_proxy(
+            "/cluster/",
+            f"http://{vec_cfg['host']}:{vec_cfg['port']}/cluster")
+        server.bind_proxy(
+            "/telemetry/",
+            f"http://{vec_cfg['host']}:{vec_cfg['port']}/telemetry")
+
+    server.bind_path("/search/", "public/")
+
+    def verify_token(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        token = rargs.get("post", {}).get("token")
+        if token is None:
+            token = rargs.get("query", {}).get("token")
+        if token is None:
+            raise KeyError("'token' not set")
+        user = is_valid_token(config, f"{token}")
+        if user is None:
+            return Response("invalid token provided", 401)
+        rargs["meta"]["user"] = user
+        return okay
+
+    def verify_readonly(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        token = rargs.get("post", {}).get("write_access")
+        if token is not None:
+            raise ValueError(
+                "'write_access' was passed for readonly operation! this might "
+                "be an error in the script that is accessing the API")
+        return okay
+
+    def verify_write(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        token = rargs.get("post", {}).get("write_access")
+        if token is None:
+            raise KeyError("'write_access' not set")
+        if not hmac.compare_digest(write_token, token):
+            raise ValueError("invalid 'write_access' token!")
+        return okay
+
+    def verify_tanuki(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        req_tanuki = rargs.get("post", {}).get("tanuki")
+        if req_tanuki is None:
+            raise KeyError("'tanuki' not set")
+        if not hmac.compare_digest(tanuki_token, req_tanuki):
+            raise ValueError("invalid 'tanuki'!")
+        return okay
+
+    def verify_input(
+            _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        args = rargs.get("post", {})
+        text = args.get("input")
+        if text is None:
+            text = rargs.get("query", {}).get("q")
+        if text is None:
+            raise KeyError("POST 'input' or GET 'q' not set")
+        text = f"{text}"
+        if len(text) > MAX_INPUT_LENGTH:
+            return Response(
+                f"input length exceeds {MAX_INPUT_LENGTH} bytes", 413)
+        rargs["meta"]["input"] = normalize_text(sanity_check(text))
+        return okay
+
+    if vec_db is not None:
+        articles = add_vec_features(
+            server,
+            db,
+            vec_db,
+            prefix=prefix,
+            qdrant_cache=qdrant_cache,
+            graph_embed=graph_embed,
+            verify_readonly=verify_readonly,
+            verify_input=verify_input)
+    else:
+        articles = []
+
+    # *** misc ***
+
+    @server.json_get(f"{prefix}/version")
+    @server.middleware(verify_readonly)
+    def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
+        return {
+            "app_name": versions["app_version"],
+            "app_commit": versions["commit"],
+            "python": versions["python_version"],
+            "deploy_date": versions["deploy_time"],
+            "start_date": versions["start_time"],
+            "error": None,
+        }
+
+    @server.json_get(f"{prefix}/info")
+    @server.middleware(verify_readonly)
+    def _get_info(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
+        vecdbs: list[VecDBStat] = []
+        if vec_db is not None:
+            for article in articles:
+                for is_vec in [False, True]:
+                    article_stats = get_vec_stats(
+                        vec_db, article, is_vec=is_vec)
+                    if article_stats is not None:
+                        vecdbs.append(article_stats)
+        return {
+            "vecdbs": vecdbs,
+            "queues": get_queue_stats(smind),
+        }
+
+    # # # SECURE # # #
+    server.add_middleware(verify_token)
+
+    if vec_db is not None:
+        add_secure_vec_features(
+            server,
+            db,
+            vec_db,
+            prefix=prefix,
+            articles=articles,
+            qdrant_cache=qdrant_cache,
+            smind_config=smind_config,
+            graph_embed=graph_embed,
+            ner_graphs=ner_graphs,
+            verify_readonly=verify_readonly,
+            verify_input=verify_input,
+            verify_write=verify_write,
+            verify_tanuki=verify_tanuki)
 
     # *** location ***
 

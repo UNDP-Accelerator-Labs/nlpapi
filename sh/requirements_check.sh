@@ -4,7 +4,7 @@ set -e
 
 cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
-PYTHON="${PYTHON:-python3}"
+PYTHON="${PYTHON:-python}"
 FILE=${1:-requirements.txt}
 
 TMP=$(mktemp tmp.XXXXXX)

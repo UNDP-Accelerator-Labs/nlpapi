@@ -219,8 +219,10 @@ def ensure_valid_name(name: str) -> str:
     return name
 
 
-def get_vec_client(config: Config) -> QdrantClient:
+def get_vec_client(config: Config) -> QdrantClient | None:
     vec_db = config["vector"]
+    if vec_db is None:
+        return None
     host = vec_db["host"]
     if host.startswith(FILE_PROTOCOL):
         print(f"loading db file: {host.removeprefix(FILE_PROTOCOL)}")

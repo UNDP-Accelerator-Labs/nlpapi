@@ -1,0 +1,38 @@
+{
+  "graphs": [
+    {
+      "name": "ner_en",
+      "description": "en spacy NER",
+      "input": "node_0",
+      "input_format": {
+        "text": "string"
+      },
+      "output_format": {
+        "ranges": ["int", [2, null]],
+        "text": ["uint8", [null, null]]
+      },
+      "nodes": [
+        {
+          "name": "node_0",
+          "kind": "nlpapi.spacy_ner",
+          "args": {
+            "lang": "en",
+            "entities": ["LOC", "GPE"]
+          },
+          "outs": {
+            "out": null
+          },
+          "vmap": {
+            "text": ":text"
+          }
+        }
+      ],
+      "vmap": {
+        "ranges": "node_0:ranges",
+        "text": "node_0:text"
+      },
+      "cache": true
+    }
+  ],
+  "entry": "ner_en"
+}

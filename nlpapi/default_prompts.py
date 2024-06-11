@@ -31,7 +31,9 @@ much they focus on the given categories. The categories are:
 Your entire response is a JSON and nothing else. The JSON is an object with
 several fields: "reason" which provides a short (50 - 100 words) justification
 for your assessment and one numeric field for every category. The numbers
-indicate the weight of each category in the article.
+indicate the weight of each category in the article. 0 indicates no
+mention at all and higher numbers indicate a higher relevance within the
+article.
 
 ## Examples
 

@@ -1,0 +1,37 @@
+{
+  "graphs": [
+    {
+      "name": "llama",
+      "description": "llama chat model",
+      "input": "node_0",
+      "input_format": {
+        "prompt": "string",
+        "system_prompt_key": "string"
+      },
+      "output_format": {
+        "response": "string"
+      },
+      "nodes": [
+        {
+          "name": "node_0",
+          "kind": "nlpapi.node_llama",
+          "args": {
+            "model_path": "models/Meta-Llama-3-8B-Instruct-IQ3_XS.gguf"
+          },
+          "outs": {
+            "out": null
+          },
+          "vmap": {
+            "prompt": ":prompt",
+            "system_prompt_key": ":system_prompt_key"
+          }
+        }
+      ],
+      "vmap": {
+        "response": "node_0:response"
+      },
+      "cache": false
+    }
+  ],
+  "entry": "llama"
+}

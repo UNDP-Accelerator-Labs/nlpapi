@@ -35,7 +35,7 @@ help:
 export LC_ALL=C
 export LANG=C
 
-PYTHON?=python3
+PYTHON?=python
 NS?=default
 DOCKER_COMPOSE_OUT?=docker-compose.yml
 
@@ -178,6 +178,9 @@ pytest:
 
 run-api:
 	API_SERVER_NAMESPACE=$(NS) $(PYTHON) -m app
+
+run-local:
+	./sh/run_local.sh
 
 coverage-report:
 	cd coverage/reports/html_report && open index.html

@@ -56,6 +56,7 @@ from app.system.urlinspect.inspect import inspect_url
 class GetVecDB(Protocol):  # pylint: disable=too-few-public-methods
     def __call__(
             self,
+            *,
             name: Literal["main", "test"],
             force_clear: bool,
             force_index: bool) -> str:
@@ -257,27 +258,27 @@ def vec_clear(
             clear_vecdb_test = False
     if clear_vecdb_main:
         try:
-            get_vec_db("main", force_clear=True, force_index=False)
+            get_vec_db(name="main", force_clear=True, force_index=False)
             index_vecdb_main = False
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_vecdb_main = False
     if clear_vecdb_test:
         try:
-            get_vec_db("test", force_clear=True, force_index=False)
+            get_vec_db(name="test", force_clear=True, force_index=False)
             index_vecdb_test = False
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_vecdb_test = False
     if index_vecdb_main:
         try:
-            get_vec_db("main", force_clear=False, force_index=True)
+            get_vec_db(name="main", force_clear=False, force_index=True)
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             index_vecdb_main = False
     if index_vecdb_test:
         try:
-            get_vec_db("test", force_clear=False, force_index=True)
+            get_vec_db(name="test", force_clear=False, force_index=True)
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             index_vecdb_test = False

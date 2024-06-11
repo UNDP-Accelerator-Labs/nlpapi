@@ -6,7 +6,7 @@ cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
 mkdir -p buildtmp
 
-PYTHON="${PYTHON:-python3}"
+PYTHON="${PYTHON:-python}"
 
 DOCKER_CONFIG=docker.config.json
 LOCAL_CONFIG=config.json

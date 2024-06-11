@@ -2,7 +2,7 @@ import json
 import os
 from typing import cast, TYPE_CHECKING, TypedDict
 
-from app.misc.env import envload_int, envload_path, envload_str
+from app.misc.env import envload_bool, envload_int, envload_path, envload_str
 from app.misc.io import open_read, open_write
 
 
@@ -15,7 +15,7 @@ Config = TypedDict('Config', {
     "db": 'DBConfig',
     "opencage": str,
     "appsecret": str,
-    "vector": 'VecDBConfig',
+    "vector": 'VecDBConfig | None',
     "smind": str,
     "graphs": str,
     "write_token": str,
@@ -82,6 +82,14 @@ def get_config() -> Config:
     config_path = get_config_path()
     if config_path == "-":
         print("loading config from env")
+        vector: 'VecDBConfig | None' = None
+        if not envload_bool("NO_QDRANT", default=False):
+            vector = {
+                "host": envload_str("QDRANT_HOST"),
+                "port": envload_int("QDRANT_REST_PORT", default=6333),
+                "grpc": envload_int("QDRANT_GRPC_PORT", default=6334),
+                "token": envload_str("QDRANT__SERVICE__API_KEY", default=""),
+            }
         CONFIG = {
             "db": {
                 "dbname": envload_str("LOGIN_DB_NAME"),
@@ -95,12 +103,7 @@ def get_config() -> Config:
             },
             "opencage": envload_str("OPENCAGE_API"),
             "appsecret": envload_str("APP_SECRET"),
-            "vector": {
-                "host": envload_str("QDRANT_HOST"),
-                "port": envload_int("QDRANT_REST_PORT", default=6333),
-                "grpc": envload_int("QDRANT_GRPC_PORT", default=6334),
-                "token": envload_str("QDRANT__SERVICE__API_KEY", default=""),
-            },
+            "vector": vector,
             "smind": envload_path("SMIND_CFG"),
             "graphs": envload_path("GRAPH_PATH"),
             "write_token": envload_str("WRITE_TOKEN"),

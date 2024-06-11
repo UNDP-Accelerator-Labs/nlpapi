@@ -4,7 +4,7 @@ set -ex
 
 cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
-PYTHON="${PYTHON:-python3}"
+PYTHON="${PYTHON:-python}"
 STUBGEN="${STUBGEN:-stubgen}"
 OUTPUT="${OUTPUT:-stubs}"
 FORCE="${FORCE:-}"
