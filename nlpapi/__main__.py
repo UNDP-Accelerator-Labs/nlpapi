@@ -6,8 +6,6 @@ import time
 from typing import TypedDict
 
 import pandas as pd
-
-# from gemma import tokenizer
 from scattermind.api.api import ScattermindAPI
 from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
@@ -45,6 +43,10 @@ def parse_args() -> argparse.Namespace:
             "The input or input file if it starts with @. If @ is a folder "
             "all files ending in '.txt' are passed as individual prompts."))
     parser.add_argument(
+        "--system-prompt-key",
+        type=str,
+        help="The system prompt key for llama.")
+    parser.add_argument(
         "--output",
         type=str,
         help="The output file or '-' for stdout.")
@@ -68,16 +70,17 @@ def load_graph(
     with open(graph_fname, "rb") as fin:
         graph_def_obj = json.load(fin)
     ns = smind.load_graph(graph_def_obj)
-    inputs = list(smind.main_inputs(ns))
-    outputs = list(smind.main_outputs(ns))
-    if len(inputs) != 1:
-        raise ValueError(f"invalid graph inputs: {inputs}")
-    if len(outputs) != 1:
-        raise ValueError(f"invalid graph outputs: {outputs}")
-    return ns, inputs[0], outputs[0]
+    # inputs = list(smind.main_inputs(ns))
+    # outputs = list(smind.main_outputs(ns))
+    # if len(inputs) != 1:
+    #     raise ValueError(f"invalid graph inputs: {inputs}")
+    # if len(outputs) != 1:
+    #     raise ValueError(f"invalid graph outputs: {outputs}")
+    # return ns, inputs[0], outputs[0]
+    return ns, "prompt", "response"
 
 
-GEMMA_FOLDER = "study/mdata/gemma2b/"
+# GEMMA_FOLDER = "study/mdata/gemma2b/"
 
 
 # def get_token_count(prompts: list[str]) -> list[int]:
@@ -104,8 +107,15 @@ def run() -> None:
     # python -m nlpapi --config study/config.json --graph
     # study/graphs/graph_gemma.json --input 'tell me about the highest
     # mountain in the world' --output -
+
+    # ./run.sh
+    # python -m nlpapi --config study/config.json --graph
+    # study/graphs/graph_llama.json --input
+    # 'today we are baking a chocolate cake'
+    # --system-prompt-key 'verify_circular_economy' --output -
     print(sys.argv)
     args = parse_args()
+    system_prompt_key = args.system_prompt_key
     graph_fname = args.graph
     input_str = args.input
     if input_str.startswith("@"):
@@ -126,12 +136,12 @@ def run() -> None:
             "content": "",
         }
 
-    direct_in: bool
+    # direct_in: bool
     if input_fname is None:
         pads: JSONPads = {
             "pads": [from_str(-1, input_str)],
         }
-        direct_in = True
+        # direct_in = True
     else:
         if os.path.isdir(input_fname):
             pad_list: list[JSONPad] = []
@@ -146,22 +156,21 @@ def run() -> None:
             pads = {
                 "pads": pad_list,
             }
-            direct_in = True
+            # direct_in = True
         elif input_fname.endswith(".json"):
             with open(input_fname, "rb") as pin:
                 pads = json.load(pin)
-            direct_in = False
+            # direct_in = False
         else:
             with open(input_fname, "r", encoding="utf-8") as fin:
                 pads = {
                     "pads": [from_str(-1, fin.read())],
                 }
-            direct_in = True
+            # direct_in = True
 
-    if direct_in:
-        counts = 0
+    # if direct_in:
     #     counts = get_token_count([cp["title"] for cp in pads["pads"]])
-        print(f"input token counts: {counts}")
+    #     print(f"input token counts: {counts}")
     real_start = time.monotonic()
     pad_lookup: dict[TaskId, Pad] = {}
 
@@ -172,6 +181,7 @@ def run() -> None:
             ns,
             {
                 input_field: text,
+                "system_prompt_key": system_prompt_key,
             })
         pad_lookup[task_id] = {
             "id": pad_id,
@@ -242,7 +252,7 @@ def run() -> None:
             print("\n".join(error["traceback"]))
         result = resp["result"]
         if result is not None:
-            if output_field in ("text", "tags"):
+            if output_field in ("text", "tags", "response"):
                 output = tensor_to_str(result[output_field])
             else:
                 output = f"{list(result[output_field].cpu().tolist())}"

@@ -6,6 +6,7 @@ userdata/
 test-results/
 study/
 vecdb/
+models/
 config.json
 test*.json
 *.rdb

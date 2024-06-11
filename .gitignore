@@ -37,3 +37,6 @@ __pycache__
 /docker-compose.dev.yml
 /docker-compose.wipe.yml
 /queries.txt
+
+/models/*
+!/models/.empty

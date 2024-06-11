@@ -61,23 +61,9 @@ else
     exit 2
 fi
 
-! read -r -d '' PY_TORCH_VERIFY <<'EOF'
-import torch
-
-def get_device() -> torch.device:
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
-
-print(f"backend is (cpu|cuda|mps): {get_device()}")
-EOF
-
 if ${PYTHON} -c 'import torch;assert torch.__version__.startswith("2.")' &>/dev/null 2>&1; then
     PYTORCH=$(${PYTHON} -c 'import torch;print(torch.__version__)')
     echo "pytorch available: ${PYTORCH}"
-    ${PYTHON} -c "${PY_TORCH_VERIFY}"
 else
     if [ "${MODE}" = "api" ] || [ "${MODE}" = "worker" ]; then
         echo "should have torch already" >&2
@@ -96,4 +82,51 @@ if [ -z "${MODE}" ] || [ "${MODE}" = "worker" ]; then
     echo "initializing spacy"
     ${PYTHON} -m spacy download en_core_web_sm
     ${PYTHON} -m spacy download xx_ent_wiki_sm
+fi
+
+! read -r -d '' PY_TORCH_VERIFY <<'EOF'
+import sys
+import torch
+
+def get_device() -> torch.device:
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    # if torch.cuda.is_available():
+    if torch.backends.cudnn.enabled:
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+options = []
+device_name = f"{get_device()}"
+if device_name == "mps":
+    options.append("-DLLAMA_METAL=on")
+elif device_name == "cuda":
+    options.append("-DLLAMA_CUDA=on")
+elif device_name == "cpu":
+    options.append("-DLLAMA_BLAS=ON")
+    options.append("-DLLAMA_BLAS_VENDOR=OpenBLAS")
+sys.stdout.write(" ".join(options))
+sys.stdout.flush()
+EOF
+
+LLAMA_CMAKE_ARGS=$(${PYTHON} -c "${PY_TORCH_VERIFY}")
+if [ ! -z "${FORCE_CUDA}" ]; then
+    LLAMA_CMAKE_ARGS="-DLLAMA_CUDA=on"
+elif [ ! -z "${FORCE_CPU}" ]; then
+    LLAMA_CMAKE_ARGS=
+fi
+
+if grep -q "METAL" <<< "${LLAMA_CMAKE_ARGS}"; then
+    ${PYTHON} -m pip install llama-cpp-python==0.2.68 --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/metal"
+elif grep -q "CUDA" <<< "${LLAMA_CMAKE_ARGS}"; then
+    CUDA_VERSION_SHORT="${CUDA_VERSION_SHORT:-cu121}"
+    if [ ! -z "${FORCE_BUILD_LLAMA}" ]; then
+        CUDACXX=nvcc CMAKE_ARGS="-DLLAMA_CUDA=on -DCMAKE_CUDA_ARCHITECTURES=all-major" FORCE_CMAKE=1 \
+            ${PYTHON} -m pip install llama-cpp-python==0.2.68 --no-cache-dir --force-reinstall --upgrade
+    else
+        ${PYTHON} -m pip install llama-cpp-python --prefer-binary --no-cache-dir --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/${CUDA_VERSION_SHORT}"
+        # ${PYTHON} -m pip install llama-cpp-python --prefer-binary --no-cache-dir --extra-index-url "https://jllllll.github.io/llama-cpp-python-cuBLAS-wheels/AVX2/${CUDA_VERSION_SHORT}"
+    fi
+else
+    CMAKE_ARGS="${LLAMA_CMAKE_ARGS}" ${PYTHON} -m pip install --progress-bar off llama-cpp-python==0.2.68
 fi
