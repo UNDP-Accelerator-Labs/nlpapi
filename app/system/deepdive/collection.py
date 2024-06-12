@@ -13,10 +13,13 @@ def get_deep_dive_keys(deep_dive: str) -> tuple[str, str]:
 def add_collection(db: DBConnector, name: str, deep_dive: str) -> int:
     verify_key, deep_dive_key = get_deep_dive_keys(deep_dive)
     with db.get_session() as session:
-        sa.insert(DeepDiveCollection).values(
+        # FIXME: finish up
+        stmt = sa.insert(DeepDiveCollection).values(
             name=name,
             verify_key=verify_key,
             deep_dive_key=deep_dive_key)
+        session.execute(stmt)
+    return 0
 
 
 def create_deep_dive_tables(db: DBConnector) -> None:

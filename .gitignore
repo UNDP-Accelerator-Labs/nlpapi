@@ -17,6 +17,7 @@
 *.pkl
 *.zip
 *.json
+*.out.txt
 .env.local
 .env.development.local
 .env.test.local
