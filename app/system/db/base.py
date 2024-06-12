@@ -8,6 +8,7 @@ from sqlalchemy.orm.decl_api import DeclarativeMeta
 COUNTRY_MAX_LEN = 5
 DATE_STRING_LEN = 10
 VEC_DB_NAME_LEN = 40
+MAIN_ID_LEN = 40
 
 
 def adapt_numpy_float64(numpy_float64: np.float64) -> AsIs:
@@ -125,3 +126,29 @@ class QueryLog(Base):  # pylint: disable=too-few-public-methods
         sa.Integer,
         nullable=False,
         server_default=sa.text("1"))
+
+
+class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "deep_dive_collection"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    name = sa.Column(sa.Text(), nullable=False)
+    verify_key = sa.Column(sa.Text(), nullable=False)
+    deep_dive_key = sa.Column(sa.Text(), nullable=False)
+
+
+class DeepDiveElements(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "deep_dive_elements"
+
+    main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
+    deep_dive_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            DeepDiveCollection.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True)
+    verify_reason = sa.Column(sa.Text(), nullable=True)
+    is_valid = sa.Column(sa.Boolean, nullable=True)
+    deep_dive_result = sa.Column(sa.JSON, nullable=True)
