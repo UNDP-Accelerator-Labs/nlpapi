@@ -132,13 +132,19 @@ class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "deep_dive_collection"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    user: sa.Column[sa.Uuid] = sa.Column(
+        sa.Uuid, nullable=False, unique=True, primary_key=True)  # type: ignore
     name = sa.Column(sa.Text(), nullable=False)
     verify_key = sa.Column(sa.Text(), nullable=False)
     deep_dive_key = sa.Column(sa.Text(), nullable=False)
 
 
-class DeepDiveElements(Base):  # pylint: disable=too-few-public-methods
-    __tablename__ = "deep_dive_elements"
+DEEP_DIVE_ELEMENT_ID_SEQ: sa.Sequence = sa.Sequence(
+    "deep_dive_element_id_seq", start=1, increment=1)
+
+
+class DeepDiveElement(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "deep_dive_element"
 
     main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
     deep_dive_id = sa.Column(
@@ -149,6 +155,12 @@ class DeepDiveElements(Base):  # pylint: disable=too-few-public-methods
             ondelete="CASCADE"),
         nullable=False,
         primary_key=True)
+    id = sa.Column(
+        sa.Integer,
+        DEEP_DIVE_ELEMENT_ID_SEQ,
+        nullable=False,
+        unique=True,
+        server_default=DEEP_DIVE_ELEMENT_ID_SEQ.next_value())
     verify_reason = sa.Column(sa.Text(), nullable=True)
     is_valid = sa.Column(sa.Boolean, nullable=True)
     deep_dive_result = sa.Column(sa.JSON, nullable=True)
