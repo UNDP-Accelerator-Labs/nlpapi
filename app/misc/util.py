@@ -130,9 +130,9 @@ def elapsed_time_string(elapsed: float) -> str:
 
 def to_bool(value: bool | float | int | str) -> bool:
     value = f"{value}".lower()
-    if value == "true":
+    if value in ("true", "yes", "y"):
         return True
-    if value == "false":
+    if value in ("false", "no", "n"):
         return False
     try:
         return bool(int(float(value)))

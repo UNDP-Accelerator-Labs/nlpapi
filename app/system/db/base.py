@@ -164,3 +164,4 @@ class DeepDiveElement(Base):  # pylint: disable=too-few-public-methods
     verify_reason = sa.Column(sa.Text(), nullable=True)
     is_valid = sa.Column(sa.Boolean, nullable=True)
     deep_dive_result = sa.Column(sa.JSON, nullable=True)
+    error = sa.Column(sa.Text(), nullable=True)

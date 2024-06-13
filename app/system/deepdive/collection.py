@@ -15,6 +15,11 @@ CollectionObj = TypedDict('CollectionObj', {
 })
 
 
+VerifyResult = TypedDict('VerifyResult', {
+    "reason": str,
+    "is_hit": bool,
+})
+
 DeepDiveResult = TypedDict('DeepDiveResult', {
     "reason": str,
     "cultural": int,
@@ -36,6 +41,7 @@ DocumentObj = TypedDict('DocumentObj', {
     "is_valid": bool | None,
     "verify_reason": str | None,
     "deep_dive_result": DeepDiveResult | None,
+    "error": str | None,
 })
 
 
@@ -101,6 +107,7 @@ def get_documents(
             DeepDiveElement.is_valid,
             DeepDiveElement.verify_reason,
             DeepDiveElement.deep_dive_result,
+            DeepDiveElement.error,
             DeepDiveCollection.verify_key,
             DeepDiveCollection.deep_dive_key,
             ).join(DeepDiveElement.deep_dive_id)
@@ -115,6 +122,75 @@ def get_documents(
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
                 "deep_dive_result": row.deep_dive_result,
+                "error": row.error,
+            }
+
+
+def set_verify(
+        db: DBConnector,
+        doc_id: int,
+        is_valid: bool | None,
+        reason: str | None) -> None:
+    if (is_valid is None) != (reason is None):
+        raise ValueError(
+            f"either both are None or neither {is_valid=} {reason=}")
+    with db.get_session() as session:
+        stmt = sa.update(DeepDiveElement)
+        stmt = stmt.where(DeepDiveElement.id == doc_id)
+        stmt = stmt.values(
+            verify_reason=reason,
+            is_valid=is_valid)
+        session.execute(stmt)
+
+
+def set_deep_dive(
+        db: DBConnector,
+        doc_id: int,
+        deep_dive: DeepDiveResult | None) -> None:
+    with db.get_session() as session:
+        stmt = sa.update(DeepDiveElement)
+        stmt = stmt.where(DeepDiveElement.id == doc_id)
+        stmt = stmt.values(deep_dive_result=deep_dive)
+        session.execute(stmt)
+
+
+def set_error(db: DBConnector, doc_id: int, error: str | None) -> None:
+    with db.get_session() as session:
+        stmt = sa.update(DeepDiveElement)
+        stmt = stmt.where(DeepDiveElement.id == doc_id)
+        stmt = stmt.values(error=error)
+        session.execute(stmt)
+
+
+def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
+    with db.get_session() as session:
+        stmt = sa.select(
+            DeepDiveElement.id,
+            DeepDiveElement.deep_dive_id,
+            DeepDiveElement.main_id,
+            DeepDiveElement.is_valid,
+            DeepDiveElement.verify_reason,
+            DeepDiveElement.deep_dive_result,
+            DeepDiveElement.error,
+            DeepDiveCollection.verify_key,
+            DeepDiveCollection.deep_dive_key,
+            ).join(DeepDiveElement.deep_dive_id)
+        stmt = stmt.where(sa.and_(
+            sa.or_(
+                DeepDiveElement.is_valid.is_(None),
+                DeepDiveElement.deep_dive_result.is_(None)),
+            DeepDiveElement.error.is_(None)))
+        for row in session.execute(stmt):
+            yield {
+                "id": row.id,
+                "main_id": row.main_id,
+                "deep_dive": row.deep_dive_id,
+                "verify_key": row.verify_key,
+                "deep_dive_key": row.deep_dive_key,
+                "is_valid": row.is_valid,
+                "verify_reason": row.verify_reason,
+                "deep_dive_result": row.deep_dive_result,
+                "error": row.error,
             }
 
 
