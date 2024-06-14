@@ -1,5 +1,6 @@
 import uuid
 from typing import TypedDict
+from urllib.parse import unquote
 
 import jwt
 import sqlalchemy as sa
@@ -45,7 +46,7 @@ SessionInfo = TypedDict('SessionInfo', {
 
 def get_session(
         platform_db: DBConnector, session_str: str) -> SessionInfo | None:
-    session_str = session_str.removeprefix("s:")
+    session_str = unquote(session_str).removeprefix("s:")
     eos = session_str.find(".")
     if eos >= 0:
         session_str = session_str[:eos]
