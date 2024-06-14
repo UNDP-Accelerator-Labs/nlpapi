@@ -2,6 +2,10 @@ export type ApiUserResult = {
   name: string | undefined;
 };
 
+export type UserResult = {
+  userName: string | undefined;
+};
+
 export type SearchFilters = { [key: string]: string[] };
 
 export type ApiStatResult = {
