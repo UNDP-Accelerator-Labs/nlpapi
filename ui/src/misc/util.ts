@@ -1,3 +1,5 @@
+// FIXME might be useful later
+// ts-unused-exports:disable-next-line
 export function timeout(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
