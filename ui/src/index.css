@@ -1,0 +1,35 @@
+/* general */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: 400;
+  line-height: 30px;
+  margin: 0;
+  padding: 0;
+}
+
+@media (hover: none) and (max-width: 480px) {
+  * {
+    font-size: 16px;
+    line-height: 32px;
+  }
+}
+
+/* links */
+
+a,
+a:visited {
+  color: black;
+}
+
+a:hover,
+a:focus {
+  color: #444;
+}

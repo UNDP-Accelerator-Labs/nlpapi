@@ -8,6 +8,7 @@ EnvPath = Literal[
     "CONFIG_PATH",
     "GRAPH_PATH",
     "SMIND_CFG",
+    "UI_PATH",
 ]
 EnvStr = Literal[
     "APP_SECRET",

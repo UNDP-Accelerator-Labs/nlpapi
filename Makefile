@@ -37,6 +37,7 @@ export LANG=C
 
 PYTHON?=python
 NS?=default
+TS_ROOT?=ui/
 DOCKER_COMPOSE_OUT?=docker-compose.yml
 
 lint-comment:
@@ -86,6 +87,12 @@ lint-flake8:
 	flake8 --verbose --select C812,C815,I001,I002,I003,I004,I005 --exclude \
 	venv,.git,.mypy_cache --show-source ./
 
+lint-ts:
+	yarn --cwd $(TS_ROOT) lint
+
+lint-ts-fix:
+	yarn --cwd $(TS_ROOT) lint --fix
+
 lint-all: \
 	lint-comment \
 	lint-emptyinit \
@@ -116,6 +123,9 @@ show-compose:
 
 run-docker-api: build-dev compose
 
+run-ts:
+	yarn --cwd $(TS_ROOT) start
+
 publish:
 	./sh/deploy.sh
 
@@ -139,11 +149,23 @@ install-api:
 install-worker:
 	PYTHON=$(PYTHON) MODE=worker REQUIREMENTS_PATH=$(REQUIREMENTS_PATH) ./sh/install.sh
 
+install-ts:
+	yarn --cwd $(TS_ROOT) install
+
 requirements-check:
 	PYTHON=$(PYTHON) ./sh/requirements_check.sh $(FILE)
 
 requirements-complete:
 	PYTHON=$(PYTHON) ./sh/requirements_complete.sh $(FILE)
+
+test-ts:
+	yarn --cwd $(TS_ROOT) testall
+
+ts-unused:
+	yarn --cwd $(TS_ROOT) unused
+
+ts-build:
+	yarn --cwd $(TS_ROOT) build
 
 uuid:
 	@python -c "import uuid; print(f'{uuid.uuid4().hex}')"

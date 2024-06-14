@@ -4,7 +4,10 @@ set -e
 
 cd -- "$( dirname -- "${BASH_SOURCE[0]}" )/../" &> /dev/null
 
-mkdir -p buildtmp
+BUILDTMP="buildtmp"
+
+rm -rf "${BUILDTMP}"
+mkdir -p "${BUILDTMP}"
 
 PYTHON="${PYTHON:-python}"
 
@@ -15,21 +18,21 @@ DEFAULT_CONFIG=-
 SMIND_CONFIG="${SMIND_CONFIG:-deploy/smind-config.json}"
 SMIND_GRAPHS="${SMIND_GRAPHS:-deploy/graphs/}"
 
-REDIS_VERSION_FILE="buildtmp/redis.version"
-QDRANT_VERSION_FILE="buildtmp/qdrant.version"
-WIPE_VERSION_FILE="buildtmp/wipe.version"
-DEVMODE_CONF_FILE="buildtmp/devmode.conf"
-REQUIREMENTS_API_FILE="buildtmp/requirements.api.txt"
-REQUIREMENTS_WORKER_FILE="buildtmp/requirements.worker.txt"
-SMIND_CFG="buildtmp/smind-config.json"
-SMIND_GRS="buildtmp/graphs/"
-RMAIN_CFG="buildtmp/rmain.conf"
-RDATA_CFG="buildtmp/rdata.conf"
-RCACHE_CFG="buildtmp/rcache.conf"
-RBODY_CFG="buildtmp/rbody.conf"
-REDIS_RUN_SCRIPT="buildtmp/run_redis.sh"
-WIPE_RUN_SCRIPT="buildtmp/run_wipe.sh"
-WIPE_SCRIPT="buildtmp/wipe.sh"
+REDIS_VERSION_FILE="${BUILDTMP}/redis.version"
+QDRANT_VERSION_FILE="${BUILDTMP}/qdrant.version"
+WIPE_VERSION_FILE="${BUILDTMP}/wipe.version"
+DEVMODE_CONF_FILE="${BUILDTMP}/devmode.conf"
+REQUIREMENTS_API_FILE="${BUILDTMP}/requirements.api.txt"
+REQUIREMENTS_WORKER_FILE="${BUILDTMP}/requirements.worker.txt"
+SMIND_CFG="${BUILDTMP}/smind-config.json"
+SMIND_GRS="${BUILDTMP}/graphs/"
+RMAIN_CFG="${BUILDTMP}/rmain.conf"
+RDATA_CFG="${BUILDTMP}/rdata.conf"
+RCACHE_CFG="${BUILDTMP}/rcache.conf"
+RBODY_CFG="${BUILDTMP}/rbody.conf"
+REDIS_RUN_SCRIPT="${BUILDTMP}/run_redis.sh"
+WIPE_RUN_SCRIPT="${BUILDTMP}/run_wipe.sh"
+WIPE_SCRIPT="${BUILDTMP}/wipe.sh"
 
 cp "deploy/redis/rmain.conf" "${RMAIN_CFG}"
 cp "deploy/redis/rdata.conf" "${RDATA_CFG}"
@@ -165,6 +168,10 @@ else
 fi
 DOCKER_COMPOSE_WIPE_OUT="docker-compose.wipe.yml"
 
+make install-ts
+make ts-build
+mv "ui/build/" "${BUILDTMP}/build/"
+
 docker_build() {
     ARGS=("$@")
     if [ ! -z "${VERBOSE}" ]; then
@@ -209,46 +216,46 @@ docker_build \
     -f deploy/worker.Dockerfile \
     .
 
-echo "rmain:${REDIS_DOCKER_VERSION}" > buildtmp/rmain.version
+echo "rmain:${REDIS_DOCKER_VERSION}" > ${BUILDTMP}/rmain.version
 
 docker_build \
     "${IMAGE_BASE}-rmain:${REDIS_DOCKER_VERSION}" \
     --build-arg "PORT=6379" \
     --build-arg "CFG_FILE=${RMAIN_CFG}" \
-    --build-arg "REDIS_VERSION_FILE=buildtmp/rmain.version" \
+    --build-arg "REDIS_VERSION_FILE=${BUILDTMP}/rmain.version" \
     --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
     -f deploy/redis.Dockerfile \
     .
 
-echo "rdata:${REDIS_DOCKER_VERSION}" > buildtmp/rdata.version
+echo "rdata:${REDIS_DOCKER_VERSION}" > ${BUILDTMP}/rdata.version
 
 docker_build \
     "${IMAGE_BASE}-rdata:${REDIS_DOCKER_VERSION}" \
     --build-arg "PORT=6379" \
     --build-arg "CFG_FILE=${RDATA_CFG}" \
-    --build-arg "REDIS_VERSION_FILE=buildtmp/rdata.version" \
+    --build-arg "REDIS_VERSION_FILE=${BUILDTMP}/rdata.version" \
     --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
     -f deploy/redis.Dockerfile \
     .
 
-echo "rcache:${REDIS_DOCKER_VERSION}" > buildtmp/rcache.version
+echo "rcache:${REDIS_DOCKER_VERSION}" > ${BUILDTMP}/rcache.version
 
 docker_build \
     "${IMAGE_BASE}-rcache:${REDIS_DOCKER_VERSION}" \
     --build-arg "PORT=6379" \
     --build-arg "CFG_FILE=${RCACHE_CFG}" \
-    --build-arg "REDIS_VERSION_FILE=buildtmp/rcache.version" \
+    --build-arg "REDIS_VERSION_FILE=${BUILDTMP}/rcache.version" \
     --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
     -f deploy/redis.Dockerfile \
     .
 
-echo "rbody:${REDIS_DOCKER_VERSION}" > buildtmp/rbody.version
+echo "rbody:${REDIS_DOCKER_VERSION}" > ${BUILDTMP}/rbody.version
 
 docker_build \
     "${IMAGE_BASE}-rbody:${REDIS_DOCKER_VERSION}" \
     --build-arg "PORT=6379" \
     --build-arg "CFG_FILE=${RBODY_CFG}" \
-    --build-arg "REDIS_VERSION_FILE=buildtmp/rbody.version" \
+    --build-arg "REDIS_VERSION_FILE=${BUILDTMP}/rbody.version" \
     --build-arg "REDIS_RUN_SCRIPT=${REDIS_RUN_SCRIPT}" \
     -f deploy/redis.Dockerfile \
     .

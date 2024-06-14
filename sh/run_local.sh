@@ -41,12 +41,17 @@ start_smind() {
         >> "userdata/smind-${DATE}.log" 2>&1 &
 }
 
-start_smind
+start_api() {
+    NO_QDRANT='true' \
+    HAS_LLAMA='true' \
+    SMIND_CFG='local/smind-config.json' \
+    GRAPH_PATH='local/graphs/' \
+    CONFIG_PATH='-' \
+        ${PYTHON} -m app --dedicated \
+            >> "userdata/app-${DATE}.log" 2>&1 &
+}
 
-NO_QDRANT='true' \
-HAS_LLAMA='true' \
-SMIND_CFG='local/smind-config.json' \
-GRAPH_PATH='local/graphs/' \
-CONFIG_PATH='-' \
-    exec ${PYTHON} -m app --dedicated \
-    >> "userdata/app-${DATE}.log" 2>&1
+start_smind
+start_api
+
+exec make run-ts

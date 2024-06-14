@@ -1,4 +1,5 @@
 import hmac
+import os
 import sys
 import threading
 import uuid
@@ -23,7 +24,7 @@ from app.api.response_types import (
     URLInspectResponse,
     VersionResponse,
 )
-from app.misc.env import envload_bool, envload_int, envload_str
+from app.misc.env import envload_bool, envload_int, envload_path, envload_str
 from app.misc.util import get_time_str, maybe_float
 from app.misc.version import get_version
 from app.system.config import get_config
@@ -464,7 +465,13 @@ def setup(
             "/telemetry/",
             f"http://{vec_cfg['host']}:{vec_cfg['port']}/telemetry")
 
-    server.bind_path("/search/", "public/")
+    public_path = envload_path("UI_PATH", default="build/")
+    server.bind_path("/", public_path)
+
+    def file_fallback(_: str) -> str:
+        return os.path.join(public_path, "index.html")
+
+    server.set_file_fallback_hook(file_fallback)
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
