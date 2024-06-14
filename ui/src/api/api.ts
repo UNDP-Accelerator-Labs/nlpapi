@@ -1,7 +1,13 @@
 import { getSearchApiUrl } from '../misc/constants';
-import { ApiSearchResult, ApiStatResult, SearchFilters } from './types';
+import {
+  ApiSearchResult,
+  ApiStatResult,
+  ApiUserResult,
+  SearchFilters,
+} from './types';
 
 export type ApiProvider = {
+  user: () => Promise<ApiUserResult>;
   stats: (
     fields: Readonly<string[]>,
     filters: Readonly<SearchFilters>,
@@ -15,6 +21,21 @@ export type ApiProvider = {
 };
 
 export const DEFAULT_API: ApiProvider = {
+  user: async () => {
+    const url = await getSearchApiUrl();
+    const res = await fetch(`${url}/api.user`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+    const { name }: ApiUserResult = await res.json();
+    return {
+      name: name ?? undefined,
+    };
+  },
   stats: async (fields, filters) => {
     const url = await getSearchApiUrl();
     try {

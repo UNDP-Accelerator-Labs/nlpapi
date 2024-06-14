@@ -2,6 +2,7 @@ import { ApiProvider, DEFAULT_API } from '../api/api';
 import { ALL_FIELDS, PAGE_SIZE } from '../misc/constants';
 import { SearchFilters, SearchResult, Stats } from './types';
 
+type UserCallback = (name: string | undefined) => void;
 type StatCallback = (stats: Stats) => void;
 type ResultCallback = (results: SearchResult) => void;
 
@@ -15,6 +16,11 @@ export default class ApiActions {
     this.api = api ?? DEFAULT_API;
     this.statNum = 0;
     this.responseNum = 0;
+  }
+
+  async user(cb: UserCallback) {
+    const { name } = await this.api.user();
+    cb(name);
   }
 
   async search(

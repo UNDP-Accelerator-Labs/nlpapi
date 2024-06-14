@@ -22,10 +22,19 @@ const HMain = styled.div`
   }
 `;
 
+const UserDiv = styled.div`
+  position: fixed;
+  top: 0;
+  right: 0;
+  margin: 10px;
+  padding: 10px;
+`;
+
 type AppProps = ConnectApp;
 
 type AppState = {
   ready: boolean;
+  userName: string | undefined;
 };
 
 class App extends PureComponent<AppProps, AppState> {
@@ -33,7 +42,7 @@ class App extends PureComponent<AppProps, AppState> {
 
   constructor(props: AppProps) {
     super(props);
-    this.state = { ready: false };
+    this.state = { ready: false, userName: undefined };
     this.apiActions = new ApiActions(undefined);
 
     window.addEventListener('popstate', (event) => {
@@ -98,7 +107,9 @@ class App extends PureComponent<AppProps, AppState> {
       page: prevPage,
     } = prevProps;
     if (!ready) {
-      this.setState({ ready: true });
+      this.apiActions.user((userName) => {
+        this.setState({ ready: true, userName });
+      });
       return;
     }
     if (query !== prevQuery || filters !== prevFilters || page !== prevPage) {
@@ -122,7 +133,7 @@ class App extends PureComponent<AppProps, AppState> {
   }
 
   render() {
-    const { ready } = this.state;
+    const { ready, userName } = this.state;
     return (
       <HMain>
         <BrowserRouter>
@@ -138,6 +149,7 @@ class App extends PureComponent<AppProps, AppState> {
             />
           </Routes>
         </BrowserRouter>
+        {userName ? <UserDiv>Hello, {userName}</UserDiv> : null}
       </HMain>
     );
   }

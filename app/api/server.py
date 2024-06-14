@@ -22,15 +22,16 @@ from app.api.response_types import (
     SnippyResponse,
     StatsResponse,
     URLInspectResponse,
+    UserResponse,
     VersionResponse,
 )
 from app.misc.env import envload_bool, envload_int, envload_path, envload_str
 from app.misc.util import get_time_str, maybe_float
 from app.misc.version import get_version
+from app.system.auth import get_session, is_valid_token, SessionInfo
 from app.system.config import get_config
 from app.system.dates.datetranslate import extract_date
 from app.system.db.db import DBConnector
-from app.system.jwt import is_valid_token
 from app.system.language.langdetect import LangResponse
 from app.system.language.pipeline import extract_language
 from app.system.location.forwardgeo import OpenCageFormat
@@ -138,6 +139,7 @@ def add_vec_features(
         prefix: str,
         qdrant_cache: Redis,
         graph_embed: GraphProfile,
+        maybe_session: MiddlewareF,
         verify_readonly: MiddlewareF,
         verify_input: MiddlewareF) -> list[str]:
     articles_main = get_vec_db(
@@ -158,11 +160,14 @@ def add_vec_features(
 
     @server.json_post(f"{prefix}/stats")
     @server.middleware(verify_readonly)
+    @server.middleware(maybe_session)
     def _post_stats(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
+        session: SessionInfo | None = rargs["meta"].get("session")
         args = rargs["post"]
         fields = set(args["fields"])
         filters: dict[MetaKey, list[str]] = args.get("filters", {})
-        filters["status"] = ["public"]  # NOTE: not logged in!
+        if session is None:  # NOTE: not logged in!
+            filters["status"] = ["public"]
         return vec_filter(
             vec_db,
             qdrant_cache=qdrant_cache,
@@ -172,13 +177,16 @@ def add_vec_features(
 
     @server.json_post(f"{prefix}/search")
     @server.middleware(verify_readonly)
+    @server.middleware(maybe_session)
     @server.middleware(verify_input)
     def _post_search(_req: QSRH, rargs: ReqArgs) -> QueryEmbed:
+        session: SessionInfo | None = rargs["meta"].get("session")
         args = rargs["post"]
         meta = rargs["meta"]
         input_str: str = meta["input"]
         filters: dict[MetaKey, list[str]] = args.get("filters", {})
-        filters["status"] = ["public"]  # NOTE: not logged in!
+        if session is None:  # NOTE: not logged in!
+            filters["status"] = ["public"]
         offset: int = int(args.get("offset", 0))
         limit: int = int(args["limit"])
         hit_limit: int = int(args.get("hit_limit", DEFAULT_HIT_LIMIT))
@@ -423,6 +431,8 @@ def setup(
 
     config = get_config()
     db = DBConnector(config["db"])
+    platform_db = DBConnector(config["platform"])
+    # blogs_db = DBConnector(config["blogs"])
 
     vec_db = get_vec_client(config)
 
@@ -472,6 +482,20 @@ def setup(
         return os.path.join(public_path, "index.html")
 
     server.set_file_fallback_hook(file_fallback)
+
+    def maybe_session(_req: QSRH, rargs: ReqArgs, okay: ReqNext) -> ReqNext:
+        cookie = rargs["cookie"]
+        if cookie is None:
+            return okay
+        session_cookie = cookie.get("acclab_platform-session")
+        if session_cookie is None:
+            return okay
+        session_str = session_cookie.value
+        print("COOKIE:", session_str)
+        session = get_session(platform_db, session_str)
+        if session is not None:
+            rargs["meta"]["session"] = session
+        return okay
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
@@ -536,6 +560,7 @@ def setup(
             prefix=prefix,
             qdrant_cache=qdrant_cache,
             graph_embed=graph_embed,
+            maybe_session=maybe_session,
             verify_readonly=verify_readonly,
             verify_input=verify_input)
     else:
@@ -555,6 +580,14 @@ def setup(
             "has_vecdb": vec_db is not None,
             "has_llm": graph_llama is not None,
             "error": None,
+        }
+
+    @server.json_post(f"{prefix}/user")
+    @server.middleware(maybe_session)
+    def _post_user(_req: QSRH, rargs: ReqArgs) -> UserResponse:
+        session: SessionInfo | None = rargs["meta"].get("session")
+        return {
+            "name": None if session is None else session["name"],
         }
 
     @server.json_get(f"{prefix}/info")

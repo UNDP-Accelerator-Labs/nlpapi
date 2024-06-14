@@ -165,3 +165,13 @@ class DeepDiveElement(Base):  # pylint: disable=too-few-public-methods
     is_valid = sa.Column(sa.Boolean, nullable=True)
     deep_dive_result = sa.Column(sa.JSON, nullable=True)
     error = sa.Column(sa.Text(), nullable=True)
+
+
+# platform tables
+
+class SessionTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "session"
+
+    sid = sa.Column(sa.Text(), nullable=False, primary_key=True)
+    sess = sa.Column(sa.JSON, nullable=False)
+    expire = sa.Column(sa.DateTime(timezone=False), nullable=False)

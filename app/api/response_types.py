@@ -10,6 +10,9 @@ SourceResponse = TypedDict('SourceResponse', {
 SourceListResponse = TypedDict('SourceListResponse', {
     "sources": list[str],
 })
+UserResponse = TypedDict('UserResponse', {
+    "name": str | None,
+})
 VersionResponse = TypedDict('VersionResponse', {
     "app_name": str,
     "app_commit": str,
