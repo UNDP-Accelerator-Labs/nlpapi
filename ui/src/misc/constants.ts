@@ -19,10 +19,7 @@ const LIVE_URL = 'https://nlpapi.sdg-innovation-commons.org';
 
 const getVersionObj = async () => {
   try {
-    const url = window.location.origin.includes('localhost')
-      ? 'http://localhost:8080/api/version'
-      : '/api/version';
-    const versionResponse = await fetch(url);
+    const versionResponse = await fetch('/api/version');
     const versionObj: VersionResponse = await versionResponse.json();
     return versionObj;
   } catch (_) {
@@ -50,6 +47,22 @@ export const getSearchApiUrl = async () => {
     } else {
       SEARCH_API = HOST_URL;
     }
+    console.log(`search api: ${SEARCH_API}`);
   }
   return SEARCH_API;
+};
+
+let COLLECTION_API: string | null = null;
+
+export const getCollectionApiUrl = async () => {
+  if (!COLLECTION_API) {
+    const versionObj = await getVersionObj();
+    if (versionObj.error) {
+      COLLECTION_API = LIVE_URL;
+    } else {
+      COLLECTION_API = HOST_URL;
+    }
+    console.log(`collection api: ${COLLECTION_API}`);
+  }
+  return COLLECTION_API;
 };

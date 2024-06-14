@@ -1,4 +1,4 @@
-import { getSearchApiUrl } from '../misc/constants';
+import { getCollectionApiUrl, getSearchApiUrl } from '../misc/constants';
 import {
   ApiSearchResult,
   ApiStatResult,
@@ -23,7 +23,7 @@ export type ApiProvider = {
 
 export const DEFAULT_API: ApiProvider = {
   user: async () => {
-    const url = await getSearchApiUrl();
+    const url = await getCollectionApiUrl();
     try {
       const res = await fetch(`${url}/api/user`, {
         method: 'POST',

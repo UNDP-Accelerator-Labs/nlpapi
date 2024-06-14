@@ -1,6 +1,8 @@
 import argparse
+import os
 import traceback
 
+from dotenv import load_dotenv
 from quick_server import setup_shutdown
 
 from app.api.server import (
@@ -26,6 +28,10 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="the port of the API server")
     parser.add_argument(
+        "--env",
+        default=None,
+        help="loads the given env file at startup")
+    parser.add_argument(
         "--dedicated",
         default=False,
         action="store_true",
@@ -35,6 +41,15 @@ def parse_args() -> argparse.Namespace:
 
 def run() -> None:
     args = parse_args()
+    env_file: str | None = args.env
+    if env_file:
+        if not os.path.exists(env_file):
+            print(
+                f"could not load env! {env_file} does not exist!\n"
+                "this is expected in production!")
+        else:
+            print(f"loading env {env_file}")
+            load_dotenv(env_file)
     versions = get_version_strs()
     print(f"python version: {versions['python_version_detail']}")
     print(f"app version: {versions['app_version']}")

@@ -24,10 +24,15 @@ const HMain = styled.div`
 
 const UserDiv = styled.div`
   position: fixed;
-  top: 0;
-  right: 0;
-  margin: 10px;
-  padding: 10px;
+  top: 10px;
+  right: 10px;
+  padding: 0;
+  margin: 0;
+
+  @media (hover: none) and (max-width: 480px) {
+    position: static;
+    margin: 2px;
+  }
 `;
 
 type AppProps = ConnectApp;
@@ -149,7 +154,7 @@ class App extends PureComponent<AppProps, AppState> {
             />
           </Routes>
         </BrowserRouter>
-        {userName ? <UserDiv>Hello, {userName}</UserDiv> : null}
+        {userName ? <UserDiv>Hello, {userName}!</UserDiv> : null}
       </HMain>
     );
   }

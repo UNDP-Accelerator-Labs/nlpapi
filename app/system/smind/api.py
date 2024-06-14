@@ -12,6 +12,7 @@ from scattermind.system.config.loader import ConfigJSON
 from scattermind.system.names import GNamespace
 from scattermind.system.torch_util import tensor_to_str
 
+from app.misc.util import single
 from app.system.config import Config
 
 
@@ -102,9 +103,7 @@ class GraphProfile:
         self._ns = ns
         inputs = list(smind.main_inputs(ns))
         outputs = list(smind.main_outputs(ns))
-        if len(inputs) != 1:
-            raise ValueError(f"invalid graph inputs: {inputs}")
-        self._input = inputs[0]
+        self._inputs = inputs
         self._outputs = outputs
 
         self._output_field: str | None = None
@@ -116,8 +115,8 @@ class GraphProfile:
     def get_ns(self) -> GNamespace:
         return self._ns
 
-    def get_input_field(self) -> str:
-        return self._input
+    def get_input_fields(self) -> list[str]:
+        return self._inputs
 
     def get_outputs(self) -> list[str]:
         return self._outputs
@@ -181,7 +180,7 @@ def get_text_results_immediate(
         return []
     smind = graph_profile.get_api()
     ns = graph_profile.get_ns()
-    input_field = graph_profile.get_input_field()
+    input_field = single(graph_profile.get_input_fields())
     output_field = graph_profile.get_output_field()
     lookup: dict[TaskId, int] = {}
     for ix, text in enumerate(texts):
@@ -235,7 +234,7 @@ def get_ner_results_immediate(
         return []
     smind = graph_profile.get_api()
     ns = graph_profile.get_ns()
-    input_field = graph_profile.get_input_field()
+    input_field = single(graph_profile.get_input_fields())
     lookup: dict[TaskId, int] = {}
     for ix, text in enumerate(texts):
         task_id = smind.enqueue_task(

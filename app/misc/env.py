@@ -18,6 +18,7 @@ EnvStr = Literal[
     "BLOGS_DB_PASSWORD",
     "BLOGS_DB_SCHEMA",
     "BLOGS_DB_USERNAME",
+    "FORCE_USER",
     "HOST",
     "LOGIN_DB_DIALECT",
     "LOGIN_DB_HOST",

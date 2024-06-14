@@ -542,3 +542,9 @@ def progress(
 
     with tqdm(desc=desc, total=total) as pbar:
         yield pbar.update
+
+
+def single(arr: list[str]) -> str:
+    if len(arr) != 1:
+        raise ValueError(f"expected single item got {arr}")
+    return arr[0]

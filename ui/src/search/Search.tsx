@@ -195,6 +195,7 @@ const PaginationDiv = styled.div`
   margin-top: 2px;
   padding-top: 2px;
   flex-grow: 0;
+  flex-shrink: 1;
 `;
 
 type PaginationProps = {
@@ -235,7 +236,8 @@ function styleDotDotDotPaginationElem(isDotDotDot: boolean) {
 }
 
 const Pagination = styled.span<PaginationProps>`
-  padding: 10px;
+  display: inline-block;
+  padding: 5px 10px;
   cursor: pointer;
 
   &:hover {

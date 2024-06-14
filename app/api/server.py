@@ -472,7 +472,21 @@ def setup(
 
     server.set_file_fallback_hook(file_fallback)
 
+    force_user_str = envload_str("FORCE_USER", default="").strip()
+    if force_user_str:
+        force_user = uuid.UUID(force_user_str)
+        print(f"WARNING: forcing user {force_user.hex}")
+    else:
+        force_user = None
+
     def maybe_session(_req: QSRH, rargs: ReqArgs, okay: ReqNext) -> ReqNext:
+        if force_user is not None:
+            session: SessionInfo | None = {
+                "name": "ADMIN",
+                "uuid": force_user,
+            }
+            rargs["meta"]["session"] = session
+            return okay
         cookie = rargs["cookie"]
         if cookie is None:
             return okay
