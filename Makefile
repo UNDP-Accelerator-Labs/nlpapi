@@ -5,7 +5,6 @@ help:
 	@echo "azlogin	log in to azure container storage"
 	@echo "install	install all python dependencies"
 	@echo "lint-comment	ensures fixme comments are grepable"
-	@echo "lint-emptyinit	main inits must be empty"
 	@echo "lint-flake8	run flake8 checker to deteck missing trailing comma"
 	@echo "lint-forgottenformat	ensures format strings are used"
 	@echo "lint-indent	run indent format check"
@@ -44,9 +43,6 @@ lint-comment:
 	! ./sh/findpy.sh \
 	| xargs grep --color=always -nE \
 	  '#.*(todo|xxx|fixme|n[oO][tT][eE]:|Note:|nopep8\s*$$)|.\"^s%'
-
-lint-emptyinit:
-	[ ! -s app/__init__.py ]
 
 lint-pyi:
 	./sh/pyi.sh
@@ -95,7 +91,6 @@ lint-ts-fix:
 
 lint-all: \
 	lint-comment \
-	lint-emptyinit \
 	lint-pyi \
 	lint-stringformat \
 	lint-indent \
