@@ -18,6 +18,8 @@ from typing import TypedDict
 from uuid import UUID
 
 import sqlalchemy as sa
+from quick_server import PreventDefaultResponse
+from sqlalchemy.orm import Session
 
 from app.system.db.base import DeepDiveCollection, DeepDiveElement
 from app.system.db.db import DBConnector
@@ -94,12 +96,35 @@ def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
             }
 
 
+def verify_user(
+        session: Session,
+        collection_id: int,
+        user: UUID | None,
+        *,
+        allow_none: bool = False) -> None:
+    if user is None:
+        if not allow_none:
+            raise PreventDefaultResponse(401, "invalid collection for user")
+        return
+    stmt = sa.select(DeepDiveCollection.id)
+    stmt = stmt.where(sa.and_(
+        DeepDiveCollection.id == collection_id,
+        DeepDiveCollection.user == user))
+    res = session.execute(stmt).scalar_one_or_none()
+    if res is None or int(res) != collection_id:
+        raise PreventDefaultResponse(401, "invalid collection for user")
+
+
 def add_documents(
         db: DBConnector,
         collection_id: int,
-        main_ids: list[str]) -> list[int]:
+        main_ids: list[str],
+        user: UUID | None,
+        *,
+        allow_none: bool = False) -> list[int]:
     res: list[int] = []
     with db.get_session() as session:
+        verify_user(session, collection_id, user, allow_none=allow_none)
         for main_id in main_ids:
             cstmt = db.upsert(DeepDiveElement).values(
                 main_id=main_id,
@@ -113,8 +138,13 @@ def add_documents(
 
 
 def get_documents(
-        db: DBConnector, collection_id: int) -> Iterable[DocumentObj]:
+        db: DBConnector,
+        collection_id: int,
+        user: UUID | None,
+        *,
+        allow_none: bool = False) -> Iterable[DocumentObj]:
     with db.get_session() as session:
+        verify_user(session, collection_id, user, allow_none=allow_none)
         stmt = sa.select(
             DeepDiveElement.id,
             DeepDiveElement.deep_dive_id,

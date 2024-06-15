@@ -32,8 +32,11 @@ from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
 from app.api.response_types import (
     BuildIndexResponse,
+    CollectionListResponse,
     CollectionResponse,
     DateResponse,
+    DocumentListResponse,
+    DocumentResponse,
     Snippy,
     SnippyResponse,
     StatsResponse,
@@ -48,7 +51,12 @@ from app.system.auth import get_session, is_valid_token, SessionInfo
 from app.system.config import get_config
 from app.system.dates.datetranslate import extract_date
 from app.system.db.db import DBConnector
-from app.system.deepdive.collection import add_collection
+from app.system.deepdive.collection import (
+    add_collection,
+    add_documents,
+    get_collections,
+    get_documents,
+)
 from app.system.deepdive.diver import maybe_diver_thread
 from app.system.language.langdetect import LangResponse
 from app.system.language.pipeline import extract_language
@@ -817,6 +825,44 @@ def setup(
             res = add_collection(db, session["uuid"], name, deep_dive)
             return {
                 "collection_id": res,
+            }
+
+        @server.json_post(f"{prefix}/collection/list")
+        def _post_collection_list(
+                _req: QSRH, rargs: ReqArgs) -> CollectionListResponse:
+            session: SessionInfo = rargs["meta"]["session"]
+            return {
+                "collections": [
+                    {
+                        "id": obj["id"],
+                        "name": obj["name"],
+                    }
+                    for obj in get_collections(db, session["uuid"])
+                ],
+            }
+
+        @server.json_post(f"{prefix}/documents/add")
+        def _post_documents_add(
+                _req: QSRH, rargs: ReqArgs) -> DocumentResponse:
+            args = rargs["post"]
+            collection_id = args["collection_id"]
+            main_ids = args["main_ids"]
+            session: SessionInfo = rargs["meta"]["session"]
+            res = add_documents(db, collection_id, main_ids, session["uuid"])
+            maybe_start_dive()
+            return {
+                "document_ids": res,
+            }
+
+        @server.json_post(f"{prefix}/documents/list")
+        def _post_documents_list(
+                _req: QSRH, rargs: ReqArgs) -> DocumentListResponse:
+            args = rargs["post"]
+            collection_id = args["collection_id"]
+            session: SessionInfo = rargs["meta"]["session"]
+            res = list(get_documents(db, collection_id, session["uuid"]))
+            return {
+                "documents": res,
             }
 
     return server, prefix

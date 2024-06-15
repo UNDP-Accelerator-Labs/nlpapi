@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import TypedDict
 
+from app.system.deepdive.collection import DocumentObj
 from app.system.smind.api import QueueStat
 from app.system.smind.vec import VecDBStat
 
@@ -62,4 +63,17 @@ BuildIndexResponse = TypedDict('BuildIndexResponse', {
 })
 CollectionResponse = TypedDict('CollectionResponse', {
     "collection_id": int,
+})
+CollectionJSON = TypedDict('CollectionJSON', {
+    "id": int,
+    "name": str,
+})
+CollectionListResponse = TypedDict('CollectionListResponse', {
+    "collections": list[CollectionJSON],
+})
+DocumentResponse = TypedDict('DocumentResponse', {
+    "document_ids": list[int],
+})
+DocumentListResponse = TypedDict('DocumentListResponse', {
+    "documents": list[DocumentObj],
 })
