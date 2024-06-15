@@ -21,6 +21,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import styled from 'styled-components';
 import ApiActions from './api/ApiActions';
 import { SearchState } from './api/types';
+import CollectionView from './collections/CollectionView';
 import Search from './search/Search';
 import { setSearch } from './search/SearchStateSlice';
 import { RootState } from './store';
@@ -156,6 +157,7 @@ class App extends PureComponent<AppProps, AppState> {
 
   render() {
     const { ready, userName } = this.state;
+    const isLoggedIn = !!userName;
     return (
       <HMain>
         <BrowserRouter>
@@ -165,13 +167,23 @@ class App extends PureComponent<AppProps, AppState> {
               element={
                 <Search
                   apiActions={this.apiActions}
+                  isLoggedIn={isLoggedIn}
                   ready={ready}
+                />
+              }
+            />
+            <Route
+              path="/collection"
+              element={
+                <CollectionView
+                  apiActions={this.apiActions}
+                  isLoggedIn={isLoggedIn}
                 />
               }
             />
           </Routes>
         </BrowserRouter>
-        {userName ? <UserDiv>Hello, {userName}!</UserDiv> : null}
+        {isLoggedIn ? <UserDiv>Hello, {userName}!</UserDiv> : null}
       </HMain>
     );
   }

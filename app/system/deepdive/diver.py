@@ -44,7 +44,7 @@ def maybe_diver_thread(
         db: DBConnector,
         smind: ScattermindAPI,
         graph_llama: GraphProfile,
-        get_full_text: Callable[[str], str | None]) -> None:
+        get_full_text: Callable[[str], tuple[str | None, str | None]]) -> None:
     global DIVER_THREAD  # pylint: disable=global-statement
 
     if DIVER_THREAD is not None and DIVER_THREAD.is_alive():
@@ -77,7 +77,7 @@ def process_pending(
         db: DBConnector,
         smind: ScattermindAPI,
         graph_llama: GraphProfile,
-        get_full_text: Callable[[str], str | None]) -> bool:
+        get_full_text: Callable[[str], tuple[str | None, str | None]]) -> bool:
     docs = list(get_documents_in_queue(db))
     if not docs:
         return False
@@ -85,13 +85,15 @@ def process_pending(
     ns = graph_llama.get_ns()
     for doc in docs:
         doc_id = doc["id"]
-        full_text = normalize_text(get_full_text(doc["main_id"]))
+        full_text, error_msg = get_full_text(doc["main_id"])
+        full_text = normalize_text(full_text)
         warning = None
         if full_text is None:
             set_error(
                 db,
                 doc_id,
-                f"could not retrieve document for {doc['main_id']}")
+                "could not retrieve document "
+                f"for {doc['main_id']}: {error_msg}")
             continue
         if len(full_text) > MAX_LENGTH:
             warning = f"text too long ({len(full_text)}); truncated"

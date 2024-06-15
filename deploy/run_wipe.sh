@@ -19,7 +19,7 @@
 set -e
 
 echo "starting server"
-python -m http.server -b "${HOST}" -d "/app/public" "${PORT}" &
+python -u -m http.server -b "${HOST}" -d "/app/public" "${PORT}" &
 
 echo "sleep"
 sleep 30

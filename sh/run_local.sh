@@ -49,7 +49,7 @@ start_redis rcache 6383
 DEVICE="${DEVICE:-auto}"
 
 start_smind() {
-    ${PYTHON} -m scattermind \
+    ${PYTHON} -u -m scattermind \
         --env "${ENV_FILE}" \
         --config local/smind-config.json \
         --device "${DEVICE}" \
@@ -64,7 +64,7 @@ start_api() {
     SMIND_CFG='local/smind-config.json' \
     GRAPH_PATH='local/graphs/' \
     CONFIG_PATH='-' \
-        ${PYTHON} -m app \
+        ${PYTHON} -u -m app \
             --env "${ENV_FILE}" \
             --dedicated \
             >> "userdata/app-${DATE}.log" 2>&1 &

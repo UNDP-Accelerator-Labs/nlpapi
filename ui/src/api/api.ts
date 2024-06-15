@@ -225,7 +225,7 @@ export const DEFAULT_API: ApiProvider = {
         main_id: mainId,
       }),
     });
-    const { content }: FulltextResponse = await res.json();
-    return { content: content ?? undefined };
+    const { content, error }: FulltextResponse = await res.json();
+    return { content: content ?? undefined, error: error ?? undefined };
   },
 };

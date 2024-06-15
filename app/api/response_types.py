@@ -79,4 +79,5 @@ DocumentListResponse = TypedDict('DocumentListResponse', {
 })
 FulltextResponse = TypedDict('FulltextResponse', {
     "content": str | None,
+    "error": str | None,
 })

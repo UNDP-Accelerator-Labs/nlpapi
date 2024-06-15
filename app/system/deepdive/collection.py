@@ -209,6 +209,27 @@ def set_error(db: DBConnector, doc_id: int, error: str | None) -> None:
         session.execute(stmt)
 
 
+def requeue(
+        db: DBConnector,
+        collection_id: int,
+        user: UUID | None,
+        main_id: str,
+        *,
+        allow_none: bool = False) -> None:
+    with db.get_session() as session:
+        verify_user(session, collection_id, user, allow_none=allow_none)
+        stmt = sa.update(DeepDiveElement)
+        stmt = stmt.where(sa.and_(
+            DeepDiveElement.deep_dive_id == collection_id,
+            DeepDiveElement.main_id == main_id))
+        stmt = stmt.values(
+            is_valid=None,
+            verify_reason=None,
+            deep_dive_result=None,
+            error=None)
+        session.execute(stmt)
+
+
 def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
     with db.get_session() as session:
         stmt = sa.select(

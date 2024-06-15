@@ -83,14 +83,12 @@ export type SearchState = {
 
 export type DeepDive = 'circular_economy';
 
-export const DEEP_DIVES: DeepDive[] = ['circular_economy'];
-
 export type Collection = {
   id: number;
   name: string;
 };
 
-export type DeepDiveResult = {
+type DeepDiveResult = {
   reason: string;
   cultural: number;
   economic: number;
@@ -101,7 +99,7 @@ export type DeepDiveResult = {
   technological: number;
 };
 
-export type ApiDocumentObj = {
+type ApiDocumentObj = {
   id: number;
   main_id: string;
   deep_dive: number;
@@ -155,4 +153,5 @@ export type DocumentListResponse = {
 
 export type FulltextResponse = {
   content: string | undefined;
+  error: string | undefined;
 };

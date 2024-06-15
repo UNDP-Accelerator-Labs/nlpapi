@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import traceback
 from collections.abc import Callable
 
 import sqlalchemy as sa
@@ -27,21 +28,21 @@ def read_pad(
         doc_id: int,
         *,
         combine_title: bool,
-        ignore_unpublished: bool) -> str | None:
+        ignore_unpublished: bool) -> tuple[str | None, str | None]:
     with db.get_session() as session:
         stmt = sa.select(
             PadTable.status, PadTable.full_text, PadTable.title)
         stmt = stmt.where(PadTable.id == doc_id)
         row = session.execute(stmt).one_or_none()
         if row is None:
-            return None
+            return (None, f"could not find {doc_id=}")
         if ignore_unpublished and int(row.status) <= 1:
-            return None
+            return (None, "pad is unpublished")
         res = sanity_check(f"{row.full_text}")
         if combine_title:
             title = sanity_check(f"{row.title}")
             res = f"{title}\n\n{res}"
-        return res
+        return (res, None)
 
 
 def read_blog(
@@ -49,7 +50,7 @@ def read_blog(
         doc_id: int,
         *,
         combine_title: bool,
-        ignore_unpublished: bool) -> str | None:
+        ignore_unpublished: bool) -> tuple[str | None, str | None]:
     with db.get_session() as session:
         stmt = sa.select(
             ArticlesTable.id,
@@ -63,16 +64,16 @@ def read_blog(
             ArticlesTable.id == doc_id))
         row = session.execute(stmt).one_or_none()
         if row is None:
-            return None
+            return (None, f"could not find {doc_id=}")
         if ignore_unpublished and int(row.relevance) <= 1:
-            return None
+            return (None, "article not relevant")
         content = sanity_check(f"{row.content}".strip())
         if not content:
-            return None
+            return (None, "empty content")
         if combine_title:
             title = sanity_check(f"{row.title}")
             content = f"{title}\n\n{content}"
-        return content
+        return (content, None)
 
 
 def create_full_text(
@@ -80,28 +81,29 @@ def create_full_text(
         blogs_db: DBConnector,
         *,
         combine_title: bool,
-        ignore_unpublished: bool) -> Callable[[str], str | None]:
+        ignore_unpublished: bool,
+        ) -> Callable[[str], tuple[str | None, str | None]]:
 
-    def get_full_text(main_id: str) -> str | None:
+    def get_full_text(main_id: str) -> tuple[str | None, str | None]:
         try:
             base, doc_id_str = main_id.split(":")
             base = base.strip()
             doc_id = int(doc_id_str.strip())
-        except ValueError:
-            return None
-        pdb = platforms.get(base)
-        if pdb is not None:
-            return read_pad(
-                pdb,
-                doc_id,
-                combine_title=combine_title,
-                ignore_unpublished=ignore_unpublished)
-        if base == "blogs":
-            return read_blog(
-                blogs_db,
-                doc_id,
-                combine_title=combine_title,
-                ignore_unpublished=ignore_unpublished)
-        return None
+            pdb = platforms.get(base)
+            if pdb is not None:
+                return read_pad(
+                    pdb,
+                    doc_id,
+                    combine_title=combine_title,
+                    ignore_unpublished=ignore_unpublished)
+            if base == "blog":
+                return read_blog(
+                    blogs_db,
+                    doc_id,
+                    combine_title=combine_title,
+                    ignore_unpublished=ignore_unpublished)
+            return (None, f"unknown {base=}")
+        except Exception:  # pylint: disable=broad-exception-caught
+            return (None, traceback.format_exc())
 
     return get_full_text

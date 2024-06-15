@@ -285,6 +285,7 @@ const Pagination = styled.span<PaginationProps>`
 interface SearchProps extends ConnectSearch {
   apiActions: ApiActions;
   ready: boolean;
+  isLoggedIn: boolean;
 }
 
 type EmptySearchProps = {
@@ -630,7 +631,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
   }
 
   render(): ReactNode {
-    const { page, query, apiActions, collectionId } = this.props;
+    const { page, query, apiActions, collectionId, isLoggedIn } = this.props;
     const {
       stats: { count },
       isLoading,
@@ -646,17 +647,21 @@ class Search extends PureComponent<SearchProps, SearchState> {
       <React.Fragment>
         <VSide>
           <TopLeft>
-            <Collections
-              apiActions={apiActions}
-              canCreate={false}
-            />
-            <InputButton
-              type="button"
-              onClick={this.clickAddAll}
-              value="Add Results to Collection"
-              disabled={collectionId < 0 || isAdding}
-            />
-            {documentMessage.length ? <div>{documentMessage}</div> : null}
+            {isLoggedIn ? (
+              <React.Fragment>
+                <Collections
+                  apiActions={apiActions}
+                  canCreate={true}
+                />
+                <InputButton
+                  type="button"
+                  onClick={this.clickAddAll}
+                  value="Add Results to Collection"
+                  disabled={collectionId < 0 || isAdding}
+                />
+                {documentMessage.length ? <div>{documentMessage}</div> : null}
+              </React.Fragment>
+            ) : null}
             {count !== undefined ? `Total documents: ${count}` : null}
           </TopLeft>
           <FilterDiv>{this.renderStats()}</FilterDiv>

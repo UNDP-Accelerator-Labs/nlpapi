@@ -36,7 +36,7 @@ DEVICE=auto
 
 cd ..
 if [ "${DEVICE}" = "auto" ]; then
-    exec python -m scattermind --config study/config.json worker --graph study/graphs/
+    exec python -u -m scattermind --config study/config.json worker --graph study/graphs/
 else
-    exec python -m scattermind --config study/config.json --device "${DEVICE}" worker --graph study/graphs/
+    exec python -u -m scattermind --config study/config.json --device "${DEVICE}" worker --graph study/graphs/
 fi

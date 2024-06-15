@@ -871,9 +871,10 @@ def setup(
                 _req: QSRH, rargs: ReqArgs) -> FulltextResponse:
             args = rargs["post"]
             main_id = args["main_id"]
-            content = get_full_text(main_id)
+            content, error_msg = get_full_text(main_id)
             return {
                 "content": content,
+                "error": error_msg,
             }
 
     return server, prefix
