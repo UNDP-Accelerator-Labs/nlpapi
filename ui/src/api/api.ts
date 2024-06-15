@@ -17,9 +17,18 @@
  */
 import { getCollectionApiUrl, getSearchApiUrl } from '../misc/constants';
 import {
+  ApiCollectionResponse,
+  ApiDocumentListResponse,
+  ApiDocumentResponse,
   ApiSearchResult,
   ApiStatResult,
   ApiUserResult,
+  CollectionListResponse,
+  CollectionResponse,
+  DeepDive,
+  DocumentListResponse,
+  DocumentResponse,
+  FulltextResponse,
   SearchFilters,
   UserResult,
 } from './types';
@@ -36,6 +45,17 @@ export type ApiProvider = {
     offset: number,
     limit: number,
   ) => Promise<ApiSearchResult>;
+  addCollection: (
+    name: string,
+    deepDive: DeepDive,
+  ) => Promise<CollectionResponse>;
+  collections: () => Promise<CollectionListResponse>;
+  addDocuments: (
+    collectionId: number,
+    mainIds: string[],
+  ) => Promise<DocumentResponse>;
+  documents: (collectionId: number) => Promise<DocumentListResponse>;
+  getFulltext: (mainId: string) => Promise<FulltextResponse>;
 };
 
 export const DEFAULT_API: ApiProvider = {
@@ -106,5 +126,106 @@ export const DEFAULT_API: ApiProvider = {
         status: 'error',
       };
     }
+  },
+  addCollection: async (name, deepDive) => {
+    const url = await getCollectionApiUrl();
+    const res = await fetch(`${url}/api/collection/add`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        deep_dive: deepDive,
+      }),
+    });
+    const { collection_id }: ApiCollectionResponse = await res.json();
+    return {
+      collectionId: collection_id,
+    };
+  },
+  collections: async () => {
+    const url = await getCollectionApiUrl();
+    const res = await fetch(`${url}/api/collection/list`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+    const { collections }: CollectionListResponse = await res.json();
+    return { collections };
+  },
+  addDocuments: async (collectionId, mainIds) => {
+    const url = await getCollectionApiUrl();
+    const res = await fetch(`${url}/api/documents/add`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        collection_id: collectionId,
+        main_ids: mainIds,
+      }),
+    });
+    const { document_ids }: ApiDocumentResponse = await res.json();
+    return { documentIds: document_ids };
+  },
+  documents: async (collectionId) => {
+    const url = await getCollectionApiUrl();
+    const res = await fetch(`${url}/api/documents/list`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        collection_id: collectionId,
+      }),
+    });
+    const { documents }: ApiDocumentListResponse = await res.json();
+    return {
+      documents: documents.map(
+        ({
+          id,
+          main_id,
+          deep_dive,
+          verify_key,
+          deep_dive_key,
+          is_valid,
+          verify_reason,
+          deep_dive_result,
+          error,
+        }) => ({
+          id,
+          mainId: main_id,
+          collectionId: deep_dive,
+          verifyKey: verify_key,
+          deepDiveKey: deep_dive_key,
+          isValid: is_valid ?? undefined,
+          verifyReason: verify_reason ?? undefined,
+          deepDiveResult: deep_dive_result ?? undefined,
+          error: error ?? undefined,
+        }),
+      ),
+    };
+  },
+  getFulltext: async (mainId) => {
+    const url = await getCollectionApiUrl();
+    const res = await fetch(`${url}/api//documents/fulltext`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        main_id: mainId,
+      }),
+    });
+    const { content }: FulltextResponse = await res.json();
+    return { content: content ?? undefined };
   },
 };

@@ -25,6 +25,7 @@ import { ConnectedProps, connect } from 'react-redux';
 import styled, { css } from 'styled-components';
 import ApiActions from '../api/ApiActions';
 import { SearchFilters, SearchResult, Stats } from '../api/types';
+import Collections from '../collections/Collections';
 import { DISPLAY_PAGE_COUNT, MID_PAGE, PAGE_SIZE } from '../misc/constants';
 import { RootState } from '../store';
 import { setSearch } from './SearchStateSlice';
@@ -55,7 +56,7 @@ const VSide = styled.div`
 `;
 
 const TopLeft = styled.div`
-  height: 20vh;
+  min-height: 20vh;
   flex-shrink: 0;
   flex-grow: 0;
   margin: 2px;
@@ -153,13 +154,24 @@ const SearchDiv = styled.div`
   }
 `;
 
-const Input = styled.input`
+const InputText = styled.input`
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 14px;
   font-style: normal;
   font-variant: normal;
   font-weight: 400;
   line-height: 30px;
+`;
+
+const InputButton = styled.input`
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: 400;
+  line-height: 30px;
+  height: 36px;
+  cursor: pointer;
 `;
 
 const SearchInfo = styled.div`
@@ -287,6 +299,8 @@ type SearchState = {
   results: SearchResult;
   groups: { [key: string]: boolean };
   isLoading: boolean;
+  isAdding: boolean;
+  documentMessage: string;
 };
 
 class Search extends PureComponent<SearchProps, SearchState> {
@@ -305,6 +319,8 @@ class Search extends PureComponent<SearchProps, SearchState> {
       },
       groups: {},
       isLoading: false,
+      isAdding: false,
+      documentMessage: '',
     };
     this.queryRef = React.createRef();
   }
@@ -447,6 +463,38 @@ class Search extends PureComponent<SearchProps, SearchState> {
     );
   };
 
+  clickAddAll: MouseEventHandler<HTMLInputElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    const { apiActions, collectionId } = this.props;
+    const {
+      isAdding,
+      results: { hits },
+    } = this.state;
+    const mainIds = hits.map(({ mainId }) => mainId);
+    if (isAdding || collectionId < 0 || !mainIds.length) {
+      this.setState({
+        documentMessage: '',
+      });
+      return;
+    }
+    this.setState(
+      {
+        isAdding: true,
+      },
+      () => {
+        apiActions.addDocuments(collectionId, mainIds, (newDocs) => {
+          this.setState({
+            isAdding: false,
+            documentMessage: `Added ${newDocs} new documents!`,
+          });
+        });
+      },
+    );
+  };
+
   keyDownInput: KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.defaultPrevented) {
       return;
@@ -582,11 +630,13 @@ class Search extends PureComponent<SearchProps, SearchState> {
   }
 
   render(): ReactNode {
-    const { page, query } = this.props;
+    const { page, query, apiActions, collectionId } = this.props;
     const {
       stats: { count },
       isLoading,
       results: { status },
+      isAdding,
+      documentMessage,
     } = this.state;
     const pageCount = Math.min(
       Math.ceil((count ?? 0) / PAGE_SIZE),
@@ -596,18 +646,30 @@ class Search extends PureComponent<SearchProps, SearchState> {
       <React.Fragment>
         <VSide>
           <TopLeft>
+            <Collections
+              apiActions={apiActions}
+              canCreate={false}
+            />
+            <InputButton
+              type="button"
+              onClick={this.clickAddAll}
+              value="Add Results to Collection"
+              disabled={collectionId < 0 || isAdding}
+            />
+            {documentMessage.length ? <div>{documentMessage}</div> : null}
             {count !== undefined ? `Total documents: ${count}` : null}
           </TopLeft>
           <FilterDiv>{this.renderStats()}</FilterDiv>
         </VSide>
         <VMain>
           <SearchDiv>
-            <Input
+            <InputText
               type="search"
               placeholder="Type a query..."
               autoFocus={true}
               autoComplete="off"
               onKeyDown={this.keyDownInput}
+              defaultValue={query}
             />
           </SearchDiv>
           <SearchInfo>
@@ -626,6 +688,7 @@ const connector = connect((state: RootState) => ({
   query: state.searchState.query,
   filters: state.searchState.filters,
   page: state.searchState.page,
+  collectionId: state.collectionState.collectionId,
 }));
 
 export default connector(Search);

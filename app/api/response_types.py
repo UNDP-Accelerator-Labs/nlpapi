@@ -77,3 +77,6 @@ DocumentResponse = TypedDict('DocumentResponse', {
 DocumentListResponse = TypedDict('DocumentListResponse', {
     "documents": list[DocumentObj],
 })
+FulltextResponse = TypedDict('FulltextResponse', {
+    "content": str | None,
+})

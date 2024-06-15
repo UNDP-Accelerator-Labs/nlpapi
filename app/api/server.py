@@ -37,6 +37,7 @@ from app.api.response_types import (
     DateResponse,
     DocumentListResponse,
     DocumentResponse,
+    FulltextResponse,
     Snippy,
     SnippyResponse,
     StatsResponse,
@@ -471,12 +472,12 @@ def setup(
     else:
         graph_llama = None
 
+    get_full_text = create_full_text(
+        platforms,
+        blogs_db,
+        combine_title=True,
+        ignore_unpublished=True)
     if graph_llama is not None:
-        get_full_text = create_full_text(
-            platforms,
-            blogs_db,
-            combine_title=True,
-            ignore_unpublished=True)
 
         def _maybe_start_dive() -> None:
             maybe_diver_thread(db, smind, graph_llama, get_full_text)
@@ -863,6 +864,16 @@ def setup(
             res = list(get_documents(db, collection_id, session["uuid"]))
             return {
                 "documents": res,
+            }
+
+        @server.json_post(f"{prefix}/documents/fulltext")
+        def _post_documents_fulltext(
+                _req: QSRH, rargs: ReqArgs) -> FulltextResponse:
+            args = rargs["post"]
+            main_id = args["main_id"]
+            content = get_full_text(main_id)
+            return {
+                "content": content,
             }
 
     return server, prefix

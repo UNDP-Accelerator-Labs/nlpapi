@@ -80,3 +80,79 @@ export type SearchState = {
   filter: string;
   p: number;
 };
+
+export type DeepDive = 'circular_economy';
+
+export const DEEP_DIVES: DeepDive[] = ['circular_economy'];
+
+export type Collection = {
+  id: number;
+  name: string;
+};
+
+export type DeepDiveResult = {
+  reason: string;
+  cultural: number;
+  economic: number;
+  educational: number;
+  institutional: number;
+  legal: number;
+  political: number;
+  technological: number;
+};
+
+export type ApiDocumentObj = {
+  id: number;
+  main_id: string;
+  deep_dive: number;
+  verify_key: string;
+  deep_dive_key: string;
+  is_valid: boolean | undefined;
+  verify_reason: string | undefined;
+  deep_dive_result: DeepDiveResult | undefined;
+  error: string | undefined;
+};
+
+export type DocumentObj = {
+  id: number;
+  mainId: string;
+  collectionId: number;
+  verifyKey: string;
+  deepDiveKey: string;
+  isValid: boolean | undefined;
+  verifyReason: string | undefined;
+  deepDiveResult: DeepDiveResult | undefined;
+  error: string | undefined;
+};
+
+export type ApiCollectionResponse = {
+  collection_id: number;
+};
+
+export type CollectionResponse = {
+  collectionId: number;
+};
+
+export type CollectionListResponse = {
+  collections: Collection[];
+};
+
+export type ApiDocumentResponse = {
+  document_ids: number[];
+};
+
+export type DocumentResponse = {
+  documentIds: number[];
+};
+
+export type ApiDocumentListResponse = {
+  documents: ApiDocumentObj[];
+};
+
+export type DocumentListResponse = {
+  documents: DocumentObj[];
+};
+
+export type FulltextResponse = {
+  content: string | undefined;
+};

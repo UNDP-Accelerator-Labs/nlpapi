@@ -17,22 +17,38 @@
  */
 import { ApiProvider, DEFAULT_API } from '../api/api';
 import { ALL_FIELDS, PAGE_SIZE } from '../misc/constants';
-import { SearchFilters, SearchResult, Stats } from './types';
+import {
+  Collection,
+  DeepDive,
+  DocumentObj,
+  SearchFilters,
+  SearchResult,
+  Stats,
+} from './types';
 
 type UserCallback = (userName: string | undefined) => void;
 type StatCallback = (stats: Stats) => void;
 type ResultCallback = (results: SearchResult) => void;
+type AddCollectionCallback = (collectionId: number) => void;
+type AddDocumentsCallback = (newDocs: number) => void;
+type CollectionCallback = (collections: Collection[]) => void;
+type DocumentCallback = (documents: DocumentObj[]) => void;
+type FulltextCallback = (mainId: string, content: string | undefined) => void;
 
 export default class ApiActions {
   private readonly api: ApiProvider;
 
   private statNum: number;
   private responseNum: number;
+  private collectionsNum: number;
+  private documentsNum: number;
 
   constructor(api?: ApiProvider) {
     this.api = api ?? DEFAULT_API;
     this.statNum = 0;
     this.responseNum = 0;
+    this.collectionsNum = 0;
+    this.documentsNum = 0;
   }
 
   async user(cb: UserCallback) {
@@ -92,5 +108,48 @@ export default class ApiActions {
       return;
     }
     cb({ count: doc_count, fields });
+  }
+
+  async addCollection(
+    name: string,
+    deepDive: DeepDive,
+    cb: AddCollectionCallback,
+  ) {
+    const { collectionId } = await this.api.addCollection(name, deepDive);
+    cb(collectionId);
+  }
+
+  async collections(cb: CollectionCallback) {
+    this.collectionsNum += 1;
+    const collectionsNum = this.collectionsNum;
+    const { collections } = await this.api.collections();
+    if (collectionsNum !== this.collectionsNum) {
+      return;
+    }
+    cb(collections);
+  }
+
+  async addDocuments(
+    collectionId: number,
+    mainIds: string[],
+    cb: AddDocumentsCallback,
+  ) {
+    const { documentIds } = await this.api.addDocuments(collectionId, mainIds);
+    cb(documentIds.length);
+  }
+
+  async documents(collectionId: number, cb: DocumentCallback) {
+    this.documentsNum += 1;
+    const documentsNum = this.documentsNum;
+    const { documents } = await this.api.documents(collectionId);
+    if (documentsNum !== this.documentsNum) {
+      return;
+    }
+    cb(documents);
+  }
+
+  async getFulltext(mainId: string, cb: FulltextCallback) {
+    const { content } = await this.api.getFulltext(mainId);
+    cb(mainId, content);
   }
 } // ApiActions

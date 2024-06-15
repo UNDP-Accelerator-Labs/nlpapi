@@ -15,20 +15,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { configureStore } from '@reduxjs/toolkit';
-import collectionStateSliceReducer from './collections/CollectionStateSlice';
-import searchStateSliceReducer from './search/SearchStateSlice';
+import { PureComponent } from 'react';
 
-const store = configureStore({
-  reducer: {
-    searchState: searchStateSliceReducer,
-    collectionState: collectionStateSliceReducer,
-  },
-});
-
-export default store;
-
-export type RootState = ReturnType<typeof store.getState>;
-// FIXME for reference
-// ts-unused-exports:disable-next-line
-export type AppDispatch = typeof store.dispatch;
+export default class CollectionView extends PureComponent {
+  render() {
+    return null;
+  }
+}

@@ -57,8 +57,10 @@ def read_blog(
             ArticlesTable.relevance,
             ArticleContentTable.article_id,
             ArticleContentTable.content,
-            ).join(ArticleContentTable.article_id)
-        stmt = stmt.where(ArticlesTable.id == doc_id)
+            )
+        stmt = stmt.where(sa.and_(
+            ArticleContentTable.article_id == ArticlesTable.id,
+            ArticlesTable.id == doc_id))
         row = session.execute(stmt).one_or_none()
         if row is None:
             return None

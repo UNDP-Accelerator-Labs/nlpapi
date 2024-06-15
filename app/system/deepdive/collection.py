@@ -129,11 +129,11 @@ def add_documents(
             cstmt = db.upsert(DeepDiveElement).values(
                 main_id=main_id,
                 deep_dive_id=collection_id)
+            cstmt = cstmt.on_conflict_do_nothing()
             cstmt = cstmt.returning(DeepDiveElement.id)
             eid = session.execute(cstmt).scalar()
-            if eid is None:
-                raise ValueError(f"error adding documents: {main_ids}")
-            res.append(int(eid))
+            if eid is not None:
+                res.append(int(eid))
     return res
 
 
@@ -155,8 +155,10 @@ def get_documents(
             DeepDiveElement.error,
             DeepDiveCollection.verify_key,
             DeepDiveCollection.deep_dive_key,
-            ).join(DeepDiveElement.deep_dive_id)
-        stmt = stmt.where(DeepDiveCollection.id == collection_id)
+            )
+        stmt = stmt.where(sa.and_(
+            DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
+            DeepDiveCollection.id == collection_id))
         for row in session.execute(stmt):
             yield {
                 "id": row.id,
@@ -219,8 +221,9 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
             DeepDiveElement.error,
             DeepDiveCollection.verify_key,
             DeepDiveCollection.deep_dive_key,
-            ).join(DeepDiveElement.deep_dive_id)
+            )
         stmt = stmt.where(sa.and_(
+            DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
             sa.or_(
                 DeepDiveElement.is_valid.is_(None),
                 DeepDiveElement.deep_dive_result.is_(None)),
