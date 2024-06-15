@@ -14,6 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import argparse
+import os
+
+from dotenv import load_dotenv
 
 from app.misc.util import python_module
 from app.system.config import get_config
@@ -47,11 +50,24 @@ def parse_args() -> argparse.Namespace:
         default=False,
         action="store_true",
         help="create all deep dive tables")
+    parser.add_argument(
+        "--env",
+        default=None,
+        help="loads the given env file at startup")
     return parser.parse_args()
 
 
 def run() -> None:
     args = parse_args()
+    env_file: str | None = args.env
+    if env_file:
+        if not os.path.exists(env_file):
+            print(
+                f"could not load env! {env_file} does not exist!\n"
+                "this is expected in production!")
+        else:
+            print(f"loading env {env_file}")
+            load_dotenv(env_file)
     config = get_config()
     if args.init_query or args.init_db:
         create_query_log(DBConnector(config["db"]))

@@ -104,6 +104,7 @@ class DBConnector:
     def create_tables(self, tables: list[type['Base']]) -> None:
         from app.system.db.base import Base
 
+        print(f"creating {tables=}")
         Base.metadata.create_all(
             self._engine,
             tables=[table.__table__ for table in tables],

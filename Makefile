@@ -206,7 +206,7 @@ stubgen:
 	PYTHON=$(PYTHON) FORCE=$(FORCE) ./sh/stubgen.sh $(PKG)
 
 allapps:
-	./sh/findpy.sh \
+	@./sh/findpy.sh \
 	| xargs grep '__name__ == "__main__"' \
 	| cut -d: -f1 \
 	| sed -e 's/^.\///' -e 's/\/__main__.py$$//' -e 's/.py$$//'

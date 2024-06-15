@@ -146,7 +146,8 @@ class QueryLog(Base):  # pylint: disable=too-few-public-methods
 class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "deep_dive_collection"
 
-    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    id = sa.Column(
+        sa.Integer, unique=True, primary_key=True, autoincrement=True)
     user: sa.Column[sa.Uuid] = sa.Column(
         sa.Uuid, nullable=False, unique=True, primary_key=True)  # type: ignore
     name = sa.Column(sa.Text(), nullable=False)
