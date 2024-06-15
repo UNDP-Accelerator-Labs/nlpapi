@@ -60,3 +60,6 @@ SnippyResponse = TypedDict('SnippyResponse', {
 BuildIndexResponse = TypedDict('BuildIndexResponse', {
     "new_index_count": int,
 })
+CollectionResponse = TypedDict('CollectionResponse', {
+    "collection_id": int,
+})

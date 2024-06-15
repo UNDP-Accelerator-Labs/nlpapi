@@ -190,3 +190,86 @@ class SessionTable(Base):  # pylint: disable=too-few-public-methods
     sid = sa.Column(sa.Text(), nullable=False, primary_key=True)
     sess = sa.Column(sa.JSON, nullable=False)
     expire = sa.Column(sa.DateTime(timezone=False), nullable=False)
+
+
+class PadTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "pads"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    title = sa.Column(sa.String(99))
+    # sections jsonb,
+    full_text = sa.Column(sa.Text())
+    status = sa.Column(sa.Integer, default=0)
+    date = sa.Column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now())  # pylint: disable=not-callable
+    # template integer,
+    # CONSTRAINT pads_template_fkey FOREIGN KEY (template)
+    #     REFERENCES public.templates (id) MATCH SIMPLE
+    #     ON UPDATE NO ACTION
+    #     ON DELETE NO ACTION
+    updated_at = sa.Column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now())  # pylint: disable=not-callable
+    # source integer,
+    # CONSTRAINT pads_source_fkey FOREIGN KEY (source)
+    #     REFERENCES public.pads (id) MATCH SIMPLE
+    #     ON UPDATE CASCADE
+    #     ON DELETE CASCADE,
+    owner = sa.Column(sa.UUID)
+    # version ltree,
+
+
+# blogs
+
+class ArticlesTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "articles"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    url = sa.Column(sa.Text(), unique=True)
+    language = sa.Column(sa.Text())
+    title = sa.Column(sa.Text())
+    posted_date = sa.Column(sa.Date())
+    posted_date_str = sa.Column(sa.String(50))
+    article_type = sa.Column(sa.Text())
+    created_at = sa.Column(
+        sa.DateTime(timezone=False),
+        server_default=sa.func.now())  # pylint: disable=not-callable
+    updated_at = sa.Column(
+        sa.DateTime(timezone=False),
+        server_default=sa.func.now())  # pylint: disable=not-callable
+    deleted_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
+    deleted = sa.Column(sa.Boolean, default=False)
+    has_lab = sa.Column(sa.Boolean)
+    iso3_nlp = sa.Column(sa.String(3))
+    lat = sa.Column(sa.Double)
+    lng = sa.Column(sa.Double)
+    privilege = sa.Column(sa.Integer, default=1)
+    rights = sa.Column(sa.Integer, default=1)
+    # tags text[] COLLATE pg_catalog."default",
+    parsed_date = sa.Column(sa.DateTime(timezone=False), nullable=True)
+    relevance = sa.Column(sa.Integer, default=0)
+    iso3 = sa.Column(sa.String(3))
+
+
+class ArticleContentTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "article_content"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    article_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            ArticlesTable.id,
+            onupdate="NO ACTION",
+            ondelete="CASCADE"),
+        nullable=False,
+        unique=True)
+    content = sa.Column(sa.Text())
+    created_at = sa.Column(
+        sa.DateTime(timezone=False),
+        server_default=sa.func.now())  # pylint: disable=not-callable
+    updated_at = sa.Column(
+        sa.DateTime(timezone=False),
+        server_default=sa.func.now())  # pylint: disable=not-callable

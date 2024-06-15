@@ -32,6 +32,7 @@ from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
 from app.api.response_types import (
     BuildIndexResponse,
+    CollectionResponse,
     DateResponse,
     Snippy,
     SnippyResponse,
@@ -47,6 +48,8 @@ from app.system.auth import get_session, is_valid_token, SessionInfo
 from app.system.config import get_config
 from app.system.dates.datetranslate import extract_date
 from app.system.db.db import DBConnector
+from app.system.deepdive.collection import add_collection
+from app.system.deepdive.diver import maybe_diver_thread
 from app.system.language.langdetect import LangResponse
 from app.system.language.pipeline import extract_language
 from app.system.location.forwardgeo import OpenCageFormat
@@ -58,6 +61,7 @@ from app.system.location.response import (
     LanguageStr,
 )
 from app.system.prep.clean import normalize_text, sanity_check
+from app.system.prep.fulltext import create_full_text
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     get_queue_stats,
@@ -435,8 +439,18 @@ def setup(
 
     config = get_config()
     db = DBConnector(config["db"])
-    platform_db = DBConnector(config["platform"])
-    # blogs_db = DBConnector(config["blogs"])
+    platforms = {
+        pname: DBConnector(pconfig)
+        for pname, pconfig in config["platforms"].items()
+    }
+    try:
+        login_db = platforms["login"]
+    except KeyError as kerr:
+        ps_str = envload_str("LOGIN_DB_NAME_PLATFORMS", default="")
+        raise ValueError(
+            f"must define login in {ps_str}. "
+            "format is '<short>:<dbname>'") from kerr
+    blogs_db = DBConnector(config["blogs"])
 
     vec_db = get_vec_client(config)
 
@@ -448,6 +462,26 @@ def setup(
         graph_llama = load_graph(config, smind, "graph_llama.json")
     else:
         graph_llama = None
+
+    if graph_llama is not None:
+        get_full_text = create_full_text(
+            platforms,
+            blogs_db,
+            combine_title=True,
+            ignore_unpublished=True)
+
+        def _maybe_start_dive() -> None:
+            maybe_diver_thread(db, smind, graph_llama, get_full_text)
+
+        maybe_start_dive = _maybe_start_dive
+    else:
+
+        def nop() -> None:
+            pass
+
+        maybe_start_dive = nop
+
+    maybe_start_dive()
 
     ner_graphs: dict[LanguageStr, GraphProfile] = {
         "en": load_graph(config, smind, "graph_ner_en.json"),
@@ -509,9 +543,19 @@ def setup(
         if session_cookie is None:
             return okay
         session_str = session_cookie.value
-        session = get_session(platform_db, session_str)
+        session = get_session(login_db, session_str)
         if session is not None:
             rargs["meta"]["session"] = session
+        return okay
+
+    def verify_session(
+            req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        inner = maybe_session(req, rargs, okay)
+        if inner is not okay:
+            return inner
+        session: SessionInfo | None = rargs["meta"].get("session")
+        if session is None:
+            return Response("not logged in", 401)
         return okay
 
     def verify_token(
@@ -758,6 +802,22 @@ def setup(
                 res[name] = mod.execute(
                     input_str, user, module.get("args", {}))
             return res
+
+    # # # SESSION # # #
+    with server.middlewares(verify_session):
+        # *** collections ***
+
+        @server.json_post(f"{prefix}/collection/add")
+        def _post_collection_add(
+                _req: QSRH, rargs: ReqArgs) -> CollectionResponse:
+            args = rargs["post"]
+            name = args["name"]
+            deep_dive = args["deep_dive"]
+            session: SessionInfo = rargs["meta"]["session"]
+            res = add_collection(db, session["uuid"], name, deep_dive)
+            return {
+                "collection_id": res,
+            }
 
     return server, prefix
 

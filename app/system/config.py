@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 Config = TypedDict('Config', {
     "db": 'DBConfig',
-    "platform": 'DBConfig',
+    "platforms": dict[str, 'DBConfig'],
     "blogs": 'DBConfig',
     "opencage": str,
     "appsecret": str,
@@ -70,7 +70,12 @@ def config_template() -> Config:
     }
     return {
         "db": default_conn.copy(),
-        "platform": default_conn.copy(),
+        "platforms": {
+            "login": default_conn.copy(),
+            "sm": default_conn.copy(),
+            "exp": default_conn.copy(),
+            "ap": default_conn.copy(),
+        },
         "blogs": default_conn.copy(),
         "opencage": "INVALID",
         "appsecret": "INVALID",
@@ -109,6 +114,24 @@ def get_config() -> Config:
                 "grpc": envload_int("QDRANT_GRPC_PORT", default=6334),
                 "token": envload_str("QDRANT__SERVICE__API_KEY", default=""),
             }
+        platforms: dict[str, 'DBConfig'] = {}
+        dbs = envload_str("LOGIN_DB_NAME_PLATFORMS", default="").split(",")
+        for db_str in dbs:
+            db_str = db_str.strip()
+            if not db_str:
+                continue
+            short_name, db_name = db_str.split(":")
+            platforms[short_name] = {
+                "dbname": db_name,
+                "dialect": envload_str(
+                    "LOGIN_DB_DIALECT", default="postgresql"),
+                "host": envload_str("LOGIN_DB_HOST"),
+                "port": envload_int("LOGIN_DB_PORT", default=5432),
+                "user": envload_str("LOGIN_DB_USERNAME"),
+                "passwd": envload_str("LOGIN_DB_PASSWORD"),
+                "schema": envload_str(
+                    "LOGIN_DB_SCHEMA_PLATFORM", default="public"),
+            }
         CONFIG = {
             "db": {
                 "dbname": envload_str("LOGIN_DB_NAME"),
@@ -120,17 +143,7 @@ def get_config() -> Config:
                 "passwd": envload_str("LOGIN_DB_PASSWORD"),
                 "schema": envload_str("LOGIN_DB_SCHEMA", default="nlpapi"),
             },
-            "platform": {
-                "dbname": envload_str("LOGIN_DB_NAME"),
-                "dialect": envload_str(
-                    "LOGIN_DB_DIALECT", default="postgresql"),
-                "host": envload_str("LOGIN_DB_HOST"),
-                "port": envload_int("LOGIN_DB_PORT", default=5432),
-                "user": envload_str("LOGIN_DB_USERNAME"),
-                "passwd": envload_str("LOGIN_DB_PASSWORD"),
-                "schema": envload_str(
-                    "LOGIN_DB_SCHEMA_PLATFORM", default="public"),
-            },
+            "platforms": platforms,
             "blogs": {
                 "dbname": envload_str("BLOGS_DB_NAME"),
                 "dialect": envload_str(
