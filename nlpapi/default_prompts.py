@@ -1,3 +1,18 @@
+# NLP-API provides useful Natural Language Processing capabilities as API.
+# Copyright (C) 2024 UNDP Accelerator Labs, Josua Krause
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 def replacer(text: str, mapping: dict[str, str]) -> str:
     for key, value in mapping.items():
         text = text.replace(f"<{key}>", value)
@@ -32,8 +47,9 @@ Your entire response is a JSON and nothing else. The JSON is an object with
 several fields: "reason" which provides a short (50 - 100 words) justification
 for your assessment and one numeric field for every category. The numbers
 indicate the weight of each category in the article. 0 indicates no
-mention at all and higher numbers indicate a higher relevance within the
-article.
+mention at all, 1 indicates a brief acknowledgement, 2 indicates a minor
+mention, 3 indicates a sub topic of the article, and 4 indicates a major topic
+of the article.
 
 ## Examples
 
@@ -44,7 +60,7 @@ article.
     "legal": 0,
     "technological": 0,
     "economic": 2,
-    "political": 5,
+    "political": 4,
     "cultural": 0,
     "educational": 2,
 {BR_C}
