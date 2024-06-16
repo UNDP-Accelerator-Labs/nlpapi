@@ -62,7 +62,11 @@ type MainStatsProps = {
 };
 
 const MainStats = styled.div<MainStatsProps>`
+  display: flex;
+  flex-direction: row;
   flex-grow: 0;
+  width: 100%;
+  gap: 5px;
 
   filter: ${({ isLoading }) =>
     isLoading ? 'brightness(0.8) blur(5px)' : 'none'};
@@ -119,6 +123,9 @@ const DocumentRow = styled.div`
 const DocumentTabList = styled.div`
   display: flex;
   flex-direction: row;
+
+  border-top: 1px silver dotted;
+  border-bottom: 1px silver dotted;
 `;
 
 const Space = styled.span`
@@ -151,6 +158,7 @@ const DocumentTab = styled.span<DocumentTabProps>`
   cursor: ${({ active }) => (active ? 'pointer' : 'not-allowed')};
   background-color: ${({ color }) => (color ? color : 'white')};
   filter: ${({ selected }) => (selected ? 'brightness(80%)' : 'none')};
+  user-select: none;
 
   &:first-child {
     border-left: 1px silver solid;
@@ -158,6 +166,10 @@ const DocumentTab = styled.span<DocumentTabProps>`
 
   &:hover {
     filter: ${({ active }) => (active ? 'brightness(80%)' : 'none')};
+  }
+
+  &:active {
+    filter: ${({ active }) => (active ? 'brightness(85%)' : 'none')};
   }
 `;
 
@@ -384,10 +396,10 @@ class CollectionView extends PureComponent<
           canCreate={true}
         />
         <MainStats isLoading={needsUpdate}>
-          <span>Total: {total}</span>&nbsp;
-          <span>Included: {included}</span>&nbsp;
-          <span>Excluded: {excluded}</span>&nbsp;
-          <span>Complete: {complete}</span>&nbsp;
+          <span>Total: {total}</span>
+          <span>Included: {included}</span>
+          <span>Excluded: {excluded}</span>
+          <span>Complete: {complete}</span>
           <span>Errors: {errors}</span>
           <Space />
           <input

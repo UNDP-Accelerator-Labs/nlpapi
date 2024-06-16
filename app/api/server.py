@@ -896,7 +896,7 @@ def setup(
             main_id: str = args["main_id"]
             content, error_msg = get_full_text(main_id)
             return {
-                "content": content,
+                "content": normalize_text(content),
                 "error": error_msg,
             }
 
