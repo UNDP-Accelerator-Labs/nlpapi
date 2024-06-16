@@ -213,7 +213,7 @@ def requeue(
         db: DBConnector,
         collection_id: int,
         user: UUID | None,
-        main_id: str,
+        main_ids: list[str],
         *,
         allow_none: bool = False) -> None:
     with db.get_session() as session:
@@ -221,7 +221,7 @@ def requeue(
         stmt = sa.update(DeepDiveElement)
         stmt = stmt.where(sa.and_(
             DeepDiveElement.deep_dive_id == collection_id,
-            DeepDiveElement.main_id == main_id))
+            DeepDiveElement.main_id.in_(main_ids)))
         stmt = stmt.values(
             is_valid=None,
             verify_reason=None,

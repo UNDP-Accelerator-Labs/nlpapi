@@ -45,9 +45,27 @@ const VMain = styled.div`
   }
 `;
 
-const Documents = styled.div`
+type DocumentsProps = {
+  isLoading: boolean;
+};
+
+const Documents = styled.div<DocumentsProps>`
   flex-grow: 1;
   overflow: auto;
+
+  filter: ${({ isLoading }) =>
+    isLoading ? 'brightness(0.8) blur(5px)' : 'none'};
+`;
+
+type MainStatsProps = {
+  isLoading: boolean;
+};
+
+const MainStats = styled.div<MainStatsProps>`
+  flex-grow: 0;
+
+  filter: ${({ isLoading }) =>
+    isLoading ? 'brightness(0.8) blur(5px)' : 'none'};
 `;
 
 const Document = styled.div`
@@ -98,7 +116,15 @@ const DocumentRow = styled.div`
   flex-grow: 0;
 `;
 
-const DocumentTabList = styled.div``;
+const DocumentTabList = styled.div`
+  display: flex;
+  flex-direction: row;
+`;
+
+const Space = styled.span`
+  flex-grow: 1;
+  display: inline-block;
+`;
 
 const DocumentBody = styled.div`
   display: flex;
@@ -116,6 +142,8 @@ type DocumentTabProps = {
 };
 
 const DocumentTab = styled.span<DocumentTabProps>`
+  flex-grow: 0;
+  flex-shrink: 0;
   margin: 0 -1px 0 -1px;
   display: inline-block;
   padding: 0 10px;
@@ -130,6 +158,34 @@ const DocumentTab = styled.span<DocumentTabProps>`
 
   &:hover {
     filter: ${({ active }) => (active ? 'brightness(80%)' : 'none')};
+  }
+`;
+
+type DocumentTabButtonProps = {
+  'data-main': string;
+};
+
+const DocumentTabButton = styled.span<DocumentTabButtonProps>`
+  flex-grow: 0;
+  flex-shrink: 0;
+  margin: 0 -1px 0 -1px;
+  display: inline-block;
+  padding: 0 10px;
+  border: 1px silver dotted;
+  cursor: pointer;
+  background-color: white;
+  filter: none;
+
+  &:last-child {
+    border-right: 1px silver solid;
+  }
+
+  &:hover {
+    filter: brightness(80%);
+  }
+
+  &:active {
+    filter: brightness(85%);
   }
 `;
 
@@ -157,6 +213,7 @@ type CollectionViewState = {
   documents: DocumentObj[];
   selections: { [key: string]: string | undefined };
   fullText: { [key: string]: string };
+  needsUpdate: boolean;
 };
 
 class CollectionView extends PureComponent<
@@ -169,6 +226,7 @@ class CollectionView extends PureComponent<
       documents: [],
       selections: {},
       fullText: {},
+      needsUpdate: true,
     };
   }
 
@@ -181,15 +239,20 @@ class CollectionView extends PureComponent<
   ) {
     const { collectionId: oldCollectionId } = prevProps;
     const { collectionId, apiActions } = this.props;
-    const { selections, fullText } = this.state;
     if (collectionId !== oldCollectionId) {
+      this.setState({
+        needsUpdate: true,
+      });
+    }
+    const { needsUpdate, selections, fullText } = this.state;
+    if (needsUpdate) {
       if (collectionId < 0) {
-        this.setState({ documents: [] });
+        this.setState({ documents: [], needsUpdate: false });
       } else {
         apiActions.documents(collectionId, (documents) => {
           const { collectionId: currentCollectionId } = this.props;
           if (collectionId === currentCollectionId) {
-            this.setState({ documents });
+            this.setState({ documents, needsUpdate: false });
           }
         });
       }
@@ -242,6 +305,45 @@ class CollectionView extends PureComponent<
     });
   };
 
+  clickRecompute: MouseEventHandler<HTMLSpanElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    const target = e.currentTarget;
+    const mainId = target.getAttribute('data-main');
+    if (!mainId) {
+      return;
+    }
+    const { apiActions, collectionId } = this.props;
+    if (collectionId < 0) {
+      return;
+    }
+    apiActions.requeue(collectionId, [mainId], () => {
+      this.setState({
+        needsUpdate: true,
+      });
+    });
+  };
+
+  clickRecomputeAll: MouseEventHandler<HTMLSpanElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    const { apiActions, collectionId } = this.props;
+    const { documents } = this.state;
+    const mainIds = documents.map(({ mainId }) => mainId);
+    if (collectionId < 0 || !mainIds.length) {
+      return;
+    }
+    apiActions.requeue(collectionId, mainIds, () => {
+      this.setState({
+        needsUpdate: true,
+      });
+    });
+  };
+
   computeStats(): DocumentStats {
     const { documents } = this.state;
     return documents.reduce(
@@ -272,7 +374,7 @@ class CollectionView extends PureComponent<
     if (!isLoggedIn) {
       return <VMain>You must be logged in to view collections!</VMain>;
     }
-    const { documents, selections, fullText } = this.state;
+    const { documents, selections, fullText, needsUpdate } = this.state;
     const { total, included, excluded, complete, errors } =
       this.computeStats();
     return (
@@ -281,14 +383,20 @@ class CollectionView extends PureComponent<
           apiActions={apiActions}
           canCreate={true}
         />
-        <div>
+        <MainStats isLoading={needsUpdate}>
           <span>Total: {total}</span>&nbsp;
           <span>Included: {included}</span>&nbsp;
           <span>Excluded: {excluded}</span>&nbsp;
           <span>Complete: {complete}</span>&nbsp;
           <span>Errors: {errors}</span>
-        </div>
-        <Documents>
+          <Space />
+          <input
+            type="button"
+            value="Recompute All"
+            onClick={this.clickRecomputeAll}
+          />
+        </MainStats>
+        <Documents isLoading={needsUpdate}>
           {documents.map(
             ({
               mainId,
@@ -301,6 +409,7 @@ class CollectionView extends PureComponent<
             }) => {
               const sel = selections[mainId];
               const content = fullText[mainId];
+              const { reason: _, ...scores } = deepDiveResult ?? {};
               return (
                 <Document key={mainId}>
                   <DocumentRow>
@@ -362,6 +471,12 @@ class CollectionView extends PureComponent<
                         Error
                       </DocumentTab>
                     ) : null}
+                    <Space />
+                    <DocumentTabButton
+                      data-main={mainId}
+                      onClick={this.clickRecompute}>
+                      Recompute
+                    </DocumentTabButton>
                   </DocumentTabList>
                   {sel === 'verify' ? (
                     <DocumentBody>
@@ -370,6 +485,9 @@ class CollectionView extends PureComponent<
                   ) : null}
                   {sel === 'scores' ? (
                     <DocumentBody>
+                      {deepDiveResult ? (
+                        <Output>{JSON.stringify(scores)}</Output>
+                      ) : null}
                       {deepDiveResult ? (
                         <Output>{deepDiveResult.reason}</Output>
                       ) : null}

@@ -94,3 +94,6 @@ FulltextResponse = TypedDict('FulltextResponse', {
     "content": str | None,
     "error": str | None,
 })
+RequeueResponse = TypedDict('RequeueResponse', {
+    "done": bool,
+})

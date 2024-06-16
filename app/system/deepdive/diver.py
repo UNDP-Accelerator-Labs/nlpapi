@@ -142,6 +142,11 @@ def process_pending(
 
 
 def parse_json(text: str) -> dict | None:
+    start = text.find(r"{")
+    end = text.rfind(r"}")
+    if start < 0 or end < 0:
+        return None
+    text = text[start:end + 1]
     try:
         return json.loads(text)
     except json.decoder.JSONDecodeError:

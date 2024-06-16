@@ -64,7 +64,7 @@ export const getSearchApiUrl = async () => {
     } else {
       SEARCH_API = HOST_URL;
     }
-    console.log(`search api: ${SEARCH_API}`);
+    // console.log(`search api: ${SEARCH_API}`);
   }
   return SEARCH_API;
 };
@@ -79,7 +79,7 @@ export const getCollectionApiUrl = async () => {
     } else {
       COLLECTION_API = HOST_URL;
     }
-    console.log(`collection api: ${COLLECTION_API}`);
+    // console.log(`collection api: ${COLLECTION_API}`);
   }
   return COLLECTION_API;
 };

@@ -18,6 +18,7 @@ from collections.abc import Callable
 
 import sqlalchemy as sa
 
+from app.misc.lru import LRU
 from app.system.db.base import ArticleContentTable, ArticlesTable, PadTable
 from app.system.db.db import DBConnector
 from app.system.prep.clean import sanity_check
@@ -163,6 +164,9 @@ def get_url_title_blog(
         return ((url, title), None)
 
 
+URL_TITLE_LRU: LRU[str, tuple[tuple[str, str] | None, str | None]] = LRU(1000)
+
+
 def get_url_title(
         platforms: dict[str, DBConnector],
         blogs_db: DBConnector,
@@ -170,22 +174,28 @@ def get_url_title(
         *,
         ignore_unpublished: bool,
         ) -> tuple[tuple[str, str] | None, str | None]:
-    try:
-        base, doc_id_str = main_id.split(":")
-        base = base.strip()
-        doc_id = int(doc_id_str.strip())
-        pdb = platforms.get(base)
-        if pdb is not None:
-            return get_url_title_pad(
-                pdb,
-                base,
-                doc_id,
-                ignore_unpublished=ignore_unpublished)
-        if base == "blog":
-            return get_url_title_blog(
-                blogs_db,
-                doc_id,
-                ignore_unpublished=ignore_unpublished)
-        return (None, f"unknown {base=}")
-    except Exception:  # pylint: disable=broad-exception-caught
-        return (None, traceback.format_exc())
+    lru = URL_TITLE_LRU
+    res = lru.get(main_id)
+    if res is None:
+        try:
+            base, doc_id_str = main_id.split(":")
+            base = base.strip()
+            doc_id = int(doc_id_str.strip())
+            pdb = platforms.get(base)
+            if pdb is not None:
+                res = get_url_title_pad(
+                    pdb,
+                    base,
+                    doc_id,
+                    ignore_unpublished=ignore_unpublished)
+            elif base == "blog":
+                res = get_url_title_blog(
+                    blogs_db,
+                    doc_id,
+                    ignore_unpublished=ignore_unpublished)
+            else:
+                res = (None, f"unknown {base=}")
+        except Exception:  # pylint: disable=broad-exception-caught
+            res = (None, traceback.format_exc())
+        lru.set(main_id, res)
+    return res

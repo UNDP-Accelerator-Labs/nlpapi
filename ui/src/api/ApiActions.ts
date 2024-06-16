@@ -29,6 +29,7 @@ import {
 type UserCallback = (userName: string | undefined) => void;
 type StatCallback = (stats: Stats) => void;
 type ResultCallback = (results: SearchResult) => void;
+type AddCallback = () => void;
 type AddCollectionCallback = (collectionId: number) => void;
 type AddDocumentsCallback = (newDocs: number) => void;
 type CollectionCallback = (collections: Collection[]) => void;
@@ -155,5 +156,10 @@ export default class ApiActions {
   async getFulltext(mainId: string, cb: FulltextCallback) {
     const { content, error } = await this.api.getFulltext(mainId);
     cb(mainId, content, error);
+  }
+
+  async requeue(collectionId: number, mainIds: string[], cb: AddCallback) {
+    await this.api.requeue(collectionId, mainIds);
+    cb();
   }
 } // ApiActions

@@ -39,6 +39,7 @@ from app.api.response_types import (
     DocumentListResponse,
     DocumentResponse,
     FulltextResponse,
+    RequeueResponse,
     Snippy,
     SnippyResponse,
     StatsResponse,
@@ -59,6 +60,7 @@ from app.system.deepdive.collection import (
     DocumentObj,
     get_collections,
     get_documents,
+    requeue,
 )
 from app.system.deepdive.diver import maybe_diver_thread
 from app.system.language.langdetect import LangResponse
@@ -822,8 +824,8 @@ def setup(
         def _post_collection_add(
                 _req: QSRH, rargs: ReqArgs) -> CollectionResponse:
             args = rargs["post"]
-            name = args["name"]
-            deep_dive = args["deep_dive"]
+            name: str = args["name"]
+            deep_dive: str = args["deep_dive"]
             session: SessionInfo = rargs["meta"]["session"]
             res = add_collection(db, session["uuid"], name, deep_dive)
             return {
@@ -848,8 +850,8 @@ def setup(
         def _post_documents_add(
                 _req: QSRH, rargs: ReqArgs) -> DocumentResponse:
             args = rargs["post"]
-            collection_id = args["collection_id"]
-            main_ids = args["main_ids"]
+            collection_id = int(args["collection_id"])
+            main_ids: list[str] = args["main_ids"]
             session: SessionInfo = rargs["meta"]["session"]
             res = add_documents(db, collection_id, main_ids, session["uuid"])
             maybe_start_dive()
@@ -861,7 +863,7 @@ def setup(
         def _post_documents_list(
                 _req: QSRH, rargs: ReqArgs) -> DocumentListResponse:
             args = rargs["post"]
-            collection_id = args["collection_id"]
+            collection_id = int(args["collection_id"])
             session: SessionInfo = rargs["meta"]["session"]
             docs = list(get_documents(db, collection_id, session["uuid"]))
 
@@ -891,7 +893,7 @@ def setup(
         def _post_documents_fulltext(
                 _req: QSRH, rargs: ReqArgs) -> FulltextResponse:
             args = rargs["post"]
-            main_id = args["main_id"]
+            main_id: str = args["main_id"]
             content, error_msg = get_full_text(main_id)
             return {
                 "content": content,
@@ -900,13 +902,14 @@ def setup(
 
         @server.json_post(f"{prefix}/documents/requeue")
         def _post_documents_requeue(
-                _req: QSRH, rargs: ReqArgs) -> FulltextResponse:
+                _req: QSRH, rargs: ReqArgs) -> RequeueResponse:
             args = rargs["post"]
-            main_id = args["main_id"]
-            content, error_msg = get_full_text(main_id)
+            collection_id = int(args["collection_id"])
+            main_ids: list[str] = args["main_ids"]
+            session: SessionInfo = rargs["meta"]["session"]
+            requeue(db, collection_id, session["uuid"], main_ids)
             return {
-                "content": content,
-                "error": error_msg,
+                "done": True,
             }
 
     return server, prefix
