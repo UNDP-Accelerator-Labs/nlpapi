@@ -38,6 +38,8 @@ type ToggleShowState = {
   isOpen: boolean;
 };
 
+// FIXME might be useful later
+// ts-unused-exports:disable-next-line
 export default class ToggleShow extends PureComponent<
   ToggleShowProps,
   ToggleShowState
