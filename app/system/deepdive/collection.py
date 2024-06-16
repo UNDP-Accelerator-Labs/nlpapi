@@ -225,7 +225,7 @@ def requeue(
         stmt = stmt.values(
             is_valid=None,
             verify_reason=None,
-            deep_dive_result=None,
+            deep_dive_result=sa.null(),
             error=None)
         session.execute(stmt)
 

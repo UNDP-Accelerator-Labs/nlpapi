@@ -72,6 +72,11 @@ const MainStats = styled.div<MainStatsProps>`
     isLoading ? 'brightness(0.8) blur(5px)' : 'none'};
 `;
 
+const MainSpace = styled.span`
+  flex-grow: 1;
+  display: inline-block;
+`;
+
 const Document = styled.div`
   display: flex;
   flex-direction: column;
@@ -123,21 +128,13 @@ const DocumentRow = styled.div`
 const DocumentTabList = styled.div`
   display: flex;
   flex-direction: row;
-
-  border-top: 1px silver dotted;
-  border-bottom: 1px silver dotted;
 `;
 
-const Space = styled.span`
+const TabSpace = styled.span`
   flex-grow: 1;
   display: inline-block;
-`;
-
-const DocumentBody = styled.div`
-  display: flex;
-  flex-direction: row;
-  flex-grow: 1;
-  overflow: auto;
+  margin: 0 -1px 0 -1px;
+  border: 1px silver dotted;
 `;
 
 type DocumentTabProps = {
@@ -187,6 +184,7 @@ const DocumentTabButton = styled.span<DocumentTabButtonProps>`
   cursor: pointer;
   background-color: white;
   filter: none;
+  user-select: none;
 
   &:last-child {
     border-right: 1px silver solid;
@@ -199,6 +197,13 @@ const DocumentTabButton = styled.span<DocumentTabButtonProps>`
   &:active {
     filter: brightness(85%);
   }
+`;
+
+const DocumentBody = styled.div`
+  display: flex;
+  flex-direction: row;
+  flex-grow: 1;
+  overflow: auto;
 `;
 
 const Output = styled.pre`
@@ -226,6 +231,7 @@ type CollectionViewState = {
   selections: { [key: string]: string | undefined };
   fullText: { [key: string]: string };
   needsUpdate: boolean;
+  isLoading: boolean;
 };
 
 class CollectionView extends PureComponent<
@@ -239,6 +245,7 @@ class CollectionView extends PureComponent<
       selections: {},
       fullText: {},
       needsUpdate: true,
+      isLoading: false,
     };
   }
 
@@ -258,16 +265,24 @@ class CollectionView extends PureComponent<
     }
     const { needsUpdate, selections, fullText } = this.state;
     if (needsUpdate) {
-      if (collectionId < 0) {
-        this.setState({ documents: [], needsUpdate: false });
-      } else {
-        apiActions.documents(collectionId, (documents) => {
-          const { collectionId: currentCollectionId } = this.props;
-          if (collectionId === currentCollectionId) {
-            this.setState({ documents, needsUpdate: false });
+      this.setState(
+        {
+          needsUpdate: false,
+          isLoading: true,
+        },
+        () => {
+          if (collectionId < 0) {
+            this.setState({ documents: [], isLoading: false });
+          } else {
+            apiActions.documents(collectionId, (documents) => {
+              const { collectionId: currentCollectionId } = this.props;
+              if (collectionId === currentCollectionId) {
+                this.setState({ documents, isLoading: false });
+              }
+            });
           }
-        });
-      }
+        },
+      );
     }
     let modified = false;
     const newFullText = { ...fullText };
@@ -386,7 +401,7 @@ class CollectionView extends PureComponent<
     if (!isLoggedIn) {
       return <VMain>You must be logged in to view collections!</VMain>;
     }
-    const { documents, selections, fullText, needsUpdate } = this.state;
+    const { documents, selections, fullText, isLoading } = this.state;
     const { total, included, excluded, complete, errors } =
       this.computeStats();
     return (
@@ -395,20 +410,20 @@ class CollectionView extends PureComponent<
           apiActions={apiActions}
           canCreate={true}
         />
-        <MainStats isLoading={needsUpdate}>
+        <MainStats isLoading={isLoading}>
           <span>Total: {total}</span>
           <span>Included: {included}</span>
           <span>Excluded: {excluded}</span>
           <span>Complete: {complete}</span>
           <span>Errors: {errors}</span>
-          <Space />
+          <MainSpace />
           <input
             type="button"
             value="Recompute All"
             onClick={this.clickRecomputeAll}
           />
         </MainStats>
-        <Documents isLoading={needsUpdate}>
+        <Documents isLoading={isLoading}>
           {documents.map(
             ({
               mainId,
@@ -483,7 +498,7 @@ class CollectionView extends PureComponent<
                         Error
                       </DocumentTab>
                     ) : null}
-                    <Space />
+                    <TabSpace />
                     <DocumentTabButton
                       data-main={mainId}
                       onClick={this.clickRecompute}>

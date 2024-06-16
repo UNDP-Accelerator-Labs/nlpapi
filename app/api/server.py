@@ -908,6 +908,7 @@ def setup(
             main_ids: list[str] = args["main_ids"]
             session: SessionInfo = rargs["meta"]["session"]
             requeue(db, collection_id, session["uuid"], main_ids)
+            maybe_start_dive()
             return {
                 "done": True,
             }
