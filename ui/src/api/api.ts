@@ -192,6 +192,8 @@ export const DEFAULT_API: ApiProvider = {
         ({
           id,
           main_id,
+          url,
+          title,
           deep_dive,
           verify_key,
           deep_dive_key,
@@ -202,6 +204,8 @@ export const DEFAULT_API: ApiProvider = {
         }) => ({
           id,
           mainId: main_id,
+          url,
+          title,
           collectionId: deep_dive,
           verifyKey: verify_key,
           deepDiveKey: deep_dive_key,

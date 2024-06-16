@@ -35,6 +35,7 @@ from app.api.response_types import (
     CollectionListResponse,
     CollectionResponse,
     DateResponse,
+    DocumentEntry,
     DocumentListResponse,
     DocumentResponse,
     FulltextResponse,
@@ -55,6 +56,7 @@ from app.system.db.db import DBConnector
 from app.system.deepdive.collection import (
     add_collection,
     add_documents,
+    DocumentObj,
     get_collections,
     get_documents,
 )
@@ -70,7 +72,7 @@ from app.system.location.response import (
     LanguageStr,
 )
 from app.system.prep.clean import normalize_text, sanity_check
-from app.system.prep.fulltext import create_full_text
+from app.system.prep.fulltext import create_full_text, get_url_title
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     get_queue_stats,
@@ -861,13 +863,43 @@ def setup(
             args = rargs["post"]
             collection_id = args["collection_id"]
             session: SessionInfo = rargs["meta"]["session"]
-            res = list(get_documents(db, collection_id, session["uuid"]))
+            docs = list(get_documents(db, collection_id, session["uuid"]))
+
+            def get_doc(doc: DocumentObj) -> DocumentEntry:
+                res, error = get_url_title(
+                    platforms,
+                    blogs_db,
+                    doc["main_id"],
+                    ignore_unpublished=True)
+                url = "#"
+                title = "ERROR: unknown"
+                if error is not None:
+                    title = f"ERROR: {error}"
+                if res is not None:
+                    url, title = res
+                return {
+                    **doc,
+                    "url": url,
+                    "title": title,
+                }
+
             return {
-                "documents": res,
+                "documents": [get_doc(doc) for doc in docs],
             }
 
         @server.json_post(f"{prefix}/documents/fulltext")
         def _post_documents_fulltext(
+                _req: QSRH, rargs: ReqArgs) -> FulltextResponse:
+            args = rargs["post"]
+            main_id = args["main_id"]
+            content, error_msg = get_full_text(main_id)
+            return {
+                "content": content,
+                "error": error_msg,
+            }
+
+        @server.json_post(f"{prefix}/documents/requeue")
+        def _post_documents_requeue(
                 _req: QSRH, rargs: ReqArgs) -> FulltextResponse:
             args = rargs["post"]
             main_id = args["main_id"]

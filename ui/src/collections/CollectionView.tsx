@@ -15,12 +15,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { PureComponent } from 'react';
+import { MouseEventHandler, PureComponent } from 'react';
 import { ConnectedProps, connect } from 'react-redux';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
 import { DocumentObj } from '../api/types';
-import ToggleShow from '../misc/ToggleShow';
 import { RootState } from '../store';
 import Collections from './Collections';
 
@@ -52,7 +51,97 @@ const Documents = styled.div`
 `;
 
 const Document = styled.div`
+  display: flex;
+  flex-direction: column;
   border: 1px silver solid;
+  margin: -1px 0 -1px 0;
+  height: 300px;
+
+  &:first-child {
+    margin-top: 0;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &:nth-child(even) {
+    background-color: #eee;
+  }
+`;
+
+const DocumentLink = styled.a`
+  display: inline-block;
+  padding: 0 10px;
+  width: 100%;
+  color: inherit;
+  background-color: white;
+  text-decoration: none;
+  filter: none;
+
+  &:visited {
+    color: inherit;
+  }
+
+  &:hover,
+  &:focus {
+    filter: brightness(80%);
+  }
+
+  &:active {
+    filter: brightness(85%);
+  }
+`;
+
+const DocumentRow = styled.div`
+  flex-shrink: 0;
+  flex-grow: 0;
+`;
+
+const DocumentTabList = styled.div``;
+
+const DocumentBody = styled.div`
+  display: flex;
+  flex-direction: row;
+  flex-grow: 1;
+  overflow: auto;
+`;
+
+type DocumentTabProps = {
+  'data-main': string;
+  'data-tab': string;
+  'color'?: string;
+  'active': boolean;
+  'selected': boolean;
+};
+
+const DocumentTab = styled.span<DocumentTabProps>`
+  margin: 0 -1px 0 -1px;
+  display: inline-block;
+  padding: 0 10px;
+  border: 1px silver dotted;
+  cursor: ${({ active }) => (active ? 'pointer' : 'not-allowed')};
+  background-color: ${({ color }) => (color ? color : 'white')};
+  filter: ${({ selected }) => (selected ? 'brightness(80%)' : 'none')};
+
+  &:first-child {
+    border-left: 1px silver solid;
+  }
+
+  &:hover {
+    filter: ${({ active }) => (active ? 'brightness(80%)' : 'none')};
+  }
+`;
+
+const Output = styled.pre`
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 500;
+  line-height: 15px;
+  flex-grow: 1;
+  white-space: pre-wrap;
+  background-color: #ddd;
+  height: fit-content;
+  margin: 0;
 `;
 
 interface CollectionViewProps extends ConnectCollectionView {
@@ -66,6 +155,8 @@ type EmptyCollectionViewProps = {
 
 type CollectionViewState = {
   documents: DocumentObj[];
+  selections: { [key: string]: string | undefined };
+  fullText: { [key: string]: string };
 };
 
 class CollectionView extends PureComponent<
@@ -76,6 +167,8 @@ class CollectionView extends PureComponent<
     super(props);
     this.state = {
       documents: [],
+      selections: {},
+      fullText: {},
     };
   }
 
@@ -88,6 +181,7 @@ class CollectionView extends PureComponent<
   ) {
     const { collectionId: oldCollectionId } = prevProps;
     const { collectionId, apiActions } = this.props;
+    const { selections, fullText } = this.state;
     if (collectionId !== oldCollectionId) {
       if (collectionId < 0) {
         this.setState({ documents: [] });
@@ -100,7 +194,53 @@ class CollectionView extends PureComponent<
         });
       }
     }
+    let modified = false;
+    const newFullText = { ...fullText };
+    Object.keys(selections)
+      .filter(
+        (mainId) =>
+          selections[mainId] === 'fulltext' && fullText[mainId] === undefined,
+      )
+      .forEach((mainId) => {
+        modified = true;
+        newFullText[mainId] = '[retrieving...]';
+        apiActions.getFulltext(mainId, (mainId, content, error) => {
+          const { fullText } = this.state;
+          const err = error ? `\nERROR: ${error}` : '';
+          this.setState({
+            fullText: {
+              ...fullText,
+              [mainId]: `${content ?? ''}${err}`,
+            },
+          });
+        });
+      });
+    if (modified) {
+      this.setState({
+        fullText: newFullText,
+      });
+    }
   }
+
+  clickTab: MouseEventHandler<HTMLSpanElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    const target = e.currentTarget;
+    const mainId = target.getAttribute('data-main');
+    const tab = target.getAttribute('data-tab');
+    if (!mainId || !tab) {
+      return;
+    }
+    const { selections } = this.state;
+    this.setState({
+      selections: {
+        ...selections,
+        [mainId]: tab,
+      },
+    });
+  };
 
   computeStats(): DocumentStats {
     const { documents } = this.state;
@@ -132,7 +272,7 @@ class CollectionView extends PureComponent<
     if (!isLoggedIn) {
       return <VMain>You must be logged in to view collections!</VMain>;
     }
-    const { documents } = this.state;
+    const { documents, selections, fullText } = this.state;
     const { total, included, excluded, complete, errors } =
       this.computeStats();
     return (
@@ -142,33 +282,113 @@ class CollectionView extends PureComponent<
           canCreate={true}
         />
         <div>
-          <span>Total: {total}</span>
-          <span> Included: {included}</span>
-          <span> Excluded: {excluded}</span>
-          <span> Complete: {complete}</span>
-          <span> Errors: {errors}</span>
+          <span>Total: {total}</span>&nbsp;
+          <span>Included: {included}</span>&nbsp;
+          <span>Excluded: {excluded}</span>&nbsp;
+          <span>Complete: {complete}</span>&nbsp;
+          <span>Errors: {errors}</span>
         </div>
         <Documents>
-          {documents.map(({ mainId, isValid, verifyReason, error }) => {
-            return (
-              <Document>
-                {mainId}
-                <ToggleShow
-                  toggle={
-                    isValid === undefined
-                      ? 'pending'
-                      : isValid
-                      ? 'ok'
-                      : 'excluded'
-                  }>
-                  {verifyReason}
-                </ToggleShow>
-                {error ? (
-                  <ToggleShow toggle="error">{error}</ToggleShow>
-                ) : null}
-              </Document>
-            );
-          })}
+          {documents.map(
+            ({
+              mainId,
+              url,
+              title,
+              isValid,
+              verifyReason,
+              deepDiveResult,
+              error,
+            }) => {
+              const sel = selections[mainId];
+              const content = fullText[mainId];
+              return (
+                <Document key={mainId}>
+                  <DocumentRow>
+                    <DocumentLink href={url ?? '#'}>
+                      [{mainId}] {title}
+                    </DocumentLink>
+                  </DocumentRow>
+                  <DocumentTabList>
+                    <DocumentTab
+                      data-main={mainId}
+                      data-tab="verify"
+                      color={
+                        isValid === undefined
+                          ? 'white'
+                          : isValid
+                          ? '#ccebc5'
+                          : '#fed9a6'
+                      }
+                      active={isValid !== undefined}
+                      selected={sel === 'verify'}
+                      onClick={
+                        isValid !== undefined ? this.clickTab : undefined
+                      }>
+                      Verify:{' '}
+                      {isValid === undefined
+                        ? error
+                          ? 'error'
+                          : 'pending'
+                        : isValid
+                        ? 'ok'
+                        : 'excluded'}
+                    </DocumentTab>
+                    <DocumentTab
+                      data-main={mainId}
+                      data-tab="scores"
+                      color={deepDiveResult ? '#ccebc5' : 'white'}
+                      active={!!deepDiveResult}
+                      selected={sel === 'scores'}
+                      onClick={deepDiveResult ? this.clickTab : undefined}>
+                      Scores
+                    </DocumentTab>
+                    <DocumentTab
+                      data-main={mainId}
+                      data-tab="fulltext"
+                      color="white"
+                      active={true}
+                      selected={sel === 'fulltext'}
+                      onClick={this.clickTab}>
+                      Full-Text
+                    </DocumentTab>
+                    {error ? (
+                      <DocumentTab
+                        data-main={mainId}
+                        data-tab="error"
+                        color="#fbb4ae"
+                        active={true}
+                        selected={sel === 'error'}
+                        onClick={this.clickTab}>
+                        Error
+                      </DocumentTab>
+                    ) : null}
+                  </DocumentTabList>
+                  {sel === 'verify' ? (
+                    <DocumentBody>
+                      <Output>{verifyReason}</Output>
+                    </DocumentBody>
+                  ) : null}
+                  {sel === 'scores' ? (
+                    <DocumentBody>
+                      {deepDiveResult ? (
+                        <Output>{deepDiveResult.reason}</Output>
+                      ) : null}
+                    </DocumentBody>
+                  ) : null}
+                  {sel === 'fulltext' ? (
+                    <DocumentBody>
+                      <Output>{content}</Output>
+                    </DocumentBody>
+                  ) : null}
+                  {sel === 'error' ? (
+                    <DocumentBody>
+                      <Output>{error}</Output>
+                    </DocumentBody>
+                  ) : null}
+                </Document>
+              );
+            },
+          )}
         </Documents>
       </VMain>
     );

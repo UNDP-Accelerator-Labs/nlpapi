@@ -76,8 +76,8 @@ def get_engine(config: DBConfig) -> sa.engine.Engine:
             print(
                 "dialects other than 'postgresql' are not supported. "
                 "continue at your own risk", file=sys.stderr)
-        user = urllib.parse.quote_plus(config["user"])
-        passwd = urllib.parse.quote_plus(config["passwd"])
+        user = urllib.parse.quote(config["user"])
+        passwd = urllib.parse.quote(config["passwd"])
         host = config["host"]
         port = config["port"]
         dbname = config["dbname"]

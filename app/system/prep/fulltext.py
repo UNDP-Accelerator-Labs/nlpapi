@@ -57,8 +57,7 @@ def read_blog(
             ArticlesTable.title,
             ArticlesTable.relevance,
             ArticleContentTable.article_id,
-            ArticleContentTable.content,
-            )
+            ArticleContentTable.content)
         stmt = stmt.where(sa.and_(
             ArticleContentTable.article_id == ArticlesTable.id,
             ArticlesTable.id == doc_id))
@@ -107,3 +106,86 @@ def create_full_text(
             return (None, traceback.format_exc())
 
     return get_full_text
+
+
+PLATFORM_URLS: dict[str, str] = {
+    "solution": "https://solutions.sdg-innovation-commons.org/en/view/pad?id=",
+    "actionplan": (
+        "https://learningplans.sdg-innovation-commons.org/en/view/pad?id="),
+    "experiment": (
+        "https://experiments.sdg-innovation-commons.org/en/view/pad?id="),
+}
+
+
+def get_url_title_pad(
+        db: DBConnector,
+        base: str,
+        doc_id: int,
+        *,
+        ignore_unpublished: bool,
+        ) -> tuple[tuple[str, str] | None, str | None]:
+    url_base = PLATFORM_URLS.get(base)
+    if url_base is None:
+        return (None, f"unknown {base=}")
+    url = f"{url_base}{doc_id}"
+    with db.get_session() as session:
+        stmt = sa.select(PadTable.status, PadTable.title)
+        stmt = stmt.where(PadTable.id == doc_id)
+        row = session.execute(stmt).one_or_none()
+        if row is None:
+            return (None, f"could not find {doc_id=}")
+        if ignore_unpublished and int(row.status) <= 1:
+            return (None, "pad is unpublished")
+        title = f"{row.title}"
+        return ((url, title), None)
+
+
+def get_url_title_blog(
+        db: DBConnector,
+        doc_id: int,
+        *,
+        ignore_unpublished: bool,
+        ) -> tuple[tuple[str, str] | None, str | None]:
+    with db.get_session() as session:
+        stmt = sa.select(
+            ArticlesTable.id,
+            ArticlesTable.url,
+            ArticlesTable.title,
+            ArticlesTable.relevance)
+        stmt = stmt.where(ArticlesTable.id == doc_id)
+        row = session.execute(stmt).one_or_none()
+        if row is None:
+            return (None, f"could not find {doc_id=}")
+        if ignore_unpublished and int(row.relevance) <= 1:
+            return (None, "article not relevant")
+        url = f"{row.url}"
+        title = f"{row.title}"
+        return ((url, title), None)
+
+
+def get_url_title(
+        platforms: dict[str, DBConnector],
+        blogs_db: DBConnector,
+        main_id: str,
+        *,
+        ignore_unpublished: bool,
+        ) -> tuple[tuple[str, str] | None, str | None]:
+    try:
+        base, doc_id_str = main_id.split(":")
+        base = base.strip()
+        doc_id = int(doc_id_str.strip())
+        pdb = platforms.get(base)
+        if pdb is not None:
+            return get_url_title_pad(
+                pdb,
+                base,
+                doc_id,
+                ignore_unpublished=ignore_unpublished)
+        if base == "blog":
+            return get_url_title_blog(
+                blogs_db,
+                doc_id,
+                ignore_unpublished=ignore_unpublished)
+        return (None, f"unknown {base=}")
+    except Exception:  # pylint: disable=broad-exception-caught
+        return (None, traceback.format_exc())

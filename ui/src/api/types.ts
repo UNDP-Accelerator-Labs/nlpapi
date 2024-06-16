@@ -102,6 +102,8 @@ type DeepDiveResult = {
 type ApiDocumentObj = {
   id: number;
   main_id: string;
+  url: string;
+  title: string;
   deep_dive: number;
   verify_key: string;
   deep_dive_key: string;
@@ -114,6 +116,8 @@ type ApiDocumentObj = {
 export type DocumentObj = {
   id: number;
   mainId: string;
+  url: string;
+  title: string;
   collectionId: number;
   verifyKey: string;
   deepDiveKey: string;
