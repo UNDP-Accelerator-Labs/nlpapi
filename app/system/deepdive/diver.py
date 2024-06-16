@@ -81,6 +81,7 @@ def process_pending(
     docs = list(get_documents_in_queue(db))
     if not docs:
         return False
+    print(f"DIVER: found {len(docs)} for processing!")
     tasks: dict[TaskId, tuple[int, bool, str | None]] = {}
     ns = graph_llama.get_ns()
     for doc in docs:
