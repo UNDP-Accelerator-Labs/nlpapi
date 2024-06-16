@@ -102,7 +102,7 @@ const DocumentLink = styled.a`
   padding: 0 10px;
   width: 100%;
   color: inherit;
-  background-color: white;
+  background-color: #decbe4;
   text-decoration: none;
   filter: none;
 

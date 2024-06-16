@@ -88,6 +88,7 @@ def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
     with db.get_session() as session:
         stmt = sa.select(DeepDiveCollection.id, DeepDiveCollection.name)
         stmt = stmt.where(DeepDiveCollection.user == user)
+        stmt = stmt.order_by(DeepDiveCollection.id)
         for row in session.execute(stmt):
             yield {
                 "id": int(row.id),
@@ -154,11 +155,11 @@ def get_documents(
             DeepDiveElement.deep_dive_result,
             DeepDiveElement.error,
             DeepDiveCollection.verify_key,
-            DeepDiveCollection.deep_dive_key,
-            )
+            DeepDiveCollection.deep_dive_key)
         stmt = stmt.where(sa.and_(
             DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
             DeepDiveCollection.id == collection_id))
+        stmt = stmt.order_by(DeepDiveElement.id)
         for row in session.execute(stmt):
             yield {
                 "id": row.id,
