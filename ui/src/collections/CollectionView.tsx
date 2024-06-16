@@ -81,7 +81,7 @@ const Document = styled.div`
   display: flex;
   flex-direction: column;
   border: 1px silver solid;
-  margin: -1px 0 -1px 0;
+  margin: -1px 0;
   height: 300px;
 
   &:first-child {
@@ -133,8 +133,9 @@ const DocumentTabList = styled.div`
 const TabSpace = styled.span`
   flex-grow: 1;
   display: inline-block;
-  margin: 0 -1px 0 -1px;
+  margin: 0;
   border: 1px silver dotted;
+  background-color: white;
 `;
 
 type DocumentTabProps = {
@@ -148,7 +149,7 @@ type DocumentTabProps = {
 const DocumentTab = styled.span<DocumentTabProps>`
   flex-grow: 0;
   flex-shrink: 0;
-  margin: 0 -1px 0 -1px;
+  margin: 0 -1px;
   display: inline-block;
   padding: 0 10px;
   border: 1px silver dotted;
@@ -177,7 +178,7 @@ type DocumentTabButtonProps = {
 const DocumentTabButton = styled.span<DocumentTabButtonProps>`
   flex-grow: 0;
   flex-shrink: 0;
-  margin: 0 -1px 0 -1px;
+  margin: 0 -1px;
   display: inline-block;
   padding: 0 10px;
   border: 1px silver dotted;
