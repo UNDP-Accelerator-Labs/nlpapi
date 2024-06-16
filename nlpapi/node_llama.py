@@ -66,6 +66,9 @@ class LlamaNode(Node):
     def get_load_cost(self) -> float:
         return 1.0  # TODO
 
+    def batch_size(self) -> int | None:
+        return 1
+
     def session_field(self) -> str | None:
         return None
 
