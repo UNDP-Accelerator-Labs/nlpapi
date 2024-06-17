@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import traceback
 from collections.abc import Callable
+from typing import TypeAlias
 
 import sqlalchemy as sa
 
@@ -22,6 +23,11 @@ from app.misc.lru import LRU
 from app.system.db.base import ArticleContentTable, ArticlesTable, PadTable
 from app.system.db.db import DBConnector
 from app.system.prep.clean import sanity_check
+
+
+FullTextFn: TypeAlias = Callable[[str], tuple[str | None, str | None]]
+UrlTitleFn: TypeAlias = Callable[
+    [str], tuple[tuple[str, str] | None, str | None]]
 
 
 def read_pad(
@@ -76,35 +82,44 @@ def read_blog(
         return (content, None)
 
 
+FULL_TEXT_LRU: LRU[str, tuple[str | None, str | None]] = LRU(100)
+
+
 def create_full_text(
         platforms: dict[str, DBConnector],
         blogs_db: DBConnector,
         *,
         combine_title: bool,
         ignore_unpublished: bool,
-        ) -> Callable[[str], tuple[str | None, str | None]]:
+        ) -> FullTextFn:
 
     def get_full_text(main_id: str) -> tuple[str | None, str | None]:
-        try:
-            base, doc_id_str = main_id.split(":")
-            base = base.strip()
-            doc_id = int(doc_id_str.strip())
-            pdb = platforms.get(base)
-            if pdb is not None:
-                return read_pad(
-                    pdb,
-                    doc_id,
-                    combine_title=combine_title,
-                    ignore_unpublished=ignore_unpublished)
-            if base == "blog":
-                return read_blog(
-                    blogs_db,
-                    doc_id,
-                    combine_title=combine_title,
-                    ignore_unpublished=ignore_unpublished)
-            return (None, f"unknown {base=}")
-        except Exception:  # pylint: disable=broad-exception-caught
-            return (None, traceback.format_exc())
+        lru = FULL_TEXT_LRU
+        res = lru.get(main_id)
+        if res is None:
+            try:
+                base, doc_id_str = main_id.split(":")
+                base = base.strip()
+                doc_id = int(doc_id_str.strip())
+                pdb = platforms.get(base)
+                if pdb is not None:
+                    res = read_pad(
+                        pdb,
+                        doc_id,
+                        combine_title=combine_title,
+                        ignore_unpublished=ignore_unpublished)
+                elif base == "blog":
+                    res = read_blog(
+                        blogs_db,
+                        doc_id,
+                        combine_title=combine_title,
+                        ignore_unpublished=ignore_unpublished)
+                else:
+                    res = (None, f"unknown {base=}")
+            except Exception:  # pylint: disable=broad-exception-caught
+                res = (None, traceback.format_exc())
+            lru.set(main_id, res)
+        return res
 
     return get_full_text
 
@@ -164,19 +179,15 @@ def get_url_title_blog(
         return ((url, title), None)
 
 
-URL_TITLE_LRU: LRU[str, tuple[tuple[str, str] | None, str | None]] = LRU(1000)
-
-
-def get_url_title(
+def create_url_title(
         platforms: dict[str, DBConnector],
         blogs_db: DBConnector,
-        main_id: str,
         *,
-        ignore_unpublished: bool,
-        ) -> tuple[tuple[str, str] | None, str | None]:
-    lru = URL_TITLE_LRU
-    res = lru.get(main_id)
-    if res is None:
+        ignore_unpublished: bool) -> UrlTitleFn:
+
+    def get_url_title(
+            main_id: str,
+            ) -> tuple[tuple[str, str] | None, str | None]:
         try:
             base, doc_id_str = main_id.split(":")
             base = base.strip()
@@ -197,5 +208,6 @@ def get_url_title(
                 res = (None, f"unknown {base=}")
         except Exception:  # pylint: disable=broad-exception-caught
             res = (None, traceback.format_exc())
-        lru.set(main_id, res)
-    return res
+        return res
+
+    return get_url_title

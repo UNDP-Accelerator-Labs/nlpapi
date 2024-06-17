@@ -139,7 +139,7 @@ user provides to you talks about <topic>.
 Your entire response is a JSON and nothing else. The JSON is an object with
 two fields: "reason" which provides a short (50 - 100 words) justification for
 your decision and "is_hit" which is a boolean value indicating your final
-answer.
+answer. You will be penalized for any text that is not in the JSON format.
 
 ## Examples
 

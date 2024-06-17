@@ -52,6 +52,8 @@ DeepDiveResult = TypedDict('DeepDiveResult', {
 DocumentObj = TypedDict('DocumentObj', {
     "id": int,
     "main_id": str,
+    "url": str | None,
+    "title": str | None,
     "deep_dive": int,
     "verify_key": str,
     "deep_dive_key": str,
@@ -149,6 +151,8 @@ def get_documents(
         stmt = sa.select(
             DeepDiveElement.id,
             DeepDiveElement.deep_dive_id,
+            DeepDiveElement.url,
+            DeepDiveElement.title,
             DeepDiveElement.main_id,
             DeepDiveElement.is_valid,
             DeepDiveElement.verify_reason,
@@ -164,6 +168,8 @@ def get_documents(
             yield {
                 "id": row.id,
                 "main_id": row.main_id,
+                "url": row.url,
+                "title": row.title,
                 "deep_dive": row.deep_dive_id,
                 "verify_key": row.verify_key,
                 "deep_dive_key": row.deep_dive_key,
@@ -172,6 +178,23 @@ def get_documents(
                 "deep_dive_result": row.deep_dive_result,
                 "error": row.error,
             }
+
+
+def set_url_title(
+        db: DBConnector,
+        doc_id: int,
+        url: str | None,
+        title: str | None) -> None:
+    if (url is None) != (title is None):
+        raise ValueError(
+            f"either both are None or neither {url=} {title=}")
+    with db.get_session() as session:
+        stmt = sa.update(DeepDiveElement)
+        stmt = stmt.where(DeepDiveElement.id == doc_id)
+        stmt = stmt.values(
+            url=url,
+            title=title)
+        session.execute(stmt)
 
 
 def set_verify(
@@ -224,6 +247,8 @@ def requeue(
             DeepDiveElement.deep_dive_id == collection_id,
             DeepDiveElement.main_id.in_(main_ids)))
         stmt = stmt.values(
+            url=None,
+            title=None,
             is_valid=None,
             verify_reason=None,
             deep_dive_result=sa.null(),
@@ -237,6 +262,8 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
             DeepDiveElement.id,
             DeepDiveElement.deep_dive_id,
             DeepDiveElement.main_id,
+            DeepDiveElement.url,
+            DeepDiveElement.title,
             DeepDiveElement.is_valid,
             DeepDiveElement.verify_reason,
             DeepDiveElement.deep_dive_result,
@@ -254,6 +281,8 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
             yield {
                 "id": row.id,
                 "main_id": row.main_id,
+                "url": row.url,
+                "title": row.title,
                 "deep_dive": row.deep_dive_id,
                 "verify_key": row.verify_key,
                 "deep_dive_key": row.deep_dive_key,

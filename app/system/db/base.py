@@ -177,6 +177,8 @@ class DeepDiveElement(Base):  # pylint: disable=too-few-public-methods
         nullable=False,
         unique=True,
         server_default=DEEP_DIVE_ELEMENT_ID_SEQ.next_value())
+    url = sa.Column(sa.Text(), nullable=True)
+    title = sa.Column(sa.Text(), nullable=True)
     verify_reason = sa.Column(sa.Text(), nullable=True)
     is_valid = sa.Column(sa.Boolean, nullable=True)
     deep_dive_result = sa.Column(sa.JSON, nullable=True)

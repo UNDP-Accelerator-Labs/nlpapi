@@ -15,7 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import json
 import threading
-from collections.abc import Callable
 
 from scattermind.api.api import ScattermindAPI
 from scattermind.system.base import TaskId
@@ -29,10 +28,12 @@ from app.system.deepdive.collection import (
     get_documents_in_queue,
     set_deep_dive,
     set_error,
+    set_url_title,
     set_verify,
     VerifyResult,
 )
 from app.system.prep.clean import normalize_text
+from app.system.prep.fulltext import FullTextFn, UrlTitleFn
 from app.system.smind.api import GraphProfile
 
 
@@ -44,7 +45,8 @@ def maybe_diver_thread(
         db: DBConnector,
         smind: ScattermindAPI,
         graph_llama: GraphProfile,
-        get_full_text: Callable[[str], tuple[str | None, str | None]]) -> None:
+        get_full_text: FullTextFn,
+        get_url_title: UrlTitleFn) -> None:
     global DIVER_THREAD  # pylint: disable=global-statement
 
     if DIVER_THREAD is not None and DIVER_THREAD.is_alive():
@@ -55,7 +57,12 @@ def maybe_diver_thread(
 
         try:
             while th is DIVER_THREAD:
-                if not process_pending(db, smind, graph_llama, get_full_text):
+                if not process_pending(
+                        db,
+                        smind,
+                        graph_llama,
+                        get_full_text,
+                        get_url_title):
                     break
         finally:
             with DIVER_LOCK:
@@ -70,14 +77,15 @@ def maybe_diver_thread(
         th.start()
 
 
-MAX_LENGTH = 20000  # FIXME: use 10000 for chunking
+MAX_LENGTH = 10000  # FIXME: use chunking
 
 
 def process_pending(
         db: DBConnector,
         smind: ScattermindAPI,
         graph_llama: GraphProfile,
-        get_full_text: Callable[[str], tuple[str | None, str | None]]) -> bool:
+        get_full_text: FullTextFn,
+        get_url_title: UrlTitleFn) -> bool:
     docs = list(get_documents_in_queue(db))
     if not docs:
         return False
@@ -86,7 +94,17 @@ def process_pending(
     ns = graph_llama.get_ns()
     for doc in docs:
         doc_id = doc["id"]
-        full_text, error_msg = get_full_text(doc["main_id"])
+        main_id = doc["main_id"]
+        if doc["url"] is None or doc["title"] is None:
+            url_title, error = get_url_title(doc["main_id"])
+            url = "#"
+            title = "ERROR: unknown"
+            if error is not None:
+                title = f"ERROR: {error}"
+            if url_title is not None:
+                url, title = url_title
+            set_url_title(db, doc_id, url, title)
+        full_text, error_msg = get_full_text(main_id)
         full_text = normalize_text(full_text)
         warning = None
         if full_text is None:

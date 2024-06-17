@@ -35,7 +35,6 @@ from app.api.response_types import (
     CollectionListResponse,
     CollectionResponse,
     DateResponse,
-    DocumentEntry,
     DocumentListResponse,
     DocumentResponse,
     FulltextResponse,
@@ -57,7 +56,6 @@ from app.system.db.db import DBConnector
 from app.system.deepdive.collection import (
     add_collection,
     add_documents,
-    DocumentObj,
     get_collections,
     get_documents,
     requeue,
@@ -74,7 +72,7 @@ from app.system.location.response import (
     LanguageStr,
 )
 from app.system.prep.clean import normalize_text, sanity_check
-from app.system.prep.fulltext import create_full_text, get_url_title
+from app.system.prep.fulltext import create_full_text, create_url_title
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     get_queue_stats,
@@ -482,9 +480,18 @@ def setup(
         combine_title=True,
         ignore_unpublished=True)
     if graph_llama is not None:
+        get_url_title = create_url_title(
+            platforms,
+            blogs_db,
+            ignore_unpublished=True)
 
         def _maybe_start_dive() -> None:
-            maybe_diver_thread(db, smind, graph_llama, get_full_text)
+            maybe_diver_thread(
+                db,
+                smind,
+                graph_llama,
+                get_full_text,
+                get_url_title)
 
         maybe_start_dive = _maybe_start_dive
     else:
@@ -866,27 +873,8 @@ def setup(
             collection_id = int(args["collection_id"])
             session: SessionInfo = rargs["meta"]["session"]
             docs = list(get_documents(db, collection_id, session["uuid"]))
-
-            def get_doc(doc: DocumentObj) -> DocumentEntry:
-                res, error = get_url_title(
-                    platforms,
-                    blogs_db,
-                    doc["main_id"],
-                    ignore_unpublished=True)
-                url = "#"
-                title = "ERROR: unknown"
-                if error is not None:
-                    title = f"ERROR: {error}"
-                if res is not None:
-                    url, title = res
-                return {
-                    **doc,
-                    "url": url,
-                    "title": title,
-                }
-
             return {
-                "documents": [get_doc(doc) for doc in docs],
+                "documents": docs,
             }
 
         @server.json_post(f"{prefix}/documents/fulltext")
