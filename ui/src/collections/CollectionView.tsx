@@ -475,7 +475,7 @@ class CollectionView extends PureComponent<
     if (filter === 'total') {
       return true;
     }
-    if (filter === 'pending' && isValid === undefined) {
+    if (filter === 'pending' && isValid === undefined && !error) {
       return true;
     }
     if (filter === 'included' && isValid === true) {
