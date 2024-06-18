@@ -24,7 +24,13 @@ import SpiderGraph from '../misc/SpiderGraph';
 import { RootState } from '../store';
 import Collections from './Collections';
 
-type Filter = 'total' | 'included' | 'excluded' | 'complete' | 'errors';
+type Filter =
+  | 'total'
+  | 'pending'
+  | 'included'
+  | 'excluded'
+  | 'complete'
+  | 'errors';
 
 type DocumentStats = {
   [key in Filter]: number;
@@ -32,6 +38,7 @@ type DocumentStats = {
 
 const STAT_NAMES = {
   total: 'Total',
+  pending: 'Pending',
   included: 'Included',
   excluded: 'Excluded',
   complete: 'Complete',
@@ -468,6 +475,9 @@ class CollectionView extends PureComponent<
     if (filter === 'total') {
       return true;
     }
+    if (filter === 'pending' && isValid === undefined) {
+      return true;
+    }
     if (filter === 'included' && isValid === true) {
       return true;
     }
@@ -487,6 +497,9 @@ class CollectionView extends PureComponent<
     const { isValid, deepDiveReason, error } = doc;
     if (error) {
       return 3;
+    }
+    if (isValid === undefined) {
+      return 5;
     }
     if (isValid === true && deepDiveReason) {
       return 0;
@@ -521,6 +534,7 @@ class CollectionView extends PureComponent<
         ) as DocumentStats,
       {
         total: 0,
+        pending: 0,
         included: 0,
         excluded: 0,
         complete: 0,

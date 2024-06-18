@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { PureComponent } from 'react';
+import React, { PureComponent } from 'react';
 import { ConnectedProps, connect } from 'react-redux';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import styled from 'styled-components';
@@ -68,6 +68,8 @@ const UserDiv = styled.div`
     margin: 2px;
   }
 `;
+
+const NavRow = styled.div``;
 
 type AppProps = ConnectApp;
 
@@ -209,16 +211,28 @@ class App extends PureComponent<AppProps, AppState> {
           </Routes>
         </BrowserRouter>
         <UserDiv>
+          <NavRow>
+            {isLoggedIn ? (
+              <React.Fragment>
+                Hello, <a href={`${LOGIN_URL}`}>{userName}</a>!
+              </React.Fragment>
+            ) : (
+              <a
+                href={`${LOGIN_URL}?origin=${encodeURIComponent(
+                  window.location.href,
+                )}`}>
+                Login
+              </a>
+            )}
+          </NavRow>
+          <NavRow>
+            <a href="/search">Search</a>
+          </NavRow>
           {isLoggedIn ? (
-            `Hello, ${userName}!`
-          ) : (
-            <a
-              href={`${LOGIN_URL}?origin=${encodeURIComponent(
-                window.location.href,
-              )}`}>
-              Login
-            </a>
-          )}
+            <NavRow>
+              <a href="/collection">Collection</a>
+            </NavRow>
+          ) : null}
         </UserDiv>
       </HMain>
     );
