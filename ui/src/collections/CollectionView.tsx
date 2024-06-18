@@ -502,13 +502,13 @@ class CollectionView extends PureComponent<
       return 5;
     }
     if (isValid === true && deepDiveReason) {
-      return 0;
+      return 1;
     }
     if (isValid === false) {
       return 2;
     }
     if (isValid === true) {
-      return 1;
+      return 0;
     }
     return 4;
   }
