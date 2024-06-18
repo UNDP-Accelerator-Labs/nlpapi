@@ -442,6 +442,11 @@ class CollectionView extends PureComponent<
     if (collectionId < 0 || !mainIds.length) {
       return;
     }
+    const ma = `Are you sure you want to requeue ${mainIds.length} documents?`;
+    const mb = 'All previous results will be discarded!';
+    if (!window.confirm(`${ma} ${mb}`)) {
+      return;
+    }
     apiActions.requeue(collectionId, mainIds, () => {
       this.setState({
         needsUpdate: true,
