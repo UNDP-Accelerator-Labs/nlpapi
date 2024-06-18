@@ -30,6 +30,7 @@ import {
   DocumentResponse,
   FulltextResponse,
   SearchFilters,
+  StatNumbers,
   UserResult,
 } from './types';
 
@@ -202,19 +203,29 @@ export const DEFAULT_API: ApiProvider = {
           verify_reason,
           deep_dive_result,
           error,
-        }) => ({
-          id,
-          mainId: main_id,
-          url,
-          title,
-          collectionId: deep_dive,
-          verifyKey: verify_key,
-          deepDiveKey: deep_dive_key,
-          isValid: is_valid ?? undefined,
-          verifyReason: verify_reason ?? undefined,
-          deepDiveResult: deep_dive_result ?? undefined,
-          error: error ?? undefined,
-        }),
+        }) => {
+          let reason: string | undefined = undefined;
+          let scores: StatNumbers = {};
+          if (deep_dive_result) {
+            const { reason: reasonValue, ...scoresValue } = deep_dive_result;
+            reason = reasonValue;
+            scores = scoresValue;
+          }
+          return {
+            id,
+            mainId: main_id,
+            url,
+            title,
+            collectionId: deep_dive,
+            verifyKey: verify_key,
+            deepDiveKey: deep_dive_key,
+            isValid: is_valid ?? undefined,
+            verifyReason: verify_reason ?? undefined,
+            scores,
+            deepDiveReason: reason,
+            error: error ?? undefined,
+          };
+        },
       ),
     };
   },

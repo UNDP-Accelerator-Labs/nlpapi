@@ -22,6 +22,7 @@ import styled from 'styled-components';
 import ApiActions from './api/ApiActions';
 import { SearchState } from './api/types';
 import CollectionView from './collections/CollectionView';
+import { LOGIN_URL } from './misc/constants';
 import Search from './search/Search';
 import { setSearch } from './search/SearchStateSlice';
 import { RootState } from './store';
@@ -37,6 +38,21 @@ const HMain = styled.div`
     justify-content: start;
     align-items: start;
     flex-direction: column-reverse;
+  }
+`;
+
+const VMain = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  flex-grow: 1;
+  height: 100vh;
+  max-height: 100vh;
+  max-width: 60vw;
+
+  @media (hover: none) and (max-width: 480px) {
+    justify-content: start;
   }
 `;
 
@@ -163,6 +179,15 @@ class App extends PureComponent<AppProps, AppState> {
         <BrowserRouter>
           <Routes>
             <Route
+              path="/"
+              element={
+                <VMain>
+                  <a href="/search">Semantic Search</a>
+                  {isLoggedIn ? <a href="/collection">Collection</a> : null}
+                </VMain>
+              }
+            />
+            <Route
               path="/search"
               element={
                 <Search
@@ -183,7 +208,18 @@ class App extends PureComponent<AppProps, AppState> {
             />
           </Routes>
         </BrowserRouter>
-        {isLoggedIn ? <UserDiv>Hello, {userName}!</UserDiv> : null}
+        <UserDiv>
+          {isLoggedIn ? (
+            `Hello, ${userName}!`
+          ) : (
+            <a
+              href={`${LOGIN_URL}?origin=${encodeURIComponent(
+                window.location.href,
+              )}`}>
+              Login
+            </a>
+          )}
+        </UserDiv>
       </HMain>
     );
   }

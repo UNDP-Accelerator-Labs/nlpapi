@@ -118,7 +118,8 @@ def create_full_text(
                     res = (None, f"unknown {base=}")
             except Exception:  # pylint: disable=broad-exception-caught
                 res = (None, traceback.format_exc())
-            lru.set(main_id, res)
+            if res[0] is not None:
+                lru.set(main_id, res)
         return res
 
     return get_full_text

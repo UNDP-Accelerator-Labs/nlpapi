@@ -83,3 +83,5 @@ export const getCollectionApiUrl = async () => {
   }
   return COLLECTION_API;
 };
+
+export const LOGIN_URL = 'https://login.sdg-innovation-commons.org/login';

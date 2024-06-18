@@ -113,6 +113,8 @@ type ApiDocumentObj = {
   error: string | undefined;
 };
 
+export type StatNumbers = { [key: string]: number };
+
 export type DocumentObj = {
   id: number;
   mainId: string;
@@ -123,7 +125,8 @@ export type DocumentObj = {
   deepDiveKey: string;
   isValid: boolean | undefined;
   verifyReason: string | undefined;
-  deepDiveResult: DeepDiveResult | undefined;
+  scores: StatNumbers;
+  deepDiveReason: string | undefined;
   error: string | undefined;
 };
 

@@ -17,7 +17,6 @@ import json
 import threading
 
 from scattermind.api.api import ScattermindAPI
-from scattermind.system.base import TaskId
 from scattermind.system.response import TASK_COMPLETE
 from scattermind.system.torch_util import tensor_to_str
 
@@ -25,6 +24,7 @@ from app.misc.util import to_bool
 from app.system.db.db import DBConnector
 from app.system.deepdive.collection import (
     DeepDiveResult,
+    DocumentObj,
     get_documents_in_queue,
     set_deep_dive,
     set_error,
@@ -38,6 +38,7 @@ from app.system.smind.api import GraphProfile
 
 
 DIVER_LOCK = threading.RLock()
+DIVER_COND = threading.Condition(DIVER_LOCK)
 DIVER_THREAD: threading.Thread | None = None
 
 
@@ -49,21 +50,24 @@ def maybe_diver_thread(
         get_url_title: UrlTitleFn) -> None:
     global DIVER_THREAD  # pylint: disable=global-statement
 
-    if DIVER_THREAD is not None and DIVER_THREAD.is_alive():
-        return
+    def get_docs() -> list[DocumentObj]:
+        return list(get_documents_in_queue(db))
 
     def run() -> None:
         global DIVER_THREAD  # pylint: disable=global-statement
 
         try:
             while th is DIVER_THREAD:
-                if not process_pending(
-                        db,
-                        smind,
-                        graph_llama,
-                        get_full_text,
-                        get_url_title):
-                    break
+                with DIVER_LOCK:
+                    docs = DIVER_COND.wait_for(get_docs, 600.0)
+                process_pending(
+                    db,
+                    docs,
+                    smind,
+                    graph_llama,
+                    get_full_text,
+                    get_url_title)
+
         finally:
             with DIVER_LOCK:
                 if th is DIVER_THREAD:
@@ -71,6 +75,7 @@ def maybe_diver_thread(
 
     with DIVER_LOCK:
         if DIVER_THREAD is not None and DIVER_THREAD.is_alive():
+            DIVER_COND.notify_all()
             return
         th = threading.Thread(target=run, daemon=True)
         DIVER_THREAD = th
@@ -82,15 +87,14 @@ MAX_LENGTH = 10000  # FIXME: use chunking
 
 def process_pending(
         db: DBConnector,
+        docs: list[DocumentObj],
         smind: ScattermindAPI,
         graph_llama: GraphProfile,
         get_full_text: FullTextFn,
-        get_url_title: UrlTitleFn) -> bool:
-    docs = list(get_documents_in_queue(db))
+        get_url_title: UrlTitleFn) -> None:
     if not docs:
-        return False
+        return
     print(f"DIVER: found {len(docs)} for processing!")
-    tasks: dict[TaskId, tuple[int, bool, str | None]] = {}
     ns = graph_llama.get_ns()
     for doc in docs:
         doc_id = doc["id"]
@@ -114,27 +118,42 @@ def process_pending(
                 "could not retrieve document "
                 f"for {doc['main_id']}: {error_msg}")
             continue
-        if len(full_text) > MAX_LENGTH:
-            warning = f"text too long ({len(full_text)}); truncated"
+        old_len = len(full_text)
+        if old_len > MAX_LENGTH:
             full_text = full_text[:MAX_LENGTH]
+            warning = (
+                f"text too long ({old_len}); truncated ({len(full_text)})")
         is_verify = doc["is_valid"] is None
         if is_verify:
             sp_key = doc["verify_key"]
-        else:
+        elif doc["is_valid"] is True:
             sp_key = doc["deep_dive_key"]
+        else:
+            set_deep_dive(db, doc_id, {
+                "reason": (
+                    "Document is not about circular economy! "
+                    "No interpretation performed!"),
+                "cultural": 0,
+                "economic": 0,
+                "educational": 0,
+                "institutional": 0,
+                "legal": 0,
+                "political": 0,
+                "technological": 0,
+            })
+            sp_key = None
+        if sp_key is None:
+            continue
         task_id = smind.enqueue_task(
             ns,
             {
                 "prompt": full_text,
                 "system_prompt_key": sp_key,
             })
-        tasks[task_id] = (doc_id, is_verify, warning)
-    while tasks:
-        for task_id, result in smind.wait_for(list(tasks.keys()), timeout=600):
+        for _, result in smind.wait_for([task_id], timeout=600):
             if result["status"] not in TASK_COMPLETE:
                 continue
             res = result["result"]
-            doc_id, is_verify, warning = tasks.pop(task_id)
             if warning is None:
                 warning = ""
             else:
@@ -157,7 +176,6 @@ def process_pending(
                         db, doc_id, f"could not interpret: {text}{warning}")
                 else:
                     set_deep_dive(db, doc_id, ddres)
-    return True
 
 
 def parse_json(text: str) -> dict | None:

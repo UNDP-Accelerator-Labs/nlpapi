@@ -15,20 +15,27 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { MouseEventHandler, PureComponent } from 'react';
+import React, { MouseEventHandler, PureComponent } from 'react';
 import { ConnectedProps, connect } from 'react-redux';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
-import { DocumentObj } from '../api/types';
+import { DocumentObj, StatNumbers } from '../api/types';
+import SpiderGraph from '../misc/SpiderGraph';
 import { RootState } from '../store';
 import Collections from './Collections';
 
+type Filter = 'total' | 'included' | 'excluded' | 'complete' | 'errors';
+
 type DocumentStats = {
-  total: number;
-  included: number;
-  excluded: number;
-  complete: number;
-  errors: number;
+  [key in Filter]: number;
+};
+
+const STAT_NAMES = {
+  total: 'Total',
+  included: 'Included',
+  excluded: 'Excluded',
+  complete: 'Complete',
+  errors: 'Errors',
 };
 
 const VMain = styled.div`
@@ -42,7 +49,27 @@ const VMain = styled.div`
 
   @media (hover: none) and (max-width: 480px) {
     justify-content: start;
+    height: auto;
   }
+`;
+
+const VSide = styled.div`
+  display: flex;
+  justify-content: start;
+  flex-direction: column;
+  flex-grow: 0;
+  height: 100vh;
+  max-height: 100vh;
+  width: fit-content;
+
+  @media (hover: none) and (max-width: 480px) {
+    justify-content: start;
+    height: auto;
+  }
+`;
+
+const VBuffer = styled.div`
+  height: 60px;
 `;
 
 type DocumentsProps = {
@@ -75,6 +102,33 @@ const MainStats = styled.div<MainStatsProps>`
 const MainSpace = styled.span`
   flex-grow: 1;
   display: inline-block;
+`;
+
+const MainButton = styled.input`
+  cursor: pointer;
+`;
+
+type MainFilterProps = {
+  'data-selector': Filter;
+  'selected': Filter;
+};
+
+const MainFilter = styled.span<MainFilterProps>`
+  display: inline-block;
+  padding: 5px 10px;
+  cursor: pointer;
+  background-color: white;
+  user-select: none;
+  filter: ${({ selected, 'data-selector': tgt }) =>
+    selected === tgt ? 'brightness(0.8)' : 'none'};
+
+  &:hover {
+    filter: brightness(0.8);
+  }
+
+  &:active {
+    filter: brightness(0.85);
+  }
 `;
 
 const Document = styled.div`
@@ -207,11 +261,20 @@ const DocumentBody = styled.div`
   overflow: auto;
 `;
 
+const OutputDiv = styled.div`
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-width: fit-content;
+  text-align: right;
+  padding: 5px;
+`;
+
 const Output = styled.pre`
+  flex-grow: 1;
+  flex-shrink: 1;
   font-family: 'Courier New', Courier, monospace;
   font-weight: 500;
   line-height: 15px;
-  flex-grow: 1;
   white-space: pre-wrap;
   background-color: #ddd;
   height: fit-content;
@@ -225,6 +288,7 @@ interface CollectionViewProps extends ConnectCollectionView {
 
 type EmptyCollectionViewProps = {
   collectionId: -1;
+  isLoggedIn: boolean;
 };
 
 type CollectionViewState = {
@@ -233,6 +297,8 @@ type CollectionViewState = {
   fullText: { [key: string]: string };
   needsUpdate: boolean;
   isLoading: boolean;
+  allScores: StatNumbers;
+  filter: Filter;
 };
 
 class CollectionView extends PureComponent<
@@ -247,19 +313,22 @@ class CollectionView extends PureComponent<
       fullText: {},
       needsUpdate: true,
       isLoading: false,
+      allScores: {},
+      filter: 'total',
     };
   }
 
   componentDidMount() {
-    this.componentDidUpdate({ collectionId: -1 });
+    this.componentDidUpdate({ collectionId: -1, isLoggedIn: false });
   }
 
   componentDidUpdate(
     prevProps: Readonly<CollectionViewProps> | EmptyCollectionViewProps,
   ) {
-    const { collectionId: oldCollectionId } = prevProps;
-    const { collectionId, apiActions } = this.props;
-    if (collectionId !== oldCollectionId) {
+    const { collectionId: oldCollectionId, isLoggedIn: oldIsLoggedIn } =
+      prevProps;
+    const { collectionId, apiActions, isLoggedIn } = this.props;
+    if (collectionId !== oldCollectionId || oldIsLoggedIn !== isLoggedIn) {
       this.setState({
         needsUpdate: true,
       });
@@ -272,13 +341,14 @@ class CollectionView extends PureComponent<
           isLoading: true,
         },
         () => {
-          if (collectionId < 0) {
-            this.setState({ documents: [], isLoading: false });
+          if (collectionId < 0 || !isLoggedIn) {
+            this.setState({ documents: [], isLoading: false, allScores: {} });
           } else {
             apiActions.documents(collectionId, (documents) => {
               const { collectionId: currentCollectionId } = this.props;
               if (collectionId === currentCollectionId) {
-                this.setState({ documents, isLoading: false });
+                const allScores = this.computeTotalScores(documents);
+                this.setState({ documents, isLoading: false, allScores });
               }
             });
           }
@@ -372,21 +442,83 @@ class CollectionView extends PureComponent<
     });
   };
 
+  clickRefresh: MouseEventHandler<HTMLSpanElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    this.setState({ needsUpdate: true });
+  };
+
+  clickFilter: MouseEventHandler<HTMLSpanElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    const target = e.currentTarget;
+    const filterValue = target.getAttribute('data-selector');
+    if (!filterValue) {
+      return;
+    }
+    this.setState({ filter: filterValue as Filter });
+  };
+
+  isType(doc: DocumentObj, filter: Filter): boolean {
+    const { isValid, deepDiveReason, error } = doc;
+    if (filter === 'total') {
+      return true;
+    }
+    if (filter === 'included' && isValid === true) {
+      return true;
+    }
+    if (filter === 'excluded' && isValid === false) {
+      return true;
+    }
+    if (filter === 'complete' && isValid === true && deepDiveReason) {
+      return true;
+    }
+    if (filter === 'errors' && error) {
+      return true;
+    }
+    return false;
+  }
+
+  typeNum(doc: DocumentObj): number {
+    const { isValid, deepDiveReason, error } = doc;
+    if (error) {
+      return 3;
+    }
+    if (isValid === true && deepDiveReason) {
+      return 0;
+    }
+    if (isValid === false) {
+      return 2;
+    }
+    if (isValid === true) {
+      return 1;
+    }
+    return 4;
+  }
+
+  compareDocs = (a: DocumentObj, b: DocumentObj): number => {
+    const aNum = this.typeNum(a);
+    const bNum = this.typeNum(b);
+    if (aNum === bNum) {
+      return a.id - b.id;
+    }
+    return aNum - bNum;
+  };
+
   computeStats(): DocumentStats {
     const { documents } = this.state;
     return documents.reduce(
-      (
-        { total, included, excluded, complete, errors },
-        { isValid, deepDiveResult, error },
-      ) => {
-        return {
-          total: total + 1,
-          included: included + (isValid === true ? 1 : 0),
-          excluded: excluded + (isValid === false ? 1 : 0),
-          complete: complete + (deepDiveResult ? 1 : 0),
-          errors: errors + (error ? 1 : 0),
-        };
-      },
+      (p, doc) =>
+        Object.fromEntries(
+          Object.entries(p).map(([key, value]) => [
+            key as Filter,
+            value + (this.isType(doc, key as Filter) ? 1 : 0),
+          ]),
+        ) as DocumentStats,
       {
         total: 0,
         included: 0,
@@ -397,146 +529,201 @@ class CollectionView extends PureComponent<
     );
   }
 
+  computeTotalScores(docs: DocumentObj[]): StatNumbers {
+    const keys = Array.from(
+      docs.reduce(
+        (p, { scores }) =>
+          Object.keys(scores).reduce((sp, key) => sp.add(key), p),
+        new Set<string>(),
+      ),
+    );
+    return docs.reduce((p, { scores }) => {
+      const allMax = Object.keys(scores).reduce(
+        (m, mKey) => Math.max(m, +(scores[mKey] ?? 0)),
+        1,
+      );
+      return Object.fromEntries(
+        keys.map((key) => [key, p[key] + +(scores[key] ?? 0) / allMax]),
+      );
+    }, Object.fromEntries(keys.map((key) => [key, 0])));
+  }
+
   render() {
     const { isLoggedIn, apiActions } = this.props;
     if (!isLoggedIn) {
       return <VMain>You must be logged in to view collections!</VMain>;
     }
-    const { documents, selections, fullText, isLoading } = this.state;
-    const { total, included, excluded, complete, errors } =
-      this.computeStats();
+    const { documents, selections, fullText, isLoading, allScores, filter } =
+      this.state;
+    const stats = this.computeStats();
     return (
-      <VMain>
-        <Collections
-          apiActions={apiActions}
-          canCreate={true}
-        />
-        <MainStats isLoading={isLoading}>
-          <span>Total: {total}</span>
-          <span>Included: {included}</span>
-          <span>Excluded: {excluded}</span>
-          <span>Complete: {complete}</span>
-          <span>Errors: {errors}</span>
-          <MainSpace />
-          <input
-            type="button"
-            value="Recompute All"
-            onClick={this.clickRecomputeAll}
+      <React.Fragment>
+        <VMain>
+          <Collections
+            apiActions={apiActions}
+            canCreate={true}
           />
-        </MainStats>
-        <Documents isLoading={isLoading}>
-          {documents.map(
-            ({
-              mainId,
-              url,
-              title,
-              isValid,
-              verifyReason,
-              deepDiveResult,
-              error,
-            }) => {
-              const sel = selections[mainId];
-              const content = fullText[mainId];
-              const { reason: _, ...scores } = deepDiveResult ?? {};
-              return (
-                <Document key={mainId}>
-                  <DocumentRow>
-                    <DocumentLink href={url ?? '#'}>
-                      [{mainId}] {title}
-                    </DocumentLink>
-                  </DocumentRow>
-                  <DocumentTabList>
-                    <DocumentTab
-                      data-main={mainId}
-                      data-tab="verify"
-                      color={
-                        isValid === undefined
-                          ? 'white'
-                          : isValid
-                          ? '#ccebc5'
-                          : '#fed9a6'
-                      }
-                      active={isValid !== undefined}
-                      selected={sel === 'verify'}
-                      onClick={
-                        isValid !== undefined ? this.clickTab : undefined
-                      }>
-                      Verify:{' '}
-                      {isValid === undefined
-                        ? error
-                          ? 'error'
-                          : 'pending'
-                        : isValid
-                        ? 'ok'
-                        : 'excluded'}
-                    </DocumentTab>
-                    <DocumentTab
-                      data-main={mainId}
-                      data-tab="scores"
-                      color={deepDiveResult ? '#ccebc5' : 'white'}
-                      active={!!deepDiveResult}
-                      selected={sel === 'scores'}
-                      onClick={deepDiveResult ? this.clickTab : undefined}>
-                      Scores
-                    </DocumentTab>
-                    <DocumentTab
-                      data-main={mainId}
-                      data-tab="fulltext"
-                      color="white"
-                      active={true}
-                      selected={sel === 'fulltext'}
-                      onClick={this.clickTab}>
-                      Full-Text
-                    </DocumentTab>
-                    {error ? (
-                      <DocumentTab
-                        data-main={mainId}
-                        data-tab="error"
-                        color="#fbb4ae"
-                        active={true}
-                        selected={sel === 'error'}
-                        onClick={this.clickTab}>
-                        Error
-                      </DocumentTab>
-                    ) : null}
-                    <TabSpace />
-                    <DocumentTabButton
-                      data-main={mainId}
-                      onClick={this.clickRecompute}>
-                      Recompute
-                    </DocumentTabButton>
-                  </DocumentTabList>
-                  {sel === 'verify' ? (
-                    <DocumentBody>
-                      <Output>{verifyReason}</Output>
-                    </DocumentBody>
-                  ) : null}
-                  {sel === 'scores' ? (
-                    <DocumentBody>
-                      {deepDiveResult ? (
-                        <Output>{JSON.stringify(scores)}</Output>
+          <MainStats isLoading={isLoading}>
+            {Object.entries(stats).map(([sKey, sValue]) => (
+              <MainFilter
+                key={sKey as Filter}
+                data-selector={sKey as Filter}
+                selected={filter}
+                onClick={this.clickFilter}>
+                {STAT_NAMES[sKey as Filter]}: {sValue}
+              </MainFilter>
+            ))}
+            <MainSpace />
+            <MainButton
+              type="button"
+              value="Refresh"
+              onClick={this.clickRefresh}
+            />
+            <MainButton
+              type="button"
+              value="Recompute All"
+              onClick={this.clickRecomputeAll}
+            />
+          </MainStats>
+          <Documents isLoading={isLoading}>
+            {documents
+              .filter((doc) => this.isType(doc, filter))
+              .toSorted(this.compareDocs)
+              .map(
+                ({
+                  mainId,
+                  url,
+                  title,
+                  isValid,
+                  verifyReason,
+                  deepDiveReason,
+                  scores,
+                  error,
+                }) => {
+                  const sel = selections[mainId];
+                  const content = fullText[mainId];
+                  return (
+                    <Document key={mainId}>
+                      <DocumentRow>
+                        <DocumentLink
+                          href={url ?? '#'}
+                          target="_blank">
+                          [{mainId}] {title}
+                        </DocumentLink>
+                      </DocumentRow>
+                      <DocumentTabList>
+                        <DocumentTab
+                          data-main={mainId}
+                          data-tab="verify"
+                          color={
+                            isValid === undefined
+                              ? 'white'
+                              : isValid
+                              ? '#ccebc5'
+                              : '#fed9a6'
+                          }
+                          active={isValid !== undefined}
+                          selected={sel === 'verify'}
+                          onClick={
+                            isValid !== undefined ? this.clickTab : undefined
+                          }>
+                          Verify:{' '}
+                          {isValid === undefined
+                            ? error
+                              ? 'error'
+                              : 'pending'
+                            : isValid
+                            ? 'ok'
+                            : 'excluded'}
+                        </DocumentTab>
+                        <DocumentTab
+                          data-main={mainId}
+                          data-tab="scores"
+                          color={deepDiveReason ? '#ccebc5' : 'white'}
+                          active={!!deepDiveReason}
+                          selected={sel === 'scores'}
+                          onClick={deepDiveReason ? this.clickTab : undefined}>
+                          Scores
+                        </DocumentTab>
+                        <DocumentTab
+                          data-main={mainId}
+                          data-tab="fulltext"
+                          color="white"
+                          active={true}
+                          selected={sel === 'fulltext'}
+                          onClick={this.clickTab}>
+                          Full-Text
+                        </DocumentTab>
+                        {error ? (
+                          <DocumentTab
+                            data-main={mainId}
+                            data-tab="error"
+                            color="#fbb4ae"
+                            active={true}
+                            selected={sel === 'error'}
+                            onClick={this.clickTab}>
+                            Error
+                          </DocumentTab>
+                        ) : null}
+                        <TabSpace />
+                        <DocumentTabButton
+                          data-main={mainId}
+                          onClick={this.clickRecompute}>
+                          Recompute
+                        </DocumentTabButton>
+                      </DocumentTabList>
+                      {sel === 'verify' ? (
+                        <DocumentBody>
+                          <Output>{verifyReason}</Output>
+                        </DocumentBody>
                       ) : null}
-                      {deepDiveResult ? (
-                        <Output>{deepDiveResult.reason}</Output>
+                      {sel === 'scores' ? (
+                        <DocumentBody>
+                          {deepDiveReason ? (
+                            <OutputDiv>
+                              <SpiderGraph
+                                stats={scores}
+                                cmpStats={allScores}
+                              />
+                            </OutputDiv>
+                          ) : null}
+                          {deepDiveReason ? (
+                            <OutputDiv>
+                              {Object.entries(scores)
+                                .toSorted(([a], [b]) => a.localeCompare(b))
+                                .map(([scoreKey, scoreValue]) => (
+                                  <p key={scoreKey}>
+                                    {scoreKey}: {scoreValue}
+                                  </p>
+                                ))}
+                            </OutputDiv>
+                          ) : null}
+                          {deepDiveReason ? (
+                            <Output>{deepDiveReason}</Output>
+                          ) : null}
+                        </DocumentBody>
                       ) : null}
-                    </DocumentBody>
-                  ) : null}
-                  {sel === 'fulltext' ? (
-                    <DocumentBody>
-                      <Output>{content}</Output>
-                    </DocumentBody>
-                  ) : null}
-                  {sel === 'error' ? (
-                    <DocumentBody>
-                      <Output>{error}</Output>
-                    </DocumentBody>
-                  ) : null}
-                </Document>
-              );
-            },
-          )}
-        </Documents>
-      </VMain>
+                      {sel === 'fulltext' ? (
+                        <DocumentBody>
+                          <Output>{content}</Output>
+                        </DocumentBody>
+                      ) : null}
+                      {sel === 'error' ? (
+                        <DocumentBody>
+                          <Output>{error}</Output>
+                        </DocumentBody>
+                      ) : null}
+                    </Document>
+                  );
+                },
+              )}
+          </Documents>
+        </VMain>
+        <VSide>
+          <VBuffer />
+          <SpiderGraph stats={allScores} />
+        </VSide>
+      </React.Fragment>
     );
   }
 } // CollectionView

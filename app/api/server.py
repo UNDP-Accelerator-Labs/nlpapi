@@ -18,7 +18,8 @@ import os
 import sys
 import threading
 import uuid
-from typing import Any, get_args, Literal, TypeAlias, TypedDict
+from collections.abc import Callable
+from typing import Any, cast, get_args, Literal, TypeAlias, TypedDict
 
 from qdrant_client import QdrantClient
 from quick_server import create_server, MiddlewareF, QuickServer
@@ -176,22 +177,70 @@ def add_vec_features(
         verify_input: MiddlewareF,
         verify_token: MiddlewareF,
         verify_write: MiddlewareF,
-        verify_tanuki: MiddlewareF) -> list[str]:
-    articles_main = get_vec_db(
-        vec_db,
-        name="main",
-        graph_embed=graph_embed,
-        force_clear=False,
-        force_index=False)
-    articles_test = get_vec_db(
-        vec_db,
-        name="test",
-        graph_embed=graph_embed,
-        force_clear=False,
-        force_index=False)
+        verify_tanuki: MiddlewareF) -> Callable[[], list[str]]:
+    cond = threading.Condition()
+    articles_main = None
+    articles_test = None
 
-    set_main_articles(
-        db, vec_db, articles=articles_main, articles_graph=graph_embed)
+    def init_vec_db() -> None:
+        nonlocal articles_main, articles_test
+
+        articles_main = get_vec_db(
+            vec_db,
+            name="main",
+            graph_embed=graph_embed,
+            force_clear=False,
+            force_index=False)
+        articles_test = get_vec_db(
+            vec_db,
+            name="test",
+            graph_embed=graph_embed,
+            force_clear=False,
+            force_index=False)
+
+        set_main_articles(
+            db, vec_db, articles=articles_main, articles_graph=graph_embed)
+
+        with cond:
+            cond.notify_all()
+
+    th = threading.Thread(target=init_vec_db, daemon=True)
+    th.start()
+
+    def parse_vdb(vdb_str: str) -> DBName:
+        if vdb_str not in DBS:
+            raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
+        return cast(DBName, vdb_str)
+
+    def _get_articles(vdb: DBName) -> str | None:
+        nonlocal articles_main, articles_test
+
+        if vdb == "main":
+            return articles_main
+        if vdb == "test":
+            return articles_test
+        raise ValueError(f"db ({vdb}) must be one of {DBS}")
+
+    def get_articles(vdb_str: str) -> str:
+        vdb = parse_vdb(vdb_str)
+        res = _get_articles(vdb)
+        if res:
+            return res
+        with cond:
+            res = cond.wait_for(lambda: _get_articles(vdb), 120.0)
+        if res:
+            return res
+        raise ValueError("vector database is not ready yet!")
+
+    def get_articles_arr() -> list[str]:
+        nonlocal articles_main, articles_test
+
+        if articles_main is None or articles_test is None:
+            return []
+        return [
+            get_articles(vdb)
+            for vdb in DBS
+        ]
 
     @server.json_post(f"{prefix}/stats")
     @server.middleware(verify_readonly)
@@ -203,10 +252,11 @@ def add_vec_features(
         filters: dict[MetaKey, list[str]] = args.get("filters", {})
         if session is None:  # NOTE: not logged in!
             filters["status"] = ["public"]
+        articles = get_articles("main")
         return vec_filter(
             vec_db,
             qdrant_cache=qdrant_cache,
-            articles=articles_main,
+            articles=articles,
             fields=fields,
             filters=filters)
 
@@ -229,11 +279,12 @@ def add_vec_features(
             args.get("score_threshold"))
         short_snippets = bool(args.get("short_snippets", True))
         order_by: MetaKey = "date"  # FIXME: order_by
+        articles = get_articles("main")
         return vec_search(
             db,
             vec_db,
             input_str,
-            articles=articles_main,
+            articles=articles,
             articles_graph=graph_embed,
             filters=filters,
             order_by=order_by,
@@ -301,12 +352,7 @@ def add_vec_features(
             meta = rargs["meta"]
             input_str: str = meta["input"]
             vdb_str: str = args["db"]
-            if vdb_str == "main":
-                articles = articles_main
-            elif vdb_str == "test":
-                articles = articles_test
-            else:
-                raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
+            articles = get_articles(vdb_str)
             base: str = args["base"]
             if not base:
                 raise ValueError(f"{base=} must be set")
@@ -338,12 +384,7 @@ def add_vec_features(
                 _req: QSRH, rargs: ReqArgs) -> BuildIndexResponse:
             args = rargs["post"]
             vdb_str = args["db"]
-            if vdb_str == "main":
-                articles = articles_main
-            elif vdb_str == "test":
-                articles = articles_test
-            else:
-                raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
+            articles = get_articles(vdb_str)
             count = build_scalar_index(vec_db, articles, full_stats=None)
             return {
                 "new_index_count": count,
@@ -354,12 +395,7 @@ def add_vec_features(
         def _post_stat_embed(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
             args = rargs["post"]
             vdb_str = args["db"]
-            if vdb_str == "main":
-                articles = articles_main
-            elif vdb_str == "test":
-                articles = articles_test
-            else:
-                raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
+            articles = get_articles(vdb_str)
             fields = set(args["fields"])
             filters: dict[MetaKey, list[str]] | None = args.get("filters")
             return vec_filter(
@@ -377,12 +413,7 @@ def add_vec_features(
             meta = rargs["meta"]
             input_str: str = meta["input"]
             vdb_str = args["db"]
-            if vdb_str == "main":
-                articles = articles_main
-            elif vdb_str == "test":
-                articles = articles_test
-            else:
-                raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
+            articles = get_articles(vdb_str)
             filters: dict[MetaKey, list[str]] | None = args.get("filters")
             offset: int = int(args.get("offset", 0))
             limit: int = int(args["limit"])
@@ -405,7 +436,7 @@ def add_vec_features(
                 score_threshold=score_threshold,
                 short_snippets=short_snippets)
 
-    return [articles_main, articles_test]
+    return get_articles_arr
 
 
 def setup(
@@ -634,7 +665,7 @@ def setup(
         return okay
 
     if vec_db is not None:
-        articles = add_vec_features(
+        get_articles_arr = add_vec_features(
             server,
             db,
             vec_db,
@@ -650,7 +681,11 @@ def setup(
             verify_write=verify_write,
             verify_tanuki=verify_tanuki)
     else:
-        articles = []
+
+        def no_articles() -> list[str]:
+            return []
+
+        get_articles_arr = no_articles
 
     # *** misc ***
 
@@ -681,7 +716,7 @@ def setup(
     def _get_info(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
         vecdbs: list[VecDBStat] = []
         if vec_db is not None:
-            for article in articles:
+            for article in get_articles_arr():
                 for is_vec in [False, True]:
                     article_stats = get_vec_stats(
                         vec_db, article, is_vec=is_vec)
