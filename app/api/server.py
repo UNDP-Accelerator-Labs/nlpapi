@@ -17,6 +17,7 @@ import hmac
 import os
 import sys
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from typing import Any, cast, get_args, Literal, TypeAlias, TypedDict
@@ -185,6 +186,8 @@ def add_vec_features(
     def init_vec_db() -> None:
         nonlocal articles_main, articles_test
 
+        tstart = time.monotonic()
+        print("start loading vector database...")
         articles_main = get_vec_db(
             vec_db,
             name="main",
@@ -203,6 +206,9 @@ def add_vec_features(
 
         with cond:
             cond.notify_all()
+        print(
+            "loading vector database complete "
+            f"in {time.monotonic() - tstart}s!")
 
     th = threading.Thread(target=init_vec_db, daemon=True)
     th.start()
