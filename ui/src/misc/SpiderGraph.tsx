@@ -19,6 +19,8 @@ import { PureComponent } from 'react';
 import styled from 'styled-components';
 import { StatNumbers } from '../api/types';
 
+export const MAX_STAT_VALUE = 4;
+
 const SvgText = styled.text`
   font: 10px sans-serif;
   text-anchor: middle;
@@ -31,10 +33,15 @@ type SpiderGraphProps = {
   radius?: number;
   padding?: number;
   cmpColor?: string;
+  isRelative: boolean;
 };
 
 export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
   getMax(stats: StatNumbers): number {
+    const { isRelative } = this.props;
+    if (!isRelative) {
+      return MAX_STAT_VALUE;
+    }
     return Object.keys(stats).reduce(
       (p, key) => Math.max(p, +(stats[key] ?? 0)),
       1,

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import React, { PureComponent } from 'react';
+import React, { MouseEventHandler, PureComponent } from 'react';
 import { ConnectedProps, connect } from 'react-redux';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import styled from 'styled-components';
@@ -62,6 +62,7 @@ const UserDiv = styled.div`
   right: 10px;
   padding: 0;
   margin: 0;
+  min-width: 100px;
 
   @media (hover: none) and (max-width: 480px) {
     position: static;
@@ -69,13 +70,50 @@ const UserDiv = styled.div`
   }
 `;
 
-const NavRow = styled.div``;
+const CollapseButton = styled.div`
+  width: 100%;
+  cursor: pointer;
+  text-align: center;
+  border: 1px solid #ddd;
+  background-color: #eee;
+  margin-top: -1px;
+  margin-bottom: -1px;
+
+  &:hover {
+    filter: brightness(0.8);
+  }
+
+  &:active {
+    filter: brightness(0.85);
+  }
+`;
+
+const NavRow = styled.a`
+  display: block;
+  width: 100%;
+  cursor: pointer;
+  background-color: #eee;
+  border: 1px solid #ddd;
+  padding: 5px;
+  margin-top: -1px;
+  margin-bottom: -1px;
+  text-decoration: none;
+
+  &:hover {
+    filter: brightness(0.8);
+  }
+
+  &:active {
+    filter: brightness(0.85);
+  }
+`;
 
 type AppProps = ConnectApp;
 
 type AppState = {
   ready: boolean;
   userName: string | undefined;
+  isCollapsed: boolean;
 };
 
 class App extends PureComponent<AppProps, AppState> {
@@ -83,7 +121,7 @@ class App extends PureComponent<AppProps, AppState> {
 
   constructor(props: AppProps) {
     super(props);
-    this.state = { ready: false, userName: undefined };
+    this.state = { ready: false, userName: undefined, isCollapsed: false };
     this.apiActions = new ApiActions(undefined);
 
     window.addEventListener('popstate', (event) => {
@@ -173,8 +211,19 @@ class App extends PureComponent<AppProps, AppState> {
     }
   }
 
+  toggleCollapse: MouseEventHandler<HTMLDivElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    const { isCollapsed } = this.state;
+    this.setState({
+      isCollapsed: !isCollapsed,
+    });
+  };
+
   render() {
-    const { ready, userName } = this.state;
+    const { ready, userName, isCollapsed } = this.state;
     const isLoggedIn = !!userName;
     return (
       <HMain>
@@ -205,34 +254,34 @@ class App extends PureComponent<AppProps, AppState> {
                 <CollectionView
                   apiActions={this.apiActions}
                   isLoggedIn={isLoggedIn}
+                  visIsRelative={false}
                 />
               }
             />
           </Routes>
         </BrowserRouter>
         <UserDiv>
-          <NavRow>
-            {isLoggedIn ? (
-              <React.Fragment>
-                Hello, <a href={`${LOGIN_URL}`}>{userName}</a>!
-              </React.Fragment>
-            ) : (
-              <a
-                href={`${LOGIN_URL}?origin=${encodeURIComponent(
-                  window.location.href,
-                )}`}>
-                Login
-              </a>
-            )}
-          </NavRow>
-          <NavRow>
-            <a href="/search">Search</a>
-          </NavRow>
-          {isLoggedIn ? (
-            <NavRow>
-              <a href="/collection">Collection</a>
-            </NavRow>
-          ) : null}
+          {isCollapsed ? null : (
+            <React.Fragment>
+              <NavRow
+                href={
+                  isLoggedIn
+                    ? `${LOGIN_URL}`
+                    : `${LOGIN_URL}?origin=${encodeURIComponent(
+                        window.location.href,
+                      )}`
+                }>
+                {isLoggedIn ? `Hello, ${userName}!` : 'Login'}
+              </NavRow>
+              <NavRow href="/search">Search</NavRow>
+              {isLoggedIn ? (
+                <NavRow href="/collection">Collection</NavRow>
+              ) : null}
+            </React.Fragment>
+          )}
+          <CollapseButton onClick={this.toggleCollapse}>
+            {isCollapsed ? <span>&#x25BC;</span> : <span>&#x25B2;</span>}
+          </CollapseButton>
         </UserDiv>
       </HMain>
     );

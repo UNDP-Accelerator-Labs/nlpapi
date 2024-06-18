@@ -14,7 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import json
+import re
 import threading
+import traceback
 
 from scattermind.api.api import ScattermindAPI
 from scattermind.system.response import TASK_COMPLETE
@@ -122,7 +124,7 @@ def process_pending(
         if old_len > MAX_LENGTH:
             full_text = full_text[:MAX_LENGTH]
             warning = (
-                f"text too long ({old_len}); truncated ({len(full_text)})")
+                f"text too long ({old_len}); truncated to ({len(full_text)})")
         is_verify = doc["is_valid"] is None
         if is_verify:
             sp_key = doc["verify_key"]
@@ -162,65 +164,79 @@ def process_pending(
                 set_error(db, doc_id, f"error in task: {result}{warning}")
                 continue
             text = tensor_to_str(res["response"])
+            error_msg = (
+                f"ERROR: could not interpret model output:\n{text}{warning}")
             if is_verify:
-                vres = interpret_verify(text, warning)
+                vres, verror = interpret_verify(text, warning)
                 if vres is None:
-                    set_error(
-                        db, doc_id, f"could not interpret: {text}{warning}")
+                    if verror is not None:
+                        verror = f"\nSTACKTRACE: {verror}"
+                    set_error(db, doc_id, f"{error_msg}{verror}")
                 else:
                     set_verify(db, doc_id, vres["is_hit"], vres["reason"])
             else:
-                ddres = interpret_deep_dive(text, warning)
+                ddres, derror = interpret_deep_dive(text, warning)
                 if ddres is None:
-                    set_error(
-                        db, doc_id, f"could not interpret: {text}{warning}")
+                    if derror is not None:
+                        derror = f"\nSTACKTRACE: {derror}"
+                    set_error(db, doc_id, f"{error_msg}{derror}")
                 else:
                     set_deep_dive(db, doc_id, ddres)
 
 
-def parse_json(text: str) -> dict | None:
+def parse_json(text: str) -> tuple[dict | None, str | None]:
+    text = re.sub(r"\s+", " ", text)
     start = text.find(r"{")
     end = text.rfind(r"}")
     if start < 0 or end < 0:
-        return None
+        return (None, r"no '{' or '}' in output")
     text = text[start:end + 1]
     try:
-        return json.loads(text)
+        return (json.loads(text), None)
     except json.decoder.JSONDecodeError:
+        first_error = traceback.format_exc()
         text_single = text.replace("\"\"", "\"")
         try:
-            return json.loads(text_single)
+            return (json.loads(text_single), None)
         except json.decoder.JSONDecodeError:
-            return None
+            return (None, first_error)
 
 
-def interpret_verify(text: str, warning: str) -> VerifyResult | None:
-    obj = parse_json(text)
+def interpret_verify(
+        text: str, warning: str) -> tuple[VerifyResult | None, str | None]:
+    obj, error = parse_json(text)
     if obj is None:
-        return None
+        return (None, error)
     try:
-        return {
-            "reason": f"{obj['reason']}{warning}",
-            "is_hit": to_bool(obj["is_hit"]),
-        }
+        return (
+            {
+                "reason": f"{obj['reason']}{warning}",
+                "is_hit": to_bool(obj["is_hit"]),
+            },
+            None,
+        )
     except KeyError:
-        return None
+        return (None, traceback.format_exc())
 
 
-def interpret_deep_dive(text: str, warning: str) -> DeepDiveResult | None:
-    obj = parse_json(text)
+def interpret_deep_dive(
+        text: str, warning: str) -> tuple[DeepDiveResult | None, str | None]:
+    obj, error = parse_json(text)
     if obj is None:
-        return None
+        return (None, error)
     try:
-        return {
-            "reason": f"{obj['reason']}{warning}",
-            "cultural": int(obj["cultural"]),
-            "economic": int(obj["economic"]),
-            "educational": int(obj["educational"]),
-            "institutional": int(obj["institutional"]),
-            "legal": int(obj["legal"]),
-            "political": int(obj["political"]),
-            "technological": int(obj["technological"]),
-        }
+        return (
+            {
+                "reason": f"{obj['reason']}{warning}",
+                "cultural": int(obj["cultural"]),
+                "economic": int(obj["economic"]),
+                "educational": int(obj["educational"]),
+                "institutional": int(obj["institutional"]),
+                "legal": int(obj["legal"]),
+                "political": int(obj["political"]),
+                "technological": int(obj["technological"]),
+            },
+            None,
+        )
     except KeyError:
-        return None
+        return (None, traceback.format_exc())

@@ -101,6 +101,7 @@ const MainStats = styled.div<MainStatsProps>`
   flex-grow: 0;
   width: 100%;
   gap: 5px;
+  border-bottom: 1px solid black;
 
   filter: ${({ isLoading }) =>
     isLoading ? 'brightness(0.8) blur(5px)' : 'none'};
@@ -113,6 +114,7 @@ const MainSpace = styled.span`
 
 const MainButton = styled.input`
   cursor: pointer;
+  margin-bottom: -1px;
 `;
 
 type MainFilterProps = {
@@ -291,6 +293,7 @@ const Output = styled.pre`
 interface CollectionViewProps extends ConnectCollectionView {
   apiActions: ApiActions;
   isLoggedIn: boolean;
+  visIsRelative: boolean;
 }
 
 type EmptyCollectionViewProps = {
@@ -321,7 +324,7 @@ class CollectionView extends PureComponent<
       needsUpdate: true,
       isLoading: false,
       allScores: {},
-      filter: 'total',
+      filter: 'complete',
     };
   }
 
@@ -518,6 +521,20 @@ class CollectionView extends PureComponent<
     return 4;
   }
 
+  typeSelection(doc: DocumentObj): string | undefined {
+    const { isValid, deepDiveReason, error } = doc;
+    if (error) {
+      return 'error';
+    }
+    if (isValid === undefined) {
+      return undefined;
+    }
+    if (isValid === false) {
+      return 'verify';
+    }
+    return deepDiveReason ? 'scores' : 'verify';
+  }
+
   compareDocs = (a: DocumentObj, b: DocumentObj): number => {
     const aNum = this.typeNum(a);
     const bNum = this.typeNum(b);
@@ -549,6 +566,7 @@ class CollectionView extends PureComponent<
   }
 
   computeTotalScores(docs: DocumentObj[]): StatNumbers {
+    const { visIsRelative } = this.props;
     const keys = Array.from(
       docs.reduce(
         (p, { scores }) =>
@@ -556,19 +574,27 @@ class CollectionView extends PureComponent<
         new Set<string>(),
       ),
     );
-    return docs.reduce((p, { scores }) => {
-      const allMax = Object.keys(scores).reduce(
-        (m, mKey) => Math.max(m, +(scores[mKey] ?? 0)),
-        1,
-      );
+    const maxs = docs.reduce(
+      (p, { scores }) => [
+        ...p,
+        Object.keys(scores).reduce(
+          (m, mKey) => Math.max(m, +(scores[mKey] ?? 0)),
+          0,
+        ),
+      ],
+      [] as number[],
+    );
+    const count = maxs.reduce((p, maxValue) => p + (maxValue > 0 ? 1 : 0));
+    return docs.reduce((p, { scores }, ix) => {
+      const total = Math.max(visIsRelative ? maxs[ix] : count, 1);
       return Object.fromEntries(
-        keys.map((key) => [key, p[key] + +(scores[key] ?? 0) / allMax]),
+        keys.map((key) => [key, p[key] + +(scores[key] ?? 0) / total]),
       );
     }, Object.fromEntries(keys.map((key) => [key, 0])));
   }
 
   render() {
-    const { isLoggedIn, apiActions } = this.props;
+    const { isLoggedIn, apiActions, visIsRelative } = this.props;
     if (!isLoggedIn) {
       return <VMain>You must be logged in to view collections!</VMain>;
     }
@@ -608,8 +634,8 @@ class CollectionView extends PureComponent<
             {documents
               .filter((doc) => this.isType(doc, filter))
               .toSorted(this.compareDocs)
-              .map(
-                ({
+              .map((doc) => {
+                const {
                   mainId,
                   url,
                   title,
@@ -618,129 +644,132 @@ class CollectionView extends PureComponent<
                   deepDiveReason,
                   scores,
                   error,
-                }) => {
-                  const sel = selections[mainId];
-                  const content = fullText[mainId];
-                  return (
-                    <Document key={mainId}>
-                      <DocumentRow>
-                        <DocumentLink
-                          href={url ?? '#'}
-                          target="_blank">
-                          [{mainId}] {title}
-                        </DocumentLink>
-                      </DocumentRow>
-                      <DocumentTabList>
-                        <DocumentTab
-                          data-main={mainId}
-                          data-tab="verify"
-                          color={
-                            isValid === undefined
-                              ? 'white'
-                              : isValid
-                              ? '#ccebc5'
-                              : '#fed9a6'
-                          }
-                          active={isValid !== undefined}
-                          selected={sel === 'verify'}
-                          onClick={
-                            isValid !== undefined ? this.clickTab : undefined
-                          }>
-                          Verify:{' '}
-                          {isValid === undefined
-                            ? error
-                              ? 'error'
-                              : 'pending'
+                } = doc;
+                const sel = selections[mainId] ?? this.typeSelection(doc);
+                const content = fullText[mainId];
+                return (
+                  <Document key={mainId}>
+                    <DocumentRow>
+                      <DocumentLink
+                        href={url ?? '#'}
+                        target="_blank">
+                        [{mainId}] {title}
+                      </DocumentLink>
+                    </DocumentRow>
+                    <DocumentTabList>
+                      <DocumentTab
+                        data-main={mainId}
+                        data-tab="verify"
+                        color={
+                          isValid === undefined
+                            ? 'white'
                             : isValid
-                            ? 'ok'
-                            : 'excluded'}
-                        </DocumentTab>
+                            ? '#ccebc5'
+                            : '#fed9a6'
+                        }
+                        active={isValid !== undefined}
+                        selected={sel === 'verify'}
+                        onClick={
+                          isValid !== undefined ? this.clickTab : undefined
+                        }>
+                        Verify:{' '}
+                        {isValid === undefined
+                          ? error
+                            ? 'error'
+                            : 'pending'
+                          : isValid
+                          ? 'ok'
+                          : 'excluded'}
+                      </DocumentTab>
+                      <DocumentTab
+                        data-main={mainId}
+                        data-tab="scores"
+                        color={deepDiveReason ? '#ccebc5' : 'white'}
+                        active={!!deepDiveReason}
+                        selected={sel === 'scores'}
+                        onClick={deepDiveReason ? this.clickTab : undefined}>
+                        Scores
+                      </DocumentTab>
+                      <DocumentTab
+                        data-main={mainId}
+                        data-tab="fulltext"
+                        color="white"
+                        active={true}
+                        selected={sel === 'fulltext'}
+                        onClick={this.clickTab}>
+                        Full-Text
+                      </DocumentTab>
+                      {error ? (
                         <DocumentTab
                           data-main={mainId}
-                          data-tab="scores"
-                          color={deepDiveReason ? '#ccebc5' : 'white'}
-                          active={!!deepDiveReason}
-                          selected={sel === 'scores'}
-                          onClick={deepDiveReason ? this.clickTab : undefined}>
-                          Scores
-                        </DocumentTab>
-                        <DocumentTab
-                          data-main={mainId}
-                          data-tab="fulltext"
-                          color="white"
+                          data-tab="error"
+                          color="#fbb4ae"
                           active={true}
-                          selected={sel === 'fulltext'}
+                          selected={sel === 'error'}
                           onClick={this.clickTab}>
-                          Full-Text
+                          Error
                         </DocumentTab>
-                        {error ? (
-                          <DocumentTab
-                            data-main={mainId}
-                            data-tab="error"
-                            color="#fbb4ae"
-                            active={true}
-                            selected={sel === 'error'}
-                            onClick={this.clickTab}>
-                            Error
-                          </DocumentTab>
+                      ) : null}
+                      <TabSpace />
+                      <DocumentTabButton
+                        data-main={mainId}
+                        onClick={this.clickRecompute}>
+                        Recompute
+                      </DocumentTabButton>
+                    </DocumentTabList>
+                    {sel === 'verify' ? (
+                      <DocumentBody>
+                        <Output>{verifyReason}</Output>
+                      </DocumentBody>
+                    ) : null}
+                    {sel === 'scores' ? (
+                      <DocumentBody>
+                        {deepDiveReason ? (
+                          <OutputDiv>
+                            <SpiderGraph
+                              stats={scores}
+                              cmpStats={allScores}
+                              isRelative={visIsRelative}
+                            />
+                          </OutputDiv>
                         ) : null}
-                        <TabSpace />
-                        <DocumentTabButton
-                          data-main={mainId}
-                          onClick={this.clickRecompute}>
-                          Recompute
-                        </DocumentTabButton>
-                      </DocumentTabList>
-                      {sel === 'verify' ? (
-                        <DocumentBody>
-                          <Output>{verifyReason}</Output>
-                        </DocumentBody>
-                      ) : null}
-                      {sel === 'scores' ? (
-                        <DocumentBody>
-                          {deepDiveReason ? (
-                            <OutputDiv>
-                              <SpiderGraph
-                                stats={scores}
-                                cmpStats={allScores}
-                              />
-                            </OutputDiv>
-                          ) : null}
-                          {deepDiveReason ? (
-                            <OutputDiv>
-                              {Object.entries(scores)
-                                .toSorted(([a], [b]) => a.localeCompare(b))
-                                .map(([scoreKey, scoreValue]) => (
-                                  <p key={scoreKey}>
-                                    {scoreKey}: {scoreValue}
-                                  </p>
-                                ))}
-                            </OutputDiv>
-                          ) : null}
-                          {deepDiveReason ? (
-                            <Output>{deepDiveReason}</Output>
-                          ) : null}
-                        </DocumentBody>
-                      ) : null}
-                      {sel === 'fulltext' ? (
-                        <DocumentBody>
-                          <Output>{content}</Output>
-                        </DocumentBody>
-                      ) : null}
-                      {sel === 'error' ? (
-                        <DocumentBody>
-                          <Output>{error}</Output>
-                        </DocumentBody>
-                      ) : null}
-                    </Document>
-                  );
-                },
-              )}
+                        {deepDiveReason ? (
+                          <OutputDiv>
+                            {Object.entries(scores)
+                              .toSorted(([a], [b]) => a.localeCompare(b))
+                              .map(([scoreKey, scoreValue]) => (
+                                <p key={scoreKey}>
+                                  {scoreKey}: {scoreValue}
+                                </p>
+                              ))}
+                          </OutputDiv>
+                        ) : null}
+                        {deepDiveReason ? (
+                          <Output>{deepDiveReason}</Output>
+                        ) : null}
+                      </DocumentBody>
+                    ) : null}
+                    {sel === 'fulltext' ? (
+                      <DocumentBody>
+                        <Output>{content}</Output>
+                      </DocumentBody>
+                    ) : null}
+                    {sel === 'error' ? (
+                      <DocumentBody>
+                        <Output>{error}</Output>
+                      </DocumentBody>
+                    ) : null}
+                  </Document>
+                );
+              })}
           </Documents>
         </VMain>
         <VSide>
           <VBuffer />
-          <SpiderGraph stats={allScores} />
+          <SpiderGraph
+            stats={allScores}
+            isRelative={visIsRelative}
+          />
         </VSide>
       </React.Fragment>
     );
