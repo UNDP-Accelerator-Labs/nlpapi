@@ -46,7 +46,7 @@ def read_pad(
         if ignore_unpublished and int(row.status) <= 1:
             return (None, "pad is unpublished")
         res = sanity_check(f"{row.full_text}")
-        if combine_title:
+        if combine_title and row.title:
             title = sanity_check(f"{row.title}")
             res = f"{title}\n\n{res}"
         return (res, None)
@@ -76,7 +76,7 @@ def read_blog(
         content = sanity_check(f"{row.content}".strip())
         if not content:
             return (None, "empty content")
-        if combine_title:
+        if combine_title and row.title:
             title = sanity_check(f"{row.title}")
             content = f"{title}\n\n{content}"
         return (content, None)

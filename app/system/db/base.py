@@ -149,8 +149,8 @@ class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
     id = sa.Column(
         sa.Integer, unique=True, primary_key=True, autoincrement=True)
     user: sa.Column[sa.Uuid] = sa.Column(
-        sa.Uuid, nullable=False, unique=True, primary_key=True)  # type: ignore
-    name = sa.Column(sa.Text(), nullable=False)
+        sa.Uuid, nullable=False, primary_key=True)  # type: ignore
+    name = sa.Column(sa.Text(), nullable=False, primary_key=True)
     verify_key = sa.Column(sa.Text(), nullable=False)
     deep_dive_key = sa.Column(sa.Text(), nullable=False)
 

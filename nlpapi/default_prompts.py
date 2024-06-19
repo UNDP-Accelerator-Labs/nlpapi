@@ -195,3 +195,8 @@ SYSTEM_PROMPTS: dict[str, str] = {
     "verify_circular_economy": VERIFY_CIRCULAR_ECONOMY,
     "rate_circular_economy": RATING_CIRCULAR_ECONOMY,
 }
+
+
+PROMPT_REMINDER = """
+Reminder: The output must be in JSON format!
+""".strip()

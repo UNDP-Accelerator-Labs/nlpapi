@@ -26,10 +26,12 @@ from scattermind.system.queue.queue import QueuePool
 from scattermind.system.readonly.access import ReadonlyAccess
 from scattermind.system.torch_util import str_to_tensor, tensor_to_str
 
+from nlpapi.default_prompts import PROMPT_REMINDER
 from nlpapi.llama import (
     append_new_message,
     load_system_prompt,
     ROLE_ASSISTANT,
+    ROLE_SYSTEM,
     ROLE_USER,
 )
 
@@ -107,7 +109,9 @@ class LlamaNode(Node):
             cache_dir: str) -> str:
         # FIXME: maybe use state
         # if not load_state(model, cache_dir):
-        if True:  # pylint: disable=using-constant-test
+        set_seed = True
+        add_reminder = True
+        if set_seed:
             model.set_seed(123)
         messages = load_system_prompt(
             cache_dir=cache_dir,
@@ -115,6 +119,9 @@ class LlamaNode(Node):
         print(f"SYSTEM PROMPT:\n\n\"\"\"{messages[0]['content']}\"\"\"\n")
         if prompt:
             append_new_message(messages, text=prompt, role=ROLE_USER)
+        if add_reminder:
+            append_new_message(
+                messages, text=PROMPT_REMINDER, role=ROLE_SYSTEM)
         response: list[str] = []
 
         try:

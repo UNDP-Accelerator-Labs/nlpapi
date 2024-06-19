@@ -64,7 +64,7 @@ def append_new_message(
         messages: list[ChatCompletionRequestMessage],
         *,
         text: str,
-        role: Role) -> None:
+        role: FullRole) -> None:
     if messages:
         last_msg = messages[-1]
         if last_msg["role"] == role and last_msg["content"] == text:

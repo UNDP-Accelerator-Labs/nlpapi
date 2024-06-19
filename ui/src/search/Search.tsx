@@ -492,6 +492,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
     this.setState(
       {
         isAdding: true,
+        documentMessage: '',
       },
       () => {
         apiActions.addDocuments(collectionId, mainIds, (newDocs) => {
