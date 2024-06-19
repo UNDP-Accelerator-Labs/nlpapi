@@ -15,7 +15,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import React, { MouseEventHandler, PureComponent } from 'react';
+import React, {
+  ChangeEventHandler,
+  MouseEventHandler,
+  PureComponent,
+} from 'react';
 import { ConnectedProps, connect } from 'react-redux';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
@@ -28,8 +32,24 @@ import {
 } from '../api/types';
 import SpiderGraph from '../misc/SpiderGraph';
 import { RootState } from '../store';
-import { setCurrentCollectionFilter } from './CollectionStateSlice';
+import { setCollectionFilter, setCollectionTag } from './CollectionStateSlice';
 import Collections from './Collections';
+
+const CMP_COLOR = '#377eb8';
+
+type ColorBlockProps = {
+  color: string;
+};
+
+const ColorBlock = styled.span<ColorBlockProps>`
+  display: inline-block;
+  background-color: ${({ color }) => color};
+  border: 1px solid black;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  transform: translate(0, -2px);
+`;
 
 const VMain = styled.div`
   display: flex;
@@ -66,6 +86,24 @@ const VSide = styled.div`
     width: 100vw;
   }
 `;
+
+const SideRow = styled.div`
+  flex-shrink: 0;
+  flex-grow: 0;
+  margin-left: 5px;
+  padding-left: 5px;
+`;
+
+const Select = styled.select`
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: 400;
+  line-height: 30px;
+`;
+
+const Option = styled.option``;
 
 const VBuffer = styled.div`
   height: 60px;
@@ -325,15 +363,38 @@ interface CollectionViewProps extends ConnectCollectionView {
 type EmptyCollectionViewProps = {
   collectionId: -1;
   isLoggedIn: boolean;
+  collectionTag: null;
+  cmpCollectionId: -1;
+  cmpCollectionTag: null;
 };
+
+const ALL_TAG = '_all';
+
+type TagStat = {
+  tag: string | null;
+  name: string;
+  totalCount: number;
+  completeCount: number;
+};
+
+type TagStatDict = { [key: string]: TagStat };
+
+const NO_TAGS: TagStat[] = [
+  { tag: null, name: 'All', totalCount: 0, completeCount: 0 },
+];
 
 type CollectionViewState = {
   documents: DocumentObj[];
+  cmpDocuments: DocumentObj[];
   selections: { [key: string]: string | undefined };
   fullText: { [key: string]: string };
   needsUpdate: boolean;
+  needsCmpUpdate: boolean;
   isLoading: boolean;
   allScores: StatNumbers;
+  cmpScores: StatNumbers;
+  tags: TagStat[];
+  cmpTags: TagStat[];
 };
 
 class CollectionView extends PureComponent<
@@ -344,30 +405,69 @@ class CollectionView extends PureComponent<
     super(props);
     this.state = {
       documents: [],
+      cmpDocuments: [],
       selections: {},
       fullText: {},
       needsUpdate: true,
+      needsCmpUpdate: true,
       isLoading: false,
       allScores: {},
+      cmpScores: {},
+      tags: [],
+      cmpTags: [],
     };
   }
 
   componentDidMount() {
-    this.componentDidUpdate({ collectionId: -1, isLoggedIn: false });
+    this.componentDidUpdate({
+      collectionId: -1,
+      isLoggedIn: false,
+      collectionTag: null,
+      cmpCollectionId: -1,
+      cmpCollectionTag: null,
+    });
   }
 
   componentDidUpdate(
     prevProps: Readonly<CollectionViewProps> | EmptyCollectionViewProps,
   ) {
-    const { collectionId: oldCollectionId, isLoggedIn: oldIsLoggedIn } =
-      prevProps;
-    const { collectionId, apiActions, isLoggedIn } = this.props;
-    if (collectionId !== oldCollectionId || oldIsLoggedIn !== isLoggedIn) {
+    const {
+      collectionId: prevCollectionId,
+      isLoggedIn: prevIsLoggedIn,
+      collectionTag: prevCollectionTag,
+      cmpCollectionId: prevCmpCollectionId,
+      cmpCollectionTag: prevCmpCollectionTag,
+    } = prevProps;
+    const {
+      collectionId,
+      apiActions,
+      isLoggedIn,
+      collectionTag,
+      cmpCollectionId,
+      cmpCollectionTag,
+    } = this.props;
+    if (collectionId !== prevCollectionId || prevIsLoggedIn !== isLoggedIn) {
       this.setState({
         needsUpdate: true,
       });
     }
-    const { needsUpdate, selections, fullText } = this.state;
+    if (
+      cmpCollectionId !== prevCmpCollectionId ||
+      prevIsLoggedIn !== isLoggedIn
+    ) {
+      this.setState({
+        needsCmpUpdate: true,
+      });
+    }
+    const {
+      needsUpdate,
+      needsCmpUpdate,
+      selections,
+      fullText,
+      documents,
+      cmpDocuments,
+    } = this.state;
+    // main docs
     if (needsUpdate) {
       this.setState(
         {
@@ -376,19 +476,78 @@ class CollectionView extends PureComponent<
         },
         () => {
           if (collectionId < 0 || !isLoggedIn) {
-            this.setState({ documents: [], isLoading: false, allScores: {} });
+            this.setState({
+              documents: [],
+              isLoading: false,
+              allScores: {},
+              tags: NO_TAGS,
+            });
           } else {
             apiActions.documents(collectionId, (documents) => {
-              const { collectionId: currentCollectionId } = this.props;
+              const { collectionId: currentCollectionId, collectionTag } =
+                this.props;
               if (collectionId === currentCollectionId) {
-                const allScores = this.computeTotalScores(documents);
-                this.setState({ documents, isLoading: false, allScores });
+                const allScores = this.computeTotalScores(
+                  documents,
+                  collectionTag,
+                );
+                const tags = this.computeTags(documents);
+                this.setState({
+                  documents,
+                  isLoading: false,
+                  allScores,
+                  tags,
+                });
               }
             });
           }
         },
       );
     }
+    if (collectionTag !== prevCollectionTag) {
+      const allScores = this.computeTotalScores(documents, collectionTag);
+      this.setState({ allScores });
+    }
+    // cmp docs
+    if (needsCmpUpdate) {
+      this.setState(
+        {
+          needsCmpUpdate: false,
+        },
+        () => {
+          if (cmpCollectionId < 0 || !isLoggedIn) {
+            this.setState({
+              cmpDocuments: [],
+              cmpScores: {},
+              cmpTags: NO_TAGS,
+            });
+          } else {
+            apiActions.documents(cmpCollectionId, (cmpDocuments) => {
+              const {
+                cmpCollectionId: currentCmpCollectionId,
+                cmpCollectionTag,
+              } = this.props;
+              if (cmpCollectionId === currentCmpCollectionId) {
+                const cmpScores = this.computeTotalScores(
+                  cmpDocuments,
+                  cmpCollectionTag,
+                );
+                const cmpTags = this.computeTags(cmpDocuments);
+                this.setState({ cmpDocuments, cmpScores, cmpTags });
+              }
+            });
+          }
+        },
+      );
+    }
+    if (cmpCollectionTag !== prevCmpCollectionTag) {
+      const cmpScores = this.computeTotalScores(
+        cmpDocuments,
+        cmpCollectionTag,
+      );
+      this.setState({ cmpScores });
+    }
+    // full text
     let modified = false;
     const newFullText = { ...fullText };
     Object.keys(selections)
@@ -521,8 +680,30 @@ class CollectionView extends PureComponent<
       return;
     }
     const { dispatch } = this.props;
+    dispatch(setCollectionFilter({ collectionFilter: filterValue as Filter }));
+  };
+
+  onTagChange: ChangeEventHandler<HTMLSelectElement> = (e) => {
+    const { dispatch } = this.props;
+    const target = e.currentTarget;
+    const value = target.value;
     dispatch(
-      setCurrentCollectionFilter({ collectionFilter: filterValue as Filter }),
+      setCollectionTag({
+        collectionTag: value === ALL_TAG ? null : value,
+        isCmp: false,
+      }),
+    );
+  };
+
+  onCmpTagChange: ChangeEventHandler<HTMLSelectElement> = (e) => {
+    const { dispatch } = this.props;
+    const target = e.currentTarget;
+    const value = target.value;
+    dispatch(
+      setCollectionTag({
+        collectionTag: value === ALL_TAG ? null : value,
+        isCmp: true,
+      }),
     );
   };
 
@@ -592,9 +773,12 @@ class CollectionView extends PureComponent<
     return aNum - bNum;
   };
 
-  computeStats(): DocumentStats {
-    const { documents } = this.state;
-    return documents.reduce(
+  computeStats(
+    allDocs: DocumentObj[],
+    tagFilter: string | null,
+  ): DocumentStats {
+    const docs = allDocs.filter(this.getFilterTagFn(tagFilter));
+    return docs.reduce(
       (p, doc) =>
         Object.fromEntries(
           Object.entries(p).map(([key, value]) => [
@@ -613,7 +797,14 @@ class CollectionView extends PureComponent<
     );
   }
 
-  computeTotalScores(docs: DocumentObj[]): StatNumbers {
+  computeTotalScores(
+    allDocs: DocumentObj[],
+    tagFilter: string | null,
+  ): StatNumbers {
+    const docs = allDocs.filter(({ tag }) => !tagFilter || tag === tagFilter);
+    if (!docs.length) {
+      return {};
+    }
     const { visIsRelative } = this.props;
     const keys = Array.from(
       docs.reduce(
@@ -641,21 +832,87 @@ class CollectionView extends PureComponent<
     }, Object.fromEntries(keys.map((key) => [key, 0])));
   }
 
+  computeTags(docs: DocumentObj[]): TagStat[] {
+    if (!docs.length) {
+      return NO_TAGS;
+    }
+    const tally: TagStatDict = {};
+
+    const addDoc = (tag: string | undefined, doc: DocumentObj) => {
+      const sane = tag ?? ALL_TAG;
+      const isComplete = this.isType(doc, 'complete');
+      const cur = tally[sane];
+      if (!cur) {
+        tally[sane] = {
+          name: tag ?? 'All',
+          tag: tag ?? null,
+          totalCount: 1,
+          completeCount: isComplete ? 1 : 0,
+        };
+      } else {
+        cur.totalCount += 1;
+        if (isComplete) {
+          cur.completeCount += 1;
+        }
+      }
+    };
+
+    docs.forEach((doc) => {
+      const { tag } = doc;
+      addDoc(tag, doc);
+      if (tag) {
+        addDoc(undefined, doc);
+      }
+    });
+    return Object.keys(tally)
+      .map((key) => tally[key])
+      .toSorted(
+        ({ tag: ta, completeCount: ca }, { tag: tb, completeCount: cb }) =>
+          (ca === 0) !== (cb === 0)
+            ? cb - ca
+            : ta
+            ? tb
+              ? ta.localeCompare(tb)
+              : 1
+            : -1,
+      );
+  }
+
+  getFilterTagFn =
+    (collectionTag: string | null) =>
+    ({ tag }: DocumentObj): boolean =>
+      !collectionTag || tag === collectionTag;
+
   render() {
-    const { isLoggedIn, apiActions, visIsRelative, collectionFilter } =
-      this.props;
+    const {
+      isLoggedIn,
+      apiActions,
+      visIsRelative,
+      collectionFilter,
+      collectionTag,
+      cmpCollectionTag,
+    } = this.props;
     if (!isLoggedIn) {
       return <VMain>You must be logged in to view collections!</VMain>;
     }
-    const { documents, selections, fullText, isLoading, allScores } =
-      this.state;
-    const stats = this.computeStats();
+    const {
+      documents,
+      selections,
+      fullText,
+      isLoading,
+      allScores,
+      cmpScores,
+      tags,
+      cmpTags,
+    } = this.state;
+    const stats = this.computeStats(documents, collectionTag);
     return (
       <React.Fragment>
         <VMain>
           <Collections
             apiActions={apiActions}
             canCreate={true}
+            isCmp={false}
           />
           <MainStats isLoading={isLoading}>
             {Object.entries(stats).map(([sKey, sValue]) => (
@@ -682,6 +939,7 @@ class CollectionView extends PureComponent<
           <Documents isLoading={isLoading}>
             {documents
               .filter((doc) => this.isType(doc, collectionFilter))
+              .filter(this.getFilterTagFn(collectionTag))
               .toSorted(this.compareDocs)
               .map((doc) => {
                 const {
@@ -693,6 +951,8 @@ class CollectionView extends PureComponent<
                   deepDiveReason,
                   scores,
                   error,
+                  tag,
+                  tagReason,
                 } = doc;
                 const sel = selections[mainId] ?? this.typeSelection(doc);
                 const content = fullText[mainId];
@@ -706,6 +966,28 @@ class CollectionView extends PureComponent<
                       </DocumentLink>
                     </DocumentRow>
                     <DocumentTabList>
+                      <DocumentTab
+                        data-main={mainId}
+                        data-tab="tag"
+                        color={
+                          tagReason === undefined
+                            ? 'white'
+                            : tag
+                            ? '#ccebc5'
+                            : '#fed9a6'
+                        }
+                        active={tagReason !== undefined}
+                        selected={sel === 'tag'}
+                        onClick={
+                          tagReason !== undefined ? this.clickTab : undefined
+                        }>
+                        Tag:{' '}
+                        {tagReason === undefined
+                          ? '...'
+                          : tag
+                          ? `${tag}`
+                          : '???'}
+                      </DocumentTab>
                       <DocumentTab
                         data-main={mainId}
                         data-tab="verify"
@@ -771,6 +1053,11 @@ class CollectionView extends PureComponent<
                         Recompute
                       </DocumentTabButton>
                     </DocumentTabList>
+                    {sel === 'tag' ? (
+                      <DocumentBody>
+                        <Output>{tagReason}</Output>
+                      </DocumentBody>
+                    ) : null}
                     {sel === 'verify' ? (
                       <DocumentBody>
                         <Output>{verifyReason}</Output>
@@ -820,10 +1107,51 @@ class CollectionView extends PureComponent<
         </VMain>
         <VSide>
           <VBuffer />
-          <SpiderGraph
-            stats={allScores}
-            isRelative={visIsRelative}
-          />
+          <SideRow>
+            <SpiderGraph
+              stats={allScores}
+              isRelative={visIsRelative}
+              cmpColor={CMP_COLOR}
+              cmpStats={cmpScores}
+              showCmpCircles={true}
+            />
+          </SideRow>
+          <SideRow>
+            Filter Tag:{' '}
+            <Select
+              onChange={this.onTagChange}
+              value={collectionTag ?? ALL_TAG}>
+              {tags.map(({ tag, name, totalCount, completeCount }) => (
+                <Option
+                  key={tag ?? ALL_TAG}
+                  value={tag ?? ALL_TAG}>
+                  {name} {completeCount} / {totalCount}
+                </Option>
+              ))}
+            </Select>
+          </SideRow>
+          <SideRow>
+            <ColorBlock color={CMP_COLOR} />{' '}
+            <Collections
+              apiActions={apiActions}
+              canCreate={false}
+              isCmp={true}
+            />
+          </SideRow>
+          <SideRow>
+            Compare Tag:{' '}
+            <Select
+              onChange={this.onCmpTagChange}
+              value={cmpCollectionTag ?? ALL_TAG}>
+              {cmpTags.map(({ tag, name, totalCount, completeCount }) => (
+                <Option
+                  key={tag ?? ALL_TAG}
+                  value={tag ?? ALL_TAG}>
+                  {name} {completeCount} / {totalCount}
+                </Option>
+              ))}
+            </Select>
+          </SideRow>
         </VSide>
       </React.Fragment>
     );
@@ -833,6 +1161,9 @@ class CollectionView extends PureComponent<
 const connector = connect((state: RootState) => ({
   collectionId: state.collectionState.collectionId,
   collectionFilter: state.collectionState.collectionFilter,
+  collectionTag: state.collectionState.collectionTag,
+  cmpCollectionId: state.collectionState.cmpCollectionId,
+  cmpCollectionTag: state.collectionState.cmpCollectionTag,
 }));
 
 export default connector(CollectionView);

@@ -661,6 +661,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
                 <Collections
                   apiActions={apiActions}
                   canCreate={true}
+                  isCmp={false}
                 />
                 <InputButton
                   type="button"

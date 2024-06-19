@@ -21,10 +21,14 @@ import { Filter } from '../api/types';
 type CollectionState = {
   collectionId: number;
   collectionFilter: Filter;
+  collectionTag: string | null;
+  cmpCollectionId: number;
+  cmpCollectionTag: string | null;
 };
 
 type SetCollectionAction = {
   payload: {
+    isCmp: boolean;
     collectionId: number;
   };
 };
@@ -35,15 +39,27 @@ type SetCollectionFilterAction = {
   };
 };
 
+type SetCollectionTagAction = {
+  payload: {
+    isCmp: boolean;
+    collectionTag: string | null;
+  };
+};
+
 type CollectionReducers = {
-  setCurrentCollection: (
-    state: CollectionState,
-    action: SetCollectionAction,
-  ) => void;
-  setCurrentCollectionFilter: (
+  setCollection: (state: CollectionState, action: SetCollectionAction) => void;
+  setCollectionFilter: (
     state: CollectionState,
     action: SetCollectionFilterAction,
   ) => void;
+  setCollectionTag: (
+    state: CollectionState,
+    action: SetCollectionTagAction,
+  ) => void;
+};
+
+const getName = (name: string, isCmp: boolean): string => {
+  return `${name}${isCmp ? 'Cmp' : ''}`;
 };
 
 const collectionStateSlice = createSlice<
@@ -53,27 +69,60 @@ const collectionStateSlice = createSlice<
 >({
   name: 'collectionState',
   initialState: {
-    collectionId: +(localStorage.getItem('collection') ?? '-1'),
-    collectionFilter: (localStorage.getItem('collectionFilter') ??
-      'complete') as Filter,
+    collectionId: +(
+      localStorage.getItem(getName('collection', false)) ?? '-1'
+    ),
+    collectionFilter: (localStorage.getItem(
+      getName('collectionFilter', false),
+    ) ?? 'complete') as Filter,
+    collectionTag:
+      localStorage.getItem(getName('collectionTag', false)) ?? null,
+    cmpCollectionId: +(
+      localStorage.getItem(getName('collection', true)) ?? '-1'
+    ),
+    cmpCollectionTag:
+      localStorage.getItem(getName('collectionTag', true)) ?? null,
   },
   reducers: {
-    setCurrentCollection: (state, action) => {
-      const { collectionId } = action.payload;
-      state.collectionId = collectionId;
-      state.collectionFilter = 'complete';
-      localStorage.setItem('collection', `${collectionId}`);
-      localStorage.removeItem('collectionFilter');
+    setCollection: (state, action) => {
+      const { collectionId, isCmp } = action.payload;
+      if (isCmp) {
+        state.cmpCollectionId = collectionId;
+        state.cmpCollectionTag = null;
+      } else {
+        state.collectionId = collectionId;
+        state.collectionFilter = 'complete';
+        state.collectionTag = null;
+        localStorage.removeItem('collectionFilter');
+      }
+      localStorage.setItem(getName('collection', isCmp), `${collectionId}`);
+      localStorage.removeItem(getName('collectionTag', isCmp));
     },
-    setCurrentCollectionFilter: (state, action) => {
+    setCollectionFilter: (state, action) => {
       const { collectionFilter } = action.payload;
       state.collectionFilter = collectionFilter;
       localStorage.setItem('collectionFilter', collectionFilter);
     },
+    setCollectionTag: (state, action) => {
+      const { collectionTag, isCmp } = action.payload;
+      if (isCmp) {
+        state.cmpCollectionTag = collectionTag;
+      } else {
+        state.collectionTag = collectionTag;
+      }
+      if (collectionTag) {
+        localStorage.setItem(
+          getName('collectionFilter', isCmp),
+          collectionTag,
+        );
+      } else {
+        localStorage.removeItem(getName('collectionFilter', isCmp));
+      }
+    },
   },
 });
 
-export const { setCurrentCollection, setCurrentCollectionFilter } =
+export const { setCollection, setCollectionFilter, setCollectionTag } =
   collectionStateSlice.actions;
 
 export default collectionStateSlice.reducer;

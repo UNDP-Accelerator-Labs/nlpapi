@@ -34,6 +34,7 @@ type SpiderGraphProps = {
   padding?: number;
   cmpColor?: string;
   isRelative: boolean;
+  showCmpCircles?: boolean;
 };
 
 export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
@@ -69,6 +70,7 @@ export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
       cmpColor = '#f781bf',
       stats,
       cmpStats,
+      showCmpCircles = false,
     } = this.props;
     const mid = radius + padding;
     const size = mid * 2;
@@ -77,9 +79,11 @@ export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
     const angles = order.map((_, ix) => (ix * 360) / count);
     const rads = this.getRads(stats, order, radius);
     const d = this.getOutline(order, angles, rads);
+    const cmpRads = cmpStats ? this.getRads(cmpStats, order, radius) : [];
     const cmpD = cmpStats
-      ? this.getOutline(order, angles, this.getRads(cmpStats, order, radius))
+      ? this.getOutline(order, angles, cmpRads)
       : undefined;
+    const isShowCmpCircles = showCmpCircles && cmpRads.some((r) => r > 0);
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -126,6 +130,20 @@ export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
               fill="none"
             />
           ) : null}
+          {isShowCmpCircles
+            ? order.map((key, ix) => (
+                <g
+                  key={key}
+                  transform={`rotate(${angles[ix]})`}>
+                  <circle
+                    cx={cmpRads[ix]}
+                    cy={0}
+                    r={padding * 0.5}
+                    fill={cmpColor}
+                  />
+                </g>
+              ))
+            : null}
           <path
             d={d}
             stroke="black"

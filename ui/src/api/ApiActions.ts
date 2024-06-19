@@ -45,15 +45,11 @@ export default class ApiActions {
 
   private statNum: number;
   private responseNum: number;
-  private collectionsNum: number;
-  private documentsNum: number;
 
   constructor(api?: ApiProvider) {
     this.api = api ?? DEFAULT_API;
     this.statNum = 0;
     this.responseNum = 0;
-    this.collectionsNum = 0;
-    this.documentsNum = 0;
   }
 
   async user(cb: UserCallback) {
@@ -125,12 +121,7 @@ export default class ApiActions {
   }
 
   async collections(cb: CollectionCallback) {
-    this.collectionsNum += 1;
-    const collectionsNum = this.collectionsNum;
     const { collections } = await this.api.collections();
-    if (collectionsNum !== this.collectionsNum) {
-      return;
-    }
     cb(collections);
   }
 
@@ -144,12 +135,7 @@ export default class ApiActions {
   }
 
   async documents(collectionId: number, cb: DocumentCallback) {
-    this.documentsNum += 1;
-    const documentsNum = this.documentsNum;
     const { documents } = await this.api.documents(collectionId);
-    if (documentsNum !== this.documentsNum) {
-      return;
-    }
     cb(documents);
   }
 

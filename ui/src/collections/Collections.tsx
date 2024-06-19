@@ -25,7 +25,7 @@ import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
 import { Collection, DeepDive } from '../api/types';
 import { RootState } from '../store';
-import { setCurrentCollection } from './CollectionStateSlice';
+import { setCollection } from './CollectionStateSlice';
 
 const Label = styled.label``;
 
@@ -73,12 +73,14 @@ const InputSubmit = styled.input`
 interface CollectionsProps extends ConnectCollections {
   apiActions: ApiActions;
   canCreate: boolean;
+  isCmp: boolean;
 }
 
 type CollectionsState = {
   collections: Collection[];
   needsUpdate: boolean;
   isCreating: boolean;
+  apiNum: number;
 };
 
 class Collections extends PureComponent<CollectionsProps, CollectionsState> {
@@ -88,6 +90,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
       collections: [],
       needsUpdate: true,
       isCreating: false,
+      apiNum: 0,
     };
   }
 
@@ -97,10 +100,15 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
 
   componentDidUpdate() {
     const { apiActions } = this.props;
-    const { needsUpdate } = this.state;
+    const { needsUpdate, apiNum } = this.state;
     if (needsUpdate) {
-      this.setState({ needsUpdate: false }, () => {
+      const newApiNum = apiNum + 1;
+      this.setState({ needsUpdate: false, apiNum: newApiNum }, () => {
         apiActions.collections((collections) => {
+          const { apiNum } = this.state;
+          if (apiNum !== newApiNum) {
+            return;
+          }
           this.setState({
             collections,
           });
@@ -110,9 +118,9 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
   }
 
   onChange: ChangeEventHandler<HTMLSelectElement> = (e) => {
-    const { dispatch } = this.props;
+    const { dispatch, isCmp } = this.props;
     const target = e.currentTarget;
-    dispatch(setCurrentCollection({ collectionId: +target.value }));
+    dispatch(setCollection({ collectionId: +target.value, isCmp }));
   };
 
   onCreate: FormEventHandler<HTMLFormElement> = (e) => {
@@ -124,7 +132,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
     if (isCreating) {
       return;
     }
-    const { dispatch, apiActions } = this.props;
+    const { dispatch, apiActions, isCmp } = this.props;
     const target = e.currentTarget;
     const formData = new FormData(target);
     const nameValue = formData.get('name');
@@ -146,22 +154,23 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
             needsUpdate: true,
             isCreating: false,
           });
-          dispatch(setCurrentCollection({ collectionId }));
+          dispatch(setCollection({ collectionId, isCmp }));
         });
       },
     );
   };
 
   render() {
-    const { collectionId, canCreate } = this.props;
+    const { collectionId, cmpCollectionId, canCreate, isCmp } = this.props;
     const { collections } = this.state;
+    const cid = isCmp ? cmpCollectionId : collectionId;
     return (
       <React.Fragment>
         <Label>
-          Collection:{' '}
+          {isCmp ? 'Other ' : ''}Collection:{' '}
           <Select
             onChange={this.onChange}
-            value={`${collectionId}`}>
+            value={`${cid}`}>
             <Option value={`${-1}`}>
               {canCreate ? 'New Collection' : 'No Collection'}
             </Option>
@@ -174,7 +183,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
             ))}
           </Select>
         </Label>
-        {canCreate && collectionId < 0 ? (
+        {canCreate && cid < 0 ? (
           <Form onSubmit={this.onCreate}>
             <InputText
               type="text"
@@ -195,6 +204,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
 
 const connector = connect((state: RootState) => ({
   collectionId: state.collectionState.collectionId,
+  cmpCollectionId: state.collectionState.cmpCollectionId,
 }));
 
 export default connector(Collections);
