@@ -22,7 +22,7 @@ from scattermind.api.api import ScattermindAPI
 from scattermind.system.response import TASK_COMPLETE
 from scattermind.system.torch_util import tensor_to_str
 
-from app.misc.util import to_bool
+from app.misc.util import get_json_error_str, to_bool
 from app.system.db.db import DBConnector
 from app.system.deepdive.collection import (
     DeepDiveResult,
@@ -193,13 +193,23 @@ def parse_json(text: str) -> tuple[dict | None, str | None]:
     text = text[start:end + 1]
     try:
         return (json.loads(text), None)
-    except json.decoder.JSONDecodeError:
-        first_error = traceback.format_exc()
+    except json.decoder.JSONDecodeError as ferr:
+        first_error = (
+            f"{get_json_error_str(ferr)}\n"
+            f"Stacktrace:\n{traceback.format_exc()}")
         text_single = text.replace("\"\"", "\"")
+        if text_single == text:
+            return (None, first_error)
         try:
             return (json.loads(text_single), None)
-        except json.decoder.JSONDecodeError:
-            return (None, first_error)
+        except json.decoder.JSONDecodeError as serr:
+            second_error = (
+                f"{get_json_error_str(serr)}\n"
+                f"Stacktrace:\n{traceback.format_exc()}")
+            return (
+                None,
+                f"First try:\n{first_error}\nSecond try:\n{second_error}",
+            )
 
 
 def interpret_verify(

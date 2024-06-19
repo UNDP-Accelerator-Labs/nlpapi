@@ -24,7 +24,7 @@ import threading
 import uuid
 from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timezone
-from typing import Any, IO, TypeVar
+from typing import Any, IO, NoReturn, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -198,10 +198,45 @@ def is_json(value: str) -> bool:
     return True
 
 
-def report_json_error(err: json.JSONDecodeError) -> None:
-    raise ValueError(
-        f"JSON parse error ({err.lineno}:{err.colno}): "
-        f"{repr(err.doc)}") from err
+def get_json_error_str(err: json.JSONDecodeError) -> str:
+    ctx = 2
+    max_length = 80
+    lineno = err.lineno - 1
+    colno = err.colno - 1
+    all_lines = []
+
+    def add_line(ix: int, line: str) -> None:
+        if ix < lineno - ctx:
+            return
+        if ix > lineno + ctx:
+            return
+        all_lines.append(line)
+
+    def add_insert(insertline: int | None) -> int | None:
+        if insertline is None:
+            return None
+        if insertline <= max_length:
+            all_lines.append(f"{' ' * insertline}^")
+            return None
+        return insertline - max_length
+
+    for ix, line in enumerate(err.doc.splitlines()):
+        insertline = None
+        if ix == lineno:
+            insertline = colno
+        while len(line) > max_length:
+            add_line(ix, line[:max_length])
+            line = line[max_length:]
+            insertline = add_insert(insertline)
+        add_line(ix, line)
+        add_insert(insertline)
+
+    line_str = "\n".join(all_lines)
+    return f"JSON parse error ({err.lineno}:{err.colno}):\n{line_str}"
+
+
+def report_json_error(err: json.JSONDecodeError) -> NoReturn:
+    raise ValueError(get_json_error_str(err)) from err
 
 
 def json_maybe_read(data: str) -> Any | None:
@@ -216,7 +251,6 @@ def json_load(fin: IO[str]) -> Any:
         return json.load(fin)
     except json.JSONDecodeError as e:
         report_json_error(e)
-        raise e
 
 
 def json_dump(obj: Any, fout: IO[str]) -> None:

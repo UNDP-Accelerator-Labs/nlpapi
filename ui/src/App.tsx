@@ -58,8 +58,8 @@ const VMain = styled.div`
 
 const UserDiv = styled.div`
   position: fixed;
-  top: 10px;
-  right: 10px;
+  top: 0;
+  right: 0;
   padding: 0;
   margin: 0;
   min-width: 100px;
@@ -70,14 +70,21 @@ const UserDiv = styled.div`
   }
 `;
 
-const CollapseButton = styled.div`
+type CollapseButtonProps = {
+  isCollapsed: boolean;
+};
+
+const CollapseButton = styled.div<CollapseButtonProps>`
   width: 100%;
   cursor: pointer;
   text-align: center;
-  border: 1px solid #ddd;
-  background-color: #eee;
+  border: ${({ isCollapsed }) => (isCollapsed ? '1px solid #ddd' : 'none')};
+  border-top: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+  background-color: ${({ isCollapsed }) => (isCollapsed ? '#eee' : 'white')};
   margin-top: -1px;
   margin-bottom: -1px;
+  margin-right: 10px;
 
   &:hover {
     filter: brightness(0.8);
@@ -92,11 +99,13 @@ const NavRow = styled.a`
   display: block;
   width: 100%;
   cursor: pointer;
-  background-color: #eee;
-  border: 1px solid #ddd;
+  background-color: white;
+  border-top: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
   padding: 5px;
   margin-top: -1px;
   margin-bottom: -1px;
+  margin-right: 10px;
   text-decoration: none;
 
   &:hover {
@@ -279,7 +288,9 @@ class App extends PureComponent<AppProps, AppState> {
               ) : null}
             </React.Fragment>
           )}
-          <CollapseButton onClick={this.toggleCollapse}>
+          <CollapseButton
+            isCollapsed={isCollapsed}
+            onClick={this.toggleCollapse}>
             {isCollapsed ? <span>&#x25BC;</span> : <span>&#x25B2;</span>}
           </CollapseButton>
         </UserDiv>

@@ -16,19 +16,34 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { createSlice } from '@reduxjs/toolkit';
+import { Filter } from '../api/types';
 
 type CollectionState = {
   collectionId: number;
+  collectionFilter: Filter;
 };
 
-type SetAction = {
+type SetCollectionAction = {
   payload: {
     collectionId: number;
   };
 };
 
+type SetCollectionFilterAction = {
+  payload: {
+    collectionFilter: Filter;
+  };
+};
+
 type CollectionReducers = {
-  setCurrentCollection: (state: CollectionState, action: SetAction) => void;
+  setCurrentCollection: (
+    state: CollectionState,
+    action: SetCollectionAction,
+  ) => void;
+  setCurrentCollectionFilter: (
+    state: CollectionState,
+    action: SetCollectionFilterAction,
+  ) => void;
 };
 
 const collectionStateSlice = createSlice<
@@ -39,16 +54,26 @@ const collectionStateSlice = createSlice<
   name: 'collectionState',
   initialState: {
     collectionId: +(localStorage.getItem('collection') ?? '-1'),
+    collectionFilter: (localStorage.getItem('collectionFilter') ??
+      'complete') as Filter,
   },
   reducers: {
     setCurrentCollection: (state, action) => {
       const { collectionId } = action.payload;
       state.collectionId = collectionId;
+      state.collectionFilter = 'complete';
       localStorage.setItem('collection', `${collectionId}`);
+      localStorage.removeItem('collectionFilter');
+    },
+    setCurrentCollectionFilter: (state, action) => {
+      const { collectionFilter } = action.payload;
+      state.collectionFilter = collectionFilter;
+      localStorage.setItem('collectionFilter', collectionFilter);
     },
   },
 });
 
-export const { setCurrentCollection } = collectionStateSlice.actions;
+export const { setCurrentCollection, setCurrentCollectionFilter } =
+  collectionStateSlice.actions;
 
 export default collectionStateSlice.reducer;

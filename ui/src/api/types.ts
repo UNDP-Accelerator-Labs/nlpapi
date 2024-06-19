@@ -162,3 +162,24 @@ export type FulltextResponse = {
   content: string | undefined;
   error: string | undefined;
 };
+
+export type Filter =
+  | 'total'
+  | 'pending'
+  | 'included'
+  | 'excluded'
+  | 'complete'
+  | 'errors';
+
+export type DocumentStats = {
+  [key in Filter]: number;
+};
+
+export const STAT_NAMES = {
+  total: 'Total',
+  pending: 'Pending',
+  included: 'Included',
+  excluded: 'Excluded',
+  complete: 'Complete',
+  errors: 'Errors',
+};

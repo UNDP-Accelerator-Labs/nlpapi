@@ -19,31 +19,17 @@ import React, { MouseEventHandler, PureComponent } from 'react';
 import { ConnectedProps, connect } from 'react-redux';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
-import { DocumentObj, StatNumbers } from '../api/types';
+import {
+  DocumentObj,
+  DocumentStats,
+  Filter,
+  STAT_NAMES,
+  StatNumbers,
+} from '../api/types';
 import SpiderGraph from '../misc/SpiderGraph';
 import { RootState } from '../store';
+import { setCurrentCollectionFilter } from './CollectionStateSlice';
 import Collections from './Collections';
-
-type Filter =
-  | 'total'
-  | 'pending'
-  | 'included'
-  | 'excluded'
-  | 'complete'
-  | 'errors';
-
-type DocumentStats = {
-  [key in Filter]: number;
-};
-
-const STAT_NAMES = {
-  total: 'Total',
-  pending: 'Pending',
-  included: 'Included',
-  excluded: 'Excluded',
-  complete: 'Complete',
-  errors: 'Errors',
-};
 
 const VMain = styled.div`
   display: flex;
@@ -308,7 +294,6 @@ type CollectionViewState = {
   needsUpdate: boolean;
   isLoading: boolean;
   allScores: StatNumbers;
-  filter: Filter;
 };
 
 class CollectionView extends PureComponent<
@@ -324,7 +309,6 @@ class CollectionView extends PureComponent<
       needsUpdate: true,
       isLoading: false,
       allScores: {},
-      filter: 'complete',
     };
   }
 
@@ -475,7 +459,10 @@ class CollectionView extends PureComponent<
     if (!filterValue) {
       return;
     }
-    this.setState({ filter: filterValue as Filter });
+    const { dispatch } = this.props;
+    dispatch(
+      setCurrentCollectionFilter({ collectionFilter: filterValue as Filter }),
+    );
   };
 
   isType(doc: DocumentObj, filter: Filter): boolean {
@@ -594,11 +581,12 @@ class CollectionView extends PureComponent<
   }
 
   render() {
-    const { isLoggedIn, apiActions, visIsRelative } = this.props;
+    const { isLoggedIn, apiActions, visIsRelative, collectionFilter } =
+      this.props;
     if (!isLoggedIn) {
       return <VMain>You must be logged in to view collections!</VMain>;
     }
-    const { documents, selections, fullText, isLoading, allScores, filter } =
+    const { documents, selections, fullText, isLoading, allScores } =
       this.state;
     const stats = this.computeStats();
     return (
@@ -613,7 +601,7 @@ class CollectionView extends PureComponent<
               <MainFilter
                 key={sKey as Filter}
                 data-selector={sKey as Filter}
-                selected={filter}
+                selected={collectionFilter}
                 onClick={this.clickFilter}>
                 {STAT_NAMES[sKey as Filter]}: {sValue}
               </MainFilter>
@@ -632,7 +620,7 @@ class CollectionView extends PureComponent<
           </MainStats>
           <Documents isLoading={isLoading}>
             {documents
-              .filter((doc) => this.isType(doc, filter))
+              .filter((doc) => this.isType(doc, collectionFilter))
               .toSorted(this.compareDocs)
               .map((doc) => {
                 const {
@@ -778,6 +766,7 @@ class CollectionView extends PureComponent<
 
 const connector = connect((state: RootState) => ({
   collectionId: state.collectionState.collectionId,
+  collectionFilter: state.collectionState.collectionFilter,
 }));
 
 export default connector(CollectionView);
