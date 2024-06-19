@@ -186,6 +186,7 @@ def process_pending(
 
 def parse_json(text: str) -> tuple[dict | None, str | None]:
     text = re.sub(r"\s+", " ", text)
+    text = re.sub(r",\s+}", "}", text)  # NOTE: remove trailing commas
     start = text.find(r"{")
     end = text.rfind(r"}")
     if start < 0 or end < 0:

@@ -41,6 +41,8 @@ const VMain = styled.div`
 
   @media (hover: none) and (max-width: 480px) {
     justify-content: start;
+    max-width: 100vw;
+    height: auto;
   }
 `;
 
@@ -53,6 +55,11 @@ const VSide = styled.div`
   max-height: 100vh;
   max-width: 15vw;
   margin-right: 5px;
+
+  @media (hover: none) and (max-width: 480px) {
+    max-width: 100vw;
+    height: auto;
+  }
 `;
 
 const TopLeft = styled.div`
@@ -68,6 +75,7 @@ const TopLeft = styled.div`
   @media (hover: none) and (max-width: 480px) {
     width: 100vw;
     height: auto;
+    min-height: 0;
   }
 `;
 
@@ -225,6 +233,10 @@ const PaginationDiv = styled.div`
   padding-top: 2px;
   flex-grow: 0;
   flex-shrink: 1;
+
+  @media (hover: none) and (max-width: 480px) {
+    width: 100vw;
+  }
 `;
 
 type PaginationProps = {
@@ -276,10 +288,6 @@ const Pagination = styled.span<PaginationProps>`
   ${({ isCurrent }) => styleCurrentPaginationElem(isCurrent)}
 
   ${({ isDotDotDot }) => styleDotDotDotPaginationElem(isDotDotDot)}
-
-  @media (hover: none) and (max-width: 480px) {
-    width: 100vw;
-  }
 `;
 
 interface SearchProps extends ConnectSearch {

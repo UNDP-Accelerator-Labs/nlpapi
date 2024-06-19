@@ -43,6 +43,8 @@ const VMain = styled.div`
   @media (hover: none) and (max-width: 480px) {
     justify-content: start;
     height: auto;
+    max-height: auto;
+    max-width: 100vw;
   }
 `;
 
@@ -58,11 +60,19 @@ const VSide = styled.div`
   @media (hover: none) and (max-width: 480px) {
     justify-content: start;
     height: auto;
+    align-items: center;
+    margin: 0;
+    margin-top: 1px;
+    width: 100vw;
   }
 `;
 
 const VBuffer = styled.div`
   height: 60px;
+
+  @media (hover: none) and (max-width: 480px) {
+    height: 0;
+  }
 `;
 
 type DocumentsProps = {
@@ -75,6 +85,10 @@ const Documents = styled.div<DocumentsProps>`
 
   filter: ${({ isLoading }) =>
     isLoading ? 'brightness(0.8) blur(5px)' : 'none'};
+
+  @media (hover: none) and (max-width: 480px) {
+    overflow: visible;
+  }
 `;
 
 type MainStatsProps = {
@@ -91,16 +105,29 @@ const MainStats = styled.div<MainStatsProps>`
 
   filter: ${({ isLoading }) =>
     isLoading ? 'brightness(0.8) blur(5px)' : 'none'};
+
+  @media (hover: none) and (max-width: 480px) {
+    flex-wrap: wrap;
+  }
 `;
 
 const MainSpace = styled.span`
   flex-grow: 1;
   display: inline-block;
+
+  @media (hover: none) and (max-width: 480px) {
+    flex-grow: 0;
+    width: 100vw;
+  }
 `;
 
 const MainButton = styled.input`
   cursor: pointer;
   margin-bottom: -1px;
+
+  @media (hover: none) and (max-width: 480px) {
+    align-self: right;
+  }
 `;
 
 type MainFilterProps = {
@@ -143,6 +170,10 @@ const Document = styled.div`
 
   &:nth-child(even) {
     background-color: #eee;
+  }
+
+  @media (hover: none) and (max-width: 480px) {
+    height: auto;
   }
 `;
 
@@ -218,6 +249,10 @@ const DocumentTab = styled.span<DocumentTabProps>`
   &:active {
     filter: ${({ active }) => (active ? 'brightness(85%)' : 'none')};
   }
+
+  @media (hover: none) and (max-width: 480px) {
+    flex-wrap: wrap;
+  }
 `;
 
 type DocumentTabButtonProps = {
@@ -254,6 +289,11 @@ const DocumentBody = styled.div`
   flex-direction: row;
   flex-grow: 1;
   overflow: auto;
+
+  @media (hover: none) and (max-width: 480px) {
+    flex-wrap: wrap;
+    height: 300px;
+  }
 `;
 
 const OutputDiv = styled.div`

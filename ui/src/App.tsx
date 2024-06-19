@@ -66,7 +66,8 @@ const UserDiv = styled.div`
 
   @media (hover: none) and (max-width: 480px) {
     position: static;
-    margin: 2px;
+    margin: 0;
+    width: 100vw;
   }
 `;
 
