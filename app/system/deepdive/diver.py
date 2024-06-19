@@ -30,12 +30,13 @@ from app.system.deepdive.collection import (
     get_documents_in_queue,
     set_deep_dive,
     set_error,
+    set_tag,
     set_url_title,
     set_verify,
     VerifyResult,
 )
 from app.system.prep.clean import normalize_text
-from app.system.prep.fulltext import FullTextFn, UrlTitleFn
+from app.system.prep.fulltext import FullTextFn, TagFn, UrlTitleFn
 from app.system.smind.api import GraphProfile
 
 
@@ -49,7 +50,8 @@ def maybe_diver_thread(
         smind: ScattermindAPI,
         graph_llama: GraphProfile,
         get_full_text: FullTextFn,
-        get_url_title: UrlTitleFn) -> None:
+        get_url_title: UrlTitleFn,
+        get_tag: TagFn) -> None:
     global DIVER_THREAD  # pylint: disable=global-statement
 
     def get_docs() -> list[DocumentObj]:
@@ -68,7 +70,8 @@ def maybe_diver_thread(
                     smind,
                     graph_llama,
                     get_full_text,
-                    get_url_title)
+                    get_url_title,
+                    get_tag)
 
         finally:
             with DIVER_LOCK:
@@ -93,7 +96,8 @@ def process_pending(
         smind: ScattermindAPI,
         graph_llama: GraphProfile,
         get_full_text: FullTextFn,
-        get_url_title: UrlTitleFn) -> None:
+        get_url_title: UrlTitleFn,
+        get_tag: TagFn) -> None:
     if not docs:
         return
     print(f"DIVER: found {len(docs)} for processing!")
@@ -110,6 +114,9 @@ def process_pending(
             if url_title is not None:
                 url, title = url_title
             set_url_title(db, doc_id, url, title)
+        if doc["tag_reason"] is None:
+            tag, tag_reason = get_tag(doc["main_id"])
+            set_tag(db, doc_id, tag, tag_reason)
         if doc["is_valid"] is not None and doc["deep_dive_result"] is not None:
             continue
         full_text, error_msg = get_full_text(main_id)
@@ -187,14 +194,23 @@ def process_pending(
     print("DIVER: done processing")
 
 
+LP = r"{"
+RP = r"}"
+
+
 def parse_json(text: str) -> tuple[dict | None, str | None]:
     text = re.sub(r"\s+", " ", text)
-    text = re.sub(r",\s+}", "}", text)  # NOTE: remove trailing commas
-    start = text.find(r"{")
-    end = text.rfind(r"}")
-    if start < 0 or end < 0:
-        return (None, r"no '{' or '}' in output")
-    text = text[start:end + 1]
+    text = re.sub(r",\s+}", RP, text)  # NOTE: remove trailing commas
+    start = text.find(LP)
+    if start < 0:
+        return (None, f"no '{LP}' in output")
+    end = text.rfind(RP)
+    if end < 0:
+        text = f"{text}{RP}"
+        end = len(text)
+    else:
+        end += 1
+    text = text[start:end]
     try:
         return (json.loads(text), None)
     except json.decoder.JSONDecodeError as ferr:

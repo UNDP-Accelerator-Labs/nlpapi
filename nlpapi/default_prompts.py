@@ -198,5 +198,5 @@ SYSTEM_PROMPTS: dict[str, str] = {
 
 
 PROMPT_REMINDER = """
-Reminder: The output must be in JSON format!
+Reminder: The output must be valid JSON!
 """.strip()

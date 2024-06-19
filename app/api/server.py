@@ -75,7 +75,11 @@ from app.system.location.response import (
     LanguageStr,
 )
 from app.system.prep.clean import normalize_text, sanity_check
-from app.system.prep.fulltext import create_full_text, create_url_title
+from app.system.prep.fulltext import (
+    create_full_text,
+    create_tag_fn,
+    create_url_title,
+)
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     get_queue_stats,
@@ -522,6 +526,7 @@ def setup(
             platforms,
             blogs_db,
             ignore_unpublished=True)
+        get_tag = create_tag_fn(platforms, blogs_db, ignore_unpublished=True)
 
         def _maybe_start_dive() -> None:
             maybe_diver_thread(
@@ -529,7 +534,8 @@ def setup(
                 smind,
                 graph_llama,
                 get_full_text,
-                get_url_title)
+                get_url_title,
+                get_tag)
 
         maybe_start_dive = _maybe_start_dive
     else:

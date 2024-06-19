@@ -29,6 +29,7 @@ CollectionObj = TypedDict('CollectionObj', {
     "id": int,
     "user": UUID,
     "name": str,
+    "deep_dive_key": str,
 })
 
 
@@ -61,6 +62,8 @@ DocumentObj = TypedDict('DocumentObj', {
     "verify_reason": str | None,
     "deep_dive_result": DeepDiveResult | None,
     "error": str | None,
+    "tag": str | None,
+    "tag_reason": str | None,
 })
 
 
@@ -88,7 +91,10 @@ def add_collection(
 
 def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
     with db.get_session() as session:
-        stmt = sa.select(DeepDiveCollection.id, DeepDiveCollection.name)
+        stmt = sa.select(
+            DeepDiveCollection.id,
+            DeepDiveCollection.name,
+            DeepDiveCollection.deep_dive_key)
         stmt = stmt.where(DeepDiveCollection.user == user)
         stmt = stmt.order_by(DeepDiveCollection.id)
         for row in session.execute(stmt):
@@ -96,6 +102,7 @@ def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
                 "id": int(row.id),
                 "user": user,
                 "name": row.name,
+                "deep_dive_key": row.deep_dive_key,
             }
 
 
@@ -158,6 +165,8 @@ def get_documents(
             DeepDiveElement.verify_reason,
             DeepDiveElement.deep_dive_result,
             DeepDiveElement.error,
+            DeepDiveElement.tag,
+            DeepDiveElement.tag_reason,
             DeepDiveCollection.verify_key,
             DeepDiveCollection.deep_dive_key)
         stmt = stmt.where(sa.and_(
@@ -177,17 +186,16 @@ def get_documents(
                 "verify_reason": row.verify_reason,
                 "deep_dive_result": row.deep_dive_result,
                 "error": row.error,
+                "tag": row.tag,
+                "tag_reason": row.tag_reason,
             }
 
 
 def set_url_title(
         db: DBConnector,
         doc_id: int,
-        url: str | None,
-        title: str | None) -> None:
-    if (url is None) != (title is None):
-        raise ValueError(
-            f"either both are None or neither {url=} {title=}")
+        url: str,
+        title: str) -> None:
     with db.get_session() as session:
         stmt = sa.update(DeepDiveElement)
         stmt = stmt.where(DeepDiveElement.id == doc_id)
@@ -197,14 +205,25 @@ def set_url_title(
         session.execute(stmt)
 
 
+def set_tag(
+        db: DBConnector,
+        doc_id: int,
+        tag: str | None,
+        tag_reason: str) -> None:
+    with db.get_session() as session:
+        stmt = sa.update(DeepDiveElement)
+        stmt = stmt.where(DeepDiveElement.id == doc_id)
+        stmt = stmt.values(
+            tag=tag,
+            tag_reason=tag_reason)
+        session.execute(stmt)
+
+
 def set_verify(
         db: DBConnector,
         doc_id: int,
-        is_valid: bool | None,
-        reason: str | None) -> None:
-    if (is_valid is None) != (reason is None):
-        raise ValueError(
-            f"either both are None or neither {is_valid=} {reason=}")
+        is_valid: bool,
+        reason: str) -> None:
     with db.get_session() as session:
         stmt = sa.update(DeepDiveElement)
         stmt = stmt.where(DeepDiveElement.id == doc_id)
@@ -217,7 +236,7 @@ def set_verify(
 def set_deep_dive(
         db: DBConnector,
         doc_id: int,
-        deep_dive: DeepDiveResult | None) -> None:
+        deep_dive: DeepDiveResult) -> None:
     with db.get_session() as session:
         stmt = sa.update(DeepDiveElement)
         stmt = stmt.where(DeepDiveElement.id == doc_id)
@@ -225,7 +244,7 @@ def set_deep_dive(
         session.execute(stmt)
 
 
-def set_error(db: DBConnector, doc_id: int, error: str | None) -> None:
+def set_error(db: DBConnector, doc_id: int, error: str) -> None:
     with db.get_session() as session:
         stmt = sa.update(DeepDiveElement)
         stmt = stmt.where(DeepDiveElement.id == doc_id)
@@ -269,7 +288,7 @@ def requeue_meta(
         stmt = stmt.where(sa.and_(
             DeepDiveElement.deep_dive_id == collection_id,
             DeepDiveElement.main_id.in_(main_ids)))
-        stmt = stmt.values(url=None, title=None)
+        stmt = stmt.values(url=None, title=None, tag=None, tag_reason=None)
         session.execute(stmt)
 
 
@@ -285,16 +304,18 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
             DeepDiveElement.verify_reason,
             DeepDiveElement.deep_dive_result,
             DeepDiveElement.error,
+            DeepDiveElement.tag,
+            DeepDiveElement.tag_reason,
             DeepDiveCollection.verify_key,
-            DeepDiveCollection.deep_dive_key,
-            )
+            DeepDiveCollection.deep_dive_key)
         stmt = stmt.where(sa.and_(
             DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
             sa.or_(
                 DeepDiveElement.url.is_(None),
                 DeepDiveElement.title.is_(None),
                 DeepDiveElement.is_valid.is_(None),
-                DeepDiveElement.deep_dive_result.is_(None)),
+                DeepDiveElement.deep_dive_result.is_(None),
+                DeepDiveElement.tag_reason.is_(None)),
             DeepDiveElement.error.is_(None)))
         for row in session.execute(stmt):
             yield {
@@ -309,6 +330,8 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
                 "verify_reason": row.verify_reason,
                 "deep_dive_result": row.deep_dive_result,
                 "error": row.error,
+                "tag": row.tag,
+                "tag_reason": row.tag_reason,
             }
 
 

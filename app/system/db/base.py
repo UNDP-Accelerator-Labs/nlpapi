@@ -183,6 +183,8 @@ class DeepDiveElement(Base):  # pylint: disable=too-few-public-methods
     is_valid = sa.Column(sa.Boolean, nullable=True)
     deep_dive_result = sa.Column(sa.JSON, nullable=True)
     error = sa.Column(sa.Text(), nullable=True)
+    tag = sa.Column(sa.Text(), nullable=True)
+    tag_reason = sa.Column(sa.Text(), nullable=True)
 
 
 # platform tables
@@ -193,6 +195,32 @@ class SessionTable(Base):  # pylint: disable=too-few-public-methods
     sid = sa.Column(sa.Text(), nullable=False, primary_key=True)
     sess = sa.Column(sa.JSON, nullable=False)
     expire = sa.Column(sa.DateTime(timezone=False), nullable=False)
+
+
+class UsersTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "users"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    iso3 = sa.Column(sa.String(3))
+    name = sa.Column(sa.String(99))
+    position = sa.Column(sa.String(99))
+    email = sa.Column(sa.String(99), unique=True)
+    password = sa.Column(sa.String(99), nullable=False)
+    uuid = sa.Column(sa.UUID, unique=True)
+    language = sa.Column(sa.String(9), default="en")
+    rights = sa.Column(sa.SmallInteger)
+    confirmed = sa.Column(sa.Boolean, default=False)
+    invited_at = sa.Column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now())  # pylint: disable=not-callable
+    confirmed_at = sa.Column(sa.DateTime(timezone=True))
+    notifications = sa.Column(sa.Boolean, default=False)
+    reviewer = sa.Column(sa.Boolean, default=False)
+    # secondary_languages jsonb DEFAULT '[]'::jsonb,
+    left_at = sa.Column(sa.DateTime(timezone=True))
+    confirmed_feature_exploration = sa.Column(sa.DateTime(timezone=True))
+    created_from_sso = sa.Column(sa.Boolean, default=False)
 
 
 class PadTable(Base):  # pylint: disable=too-few-public-methods
@@ -271,6 +299,9 @@ class ArticleContentTable(Base):  # pylint: disable=too-few-public-methods
         unique=True)
     content = sa.Column(sa.Text())
     created_at = sa.Column(
+        sa.DateTime(timezone=False),
+        server_default=sa.func.now())  # pylint: disable=not-callable
+    updated_at = sa.Column(
         sa.DateTime(timezone=False),
         server_default=sa.func.now())  # pylint: disable=not-callable
     updated_at = sa.Column(

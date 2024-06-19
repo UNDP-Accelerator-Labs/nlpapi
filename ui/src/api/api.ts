@@ -17,6 +17,7 @@
  */
 import { getCollectionApiUrl, getSearchApiUrl } from '../misc/constants';
 import {
+  ApiCollectionListResponse,
   ApiCollectionResponse,
   ApiDocumentListResponse,
   ApiDocumentResponse,
@@ -161,8 +162,15 @@ export const DEFAULT_API: ApiProvider = {
       },
       body: JSON.stringify({}),
     });
-    const { collections }: CollectionListResponse = await res.json();
-    return { collections };
+    const { collections }: ApiCollectionListResponse = await res.json();
+    return {
+      collections: collections.map(({ id, user, name, deep_dive_key }) => ({
+        id,
+        user,
+        name,
+        deepDiveKey: deep_dive_key,
+      })),
+    };
   },
   addDocuments: async (collectionId, mainIds) => {
     const url = await getCollectionApiUrl();
@@ -207,6 +215,8 @@ export const DEFAULT_API: ApiProvider = {
           verify_reason,
           deep_dive_result,
           error,
+          tag,
+          tag_reason,
         }) => {
           let reason: string | undefined = undefined;
           let scores: StatNumbers = {};
@@ -228,6 +238,8 @@ export const DEFAULT_API: ApiProvider = {
             scores,
             deepDiveReason: reason,
             error: error ?? undefined,
+            tag: tag ?? undefined,
+            tagReason: tag_reason ?? undefined,
           };
         },
       ),

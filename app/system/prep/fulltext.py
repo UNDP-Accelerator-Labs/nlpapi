@@ -20,7 +20,12 @@ from typing import TypeAlias
 import sqlalchemy as sa
 
 from app.misc.lru import LRU
-from app.system.db.base import ArticleContentTable, ArticlesTable, PadTable
+from app.system.db.base import (
+    ArticleContentTable,
+    ArticlesTable,
+    PadTable,
+    UsersTable,
+)
 from app.system.db.db import DBConnector
 from app.system.prep.clean import sanity_check
 
@@ -28,6 +33,7 @@ from app.system.prep.clean import sanity_check
 FullTextFn: TypeAlias = Callable[[str], tuple[str | None, str | None]]
 UrlTitleFn: TypeAlias = Callable[
     [str], tuple[tuple[str, str] | None, str | None]]
+TagFn: TypeAlias = Callable[[str], tuple[str | None, str]]
 
 
 def read_pad(
@@ -212,3 +218,81 @@ def create_url_title(
         return res
 
     return get_url_title
+
+
+def get_tag_pad(
+        login_db: DBConnector,
+        db: DBConnector,
+        doc_id: int,
+        *,
+        ignore_unpublished: bool,
+        ) -> tuple[str | None, str]:
+    with db.get_session() as session:
+        stmt = sa.select(PadTable.status, PadTable.owner)
+        stmt = stmt.where(PadTable.id == doc_id)
+        row = session.execute(stmt).one_or_none()
+        if row is None:
+            return (None, f"could not find {doc_id=}")
+        if ignore_unpublished and int(row.status) <= 1:
+            return (None, "pad is unpublished")
+        user_id = row.owner
+    with login_db.get_session() as lsession:
+        stmt = sa.select(UsersTable.iso3)
+        stmt = stmt.where(UsersTable.uuid == user_id)
+        row = lsession.execute(stmt).one_or_none()
+        if row is None:
+            return (None, f"could not find {user_id=}")
+        return (row.iso3, "retrieved from users.iso3")
+
+
+def get_tag_blog(
+        db: DBConnector,
+        doc_id: int,
+        *,
+        ignore_unpublished: bool,
+        ) -> tuple[str | None, str]:
+    with db.get_session() as session:
+        stmt = sa.select(
+            ArticlesTable.id,
+            ArticlesTable.iso3,
+            ArticlesTable.relevance)
+        stmt = stmt.where(ArticlesTable.id == doc_id)
+        row = session.execute(stmt).one_or_none()
+        if row is None:
+            return (None, f"could not find {doc_id=}")
+        if ignore_unpublished and int(row.relevance) <= 1:
+            return (None, "article not relevant")
+        return (row.iso3, "retrieved from articles.iso3")
+
+
+def create_tag_fn(
+        platforms: dict[str, DBConnector],
+        blogs_db: DBConnector,
+        *,
+        ignore_unpublished: bool) -> TagFn:
+
+    def get_tag(main_id: str) -> tuple[str | None, str]:
+        try:
+            base, doc_id_str = main_id.split(":")
+            base = base.strip()
+            doc_id = int(doc_id_str.strip())
+            pdb = platforms.get(base)
+            if pdb is not None:
+                login_db = platforms["login"]
+                res = get_tag_pad(
+                    login_db,
+                    pdb,
+                    doc_id,
+                    ignore_unpublished=ignore_unpublished)
+            elif base == "blog":
+                res = get_tag_blog(
+                    blogs_db,
+                    doc_id,
+                    ignore_unpublished=ignore_unpublished)
+            else:
+                res = (None, f"unknown {base=}")
+        except Exception:  # pylint: disable=broad-exception-caught
+            res = (None, traceback.format_exc())
+        return res
+
+    return get_tag

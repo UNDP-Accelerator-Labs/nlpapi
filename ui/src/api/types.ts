@@ -85,7 +85,16 @@ export type DeepDive = 'circular_economy';
 
 export type Collection = {
   id: number;
+  user: string;
   name: string;
+  deepDiveKey: string;
+};
+
+type ApiCollection = {
+  id: number;
+  user: string;
+  name: string;
+  deep_dive_key: string;
 };
 
 type DeepDiveResult = {
@@ -111,6 +120,8 @@ type ApiDocumentObj = {
   verify_reason: string | undefined;
   deep_dive_result: DeepDiveResult | undefined;
   error: string | undefined;
+  tag: string | undefined;
+  tag_reason: string | undefined;
 };
 
 export type StatNumbers = { [key: string]: number };
@@ -128,6 +139,8 @@ export type DocumentObj = {
   scores: StatNumbers;
   deepDiveReason: string | undefined;
   error: string | undefined;
+  tag: string | undefined;
+  tagReason: string | undefined;
 };
 
 export type ApiCollectionResponse = {
@@ -136,6 +149,10 @@ export type ApiCollectionResponse = {
 
 export type CollectionResponse = {
   collectionId: number;
+};
+
+export type ApiCollectionListResponse = {
+  collections: ApiCollection[];
 };
 
 export type CollectionListResponse = {
