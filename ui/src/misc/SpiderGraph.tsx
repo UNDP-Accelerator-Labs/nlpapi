@@ -19,7 +19,7 @@ import { PureComponent } from 'react';
 import styled from 'styled-components';
 import { StatNumbers } from '../api/types';
 
-export const MAX_STAT_VALUE = 4;
+const MAX_STAT_VALUE = 4;
 
 const SvgText = styled.text`
   font: 10px sans-serif;
