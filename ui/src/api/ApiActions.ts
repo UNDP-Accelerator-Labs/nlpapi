@@ -158,8 +158,13 @@ export default class ApiActions {
     cb(mainId, content, error);
   }
 
-  async requeue(collectionId: number, mainIds: string[], cb: AddCallback) {
-    await this.api.requeue(collectionId, mainIds);
+  async requeue(
+    collectionId: number,
+    mainIds: string[],
+    metaOnly: boolean,
+    cb: AddCallback,
+  ) {
+    await this.api.requeue(collectionId, mainIds, metaOnly);
     cb();
   }
 } // ApiActions

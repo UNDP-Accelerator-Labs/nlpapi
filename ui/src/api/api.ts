@@ -57,7 +57,11 @@ export type ApiProvider = {
   ) => Promise<DocumentResponse>;
   documents: (collectionId: number) => Promise<DocumentListResponse>;
   getFulltext: (mainId: string) => Promise<FulltextResponse>;
-  requeue: (collectionId: number, mainIds: string[]) => Promise<void>;
+  requeue: (
+    collectionId: number,
+    mainIds: string[],
+    metaOnly: boolean,
+  ) => Promise<void>;
 };
 
 export const DEFAULT_API: ApiProvider = {
@@ -244,7 +248,7 @@ export const DEFAULT_API: ApiProvider = {
     const { content, error }: FulltextResponse = await res.json();
     return { content: content ?? undefined, error: error ?? undefined };
   },
-  requeue: async (collectionId, mainIds) => {
+  requeue: async (collectionId, mainIds, metaOnly) => {
     const url = await getCollectionApiUrl();
     const res = await fetch(`${url}/api/documents/requeue`, {
       method: 'POST',
@@ -255,6 +259,7 @@ export const DEFAULT_API: ApiProvider = {
       body: JSON.stringify({
         collection_id: collectionId,
         main_ids: mainIds,
+        meta_only: metaOnly,
       }),
     });
     await res.json();

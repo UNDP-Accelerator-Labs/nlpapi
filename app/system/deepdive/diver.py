@@ -110,6 +110,8 @@ def process_pending(
             if url_title is not None:
                 url, title = url_title
             set_url_title(db, doc_id, url, title)
+        if doc["is_valid"] is not None and doc["deep_dive_result"] is not None:
+            continue
         full_text, error_msg = get_full_text(main_id)
         full_text = normalize_text(full_text)
         warning = None
@@ -182,6 +184,7 @@ def process_pending(
                     set_error(db, doc_id, f"{error_msg}{derror}")
                 else:
                     set_deep_dive(db, doc_id, ddres)
+    print("DIVER: done processing")
 
 
 def parse_json(text: str) -> tuple[dict | None, str | None]:

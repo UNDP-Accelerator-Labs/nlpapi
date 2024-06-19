@@ -49,7 +49,7 @@ from app.api.response_types import (
     VersionResponse,
 )
 from app.misc.env import envload_bool, envload_int, envload_path, envload_str
-from app.misc.util import get_time_str, maybe_float
+from app.misc.util import get_time_str, maybe_float, to_bool
 from app.misc.version import get_version
 from app.system.auth import get_session, is_valid_token, SessionInfo
 from app.system.config import get_config
@@ -61,6 +61,7 @@ from app.system.deepdive.collection import (
     get_collections,
     get_documents,
     requeue,
+    requeue_meta,
 )
 from app.system.deepdive.diver import maybe_diver_thread
 from app.system.language.langdetect import LangResponse
@@ -935,8 +936,12 @@ def setup(
             args = rargs["post"]
             collection_id = int(args["collection_id"])
             main_ids: list[str] = args["main_ids"]
+            meta_only = to_bool(args.get("meta_only", False))
             session: SessionInfo = rargs["meta"]["session"]
-            requeue(db, collection_id, session["uuid"], main_ids)
+            if meta_only:
+                requeue_meta(db, collection_id, session["uuid"], main_ids)
+            else:
+                requeue(db, collection_id, session["uuid"], main_ids)
             maybe_start_dive()
             return {
                 "done": True,

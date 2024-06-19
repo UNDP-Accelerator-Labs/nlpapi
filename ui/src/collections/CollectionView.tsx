@@ -451,7 +451,28 @@ class CollectionView extends PureComponent<
     if (collectionId < 0) {
       return;
     }
-    apiActions.requeue(collectionId, [mainId], () => {
+    apiActions.requeue(collectionId, [mainId], false, () => {
+      this.setState({
+        needsUpdate: true,
+      });
+    });
+  };
+
+  clickRefreshMeta: MouseEventHandler<HTMLSpanElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    const target = e.currentTarget;
+    const mainId = target.getAttribute('data-main');
+    if (!mainId) {
+      return;
+    }
+    const { apiActions, collectionId } = this.props;
+    if (collectionId < 0) {
+      return;
+    }
+    apiActions.requeue(collectionId, [mainId], true, () => {
       this.setState({
         needsUpdate: true,
       });
@@ -474,7 +495,7 @@ class CollectionView extends PureComponent<
     if (!window.confirm(`${ma} ${mb}`)) {
       return;
     }
-    apiActions.requeue(collectionId, mainIds, () => {
+    apiActions.requeue(collectionId, mainIds, false, () => {
       this.setState({
         needsUpdate: true,
       });
@@ -739,6 +760,11 @@ class CollectionView extends PureComponent<
                         </DocumentTab>
                       ) : null}
                       <TabSpace />
+                      <DocumentTabButton
+                        data-main={mainId}
+                        onClick={this.clickRefreshMeta}>
+                        Refresh Metadata
+                      </DocumentTabButton>
                       <DocumentTabButton
                         data-main={mainId}
                         onClick={this.clickRecompute}>

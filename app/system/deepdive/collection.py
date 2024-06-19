@@ -256,6 +256,23 @@ def requeue(
         session.execute(stmt)
 
 
+def requeue_meta(
+        db: DBConnector,
+        collection_id: int,
+        user: UUID | None,
+        main_ids: list[str],
+        *,
+        allow_none: bool = False) -> None:
+    with db.get_session() as session:
+        verify_user(session, collection_id, user, allow_none=allow_none)
+        stmt = sa.update(DeepDiveElement)
+        stmt = stmt.where(sa.and_(
+            DeepDiveElement.deep_dive_id == collection_id,
+            DeepDiveElement.main_id.in_(main_ids)))
+        stmt = stmt.values(url=None, title=None)
+        session.execute(stmt)
+
+
 def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
     with db.get_session() as session:
         stmt = sa.select(
@@ -274,6 +291,8 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
         stmt = stmt.where(sa.and_(
             DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
             sa.or_(
+                DeepDiveElement.url.is_(None),
+                DeepDiveElement.title.is_(None),
                 DeepDiveElement.is_valid.is_(None),
                 DeepDiveElement.deep_dive_result.is_(None)),
             DeepDiveElement.error.is_(None)))
