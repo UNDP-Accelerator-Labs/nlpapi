@@ -136,6 +136,11 @@ user provides to you talks about <topic>.
 
 <topic_definition>
 
+The article is considered a hit if <topic> is the main subject of the text but
+also if <topic> is only mentioned, explained, or hinted at. If the article
+talks about a process with features of <topic> without naming it explicitly
+it is still considered a hit.
+
 Your entire response is a JSON and nothing else. The JSON is an object with
 two fields: "reason" which provides a short (50 - 100 words) justification for
 your decision and "is_hit" which is a boolean value indicating your final
