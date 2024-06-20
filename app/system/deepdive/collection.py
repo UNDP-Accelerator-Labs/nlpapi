@@ -113,6 +113,7 @@ def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
     with db.get_session() as session:
         stmt = sa.select(
             DeepDiveCollection.id,
+            DeepDiveCollection.user,
             DeepDiveCollection.name,
             DeepDiveCollection.deep_dive_key,
             DeepDiveCollection.is_public)
@@ -123,7 +124,7 @@ def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
         for row in session.execute(stmt):
             yield {
                 "id": int(row.id),
-                "user": user,
+                "user": row.user,
                 "name": row.name,
                 "deep_dive_key": row.deep_dive_key,
                 "is_public": row.is_public,
