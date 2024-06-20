@@ -283,7 +283,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
                 key={`${id}`}
                 value={`${id}`}>
                 {name}
-                {user === userId ? ' (own)' : ''}
+                {user === userId ? ' (private)' : ''}
               </Option>
             ))}
           </Select>
