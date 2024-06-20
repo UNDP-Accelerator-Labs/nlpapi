@@ -138,7 +138,7 @@ class App extends PureComponent<AppProps, AppState> {
       ready: false,
       userId: undefined,
       userName: undefined,
-      isCollapsed: false,
+      isCollapsed: +(localStorage.getItem('menuCollapse') ?? 0) > 0,
     };
     this.apiActions = new ApiActions(undefined);
 
@@ -235,8 +235,10 @@ class App extends PureComponent<AppProps, AppState> {
     }
     e.preventDefault();
     const { isCollapsed } = this.state;
+    const newCollapsed = !isCollapsed;
+    localStorage.setItem('menuCollapse', newCollapsed ? '1' : '0');
     this.setState({
-      isCollapsed: !isCollapsed,
+      isCollapsed: newCollapsed,
     });
   };
 

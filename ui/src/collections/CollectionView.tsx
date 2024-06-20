@@ -349,9 +349,13 @@ class CollectionView extends PureComponent<
       return;
     }
     e.preventDefault();
-    const { apiActions, collectionId } = this.props;
+    const { apiActions, collectionId, collectionTag, collectionFilter } =
+      this.props;
     const { documents } = this.state;
-    const mainIds = documents.map(({ mainId }) => mainId);
+    const mainIds = documents
+      .filter((doc) => this.isType(doc, collectionFilter))
+      .filter(this.getFilterTagFn(collectionTag))
+      .map(({ mainId }) => mainId);
     if (collectionId < 0 || !mainIds.length) {
       return;
     }
@@ -436,7 +440,7 @@ class CollectionView extends PureComponent<
     const aNum = this.typeNum(a);
     const bNum = this.typeNum(b);
     if (aNum === bNum) {
-      return a.id - b.id;
+      return -(a.id - b.id);
     }
     return aNum - bNum;
   };
@@ -511,6 +515,7 @@ class CollectionView extends PureComponent<
       apiActions,
       visIsRelative,
       collectionId,
+      collectionName,
       collectionFilter,
       collectionTag,
     } = this.props;
@@ -594,6 +599,9 @@ class CollectionView extends PureComponent<
             />
           </SideRow>
           <SideRow>
+            <ColorBlock color="black" /> Collection: {collectionName}
+          </SideRow>
+          <SideRow>
             <TagFilter
               documents={documents}
               isCmp={false}
@@ -626,6 +634,7 @@ class CollectionView extends PureComponent<
 
 const connector = connect((state: RootState) => ({
   collectionId: state.collectionState.collectionId,
+  collectionName: state.collectionState.collectionName,
   collectionFilter: state.collectionState.collectionFilter,
   collectionTag: state.collectionState.collectionTag,
   cmpCollectionId: state.collectionState.cmpCollectionId,

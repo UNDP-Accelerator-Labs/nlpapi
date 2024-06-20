@@ -20,6 +20,7 @@ import { Filter } from '../api/types';
 
 type CollectionState = {
   collectionId: number;
+  collectionName: string | undefined;
   collectionUser: string | undefined;
   collectionIsPublic: boolean;
   collectionFilter: Filter;
@@ -37,6 +38,7 @@ type SetCollectionAction = {
 
 type SetCollectionInfoAction = {
   payload: {
+    collectionName: string | undefined;
     collectionUser: string | undefined;
     collectionIsPublic: boolean;
   };
@@ -85,6 +87,7 @@ const collectionStateSlice = createSlice<
     collectionId: +(
       localStorage.getItem(getName('collection', false)) ?? '-1'
     ),
+    collectionName: undefined,
     collectionUser: undefined,
     collectionIsPublic: false,
     collectionFilter: (localStorage.getItem(
@@ -114,7 +117,9 @@ const collectionStateSlice = createSlice<
       localStorage.removeItem(getName('collectionTag', isCmp));
     },
     setCollectionInfo: (state, action) => {
-      const { collectionUser, collectionIsPublic } = action.payload;
+      const { collectionName, collectionUser, collectionIsPublic } =
+        action.payload;
+      state.collectionName = collectionName;
       state.collectionUser = collectionUser;
       state.collectionIsPublic = collectionIsPublic;
     },
