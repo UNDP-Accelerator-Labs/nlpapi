@@ -716,6 +716,7 @@ def setup(
             "start_date": versions["start_time"],
             "has_vecdb": vec_db is not None,
             "has_llm": graph_llama is not None,
+            "vecdb_ready": bool(get_articles_arr()),
             "error": None,
         }
 
@@ -1051,6 +1052,7 @@ def fallback_server(
             "start_date": versions["start_time"],
             "has_vecdb": False,
             "has_llm": False,
+            "vecdb_ready": False,
             "error": exc_strs,
         }
 

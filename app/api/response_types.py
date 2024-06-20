@@ -38,6 +38,7 @@ VersionResponse = TypedDict('VersionResponse', {
     "start_date": str,
     "has_vecdb": bool,
     "has_llm": bool,
+    "vecdb_ready": bool,
     "error": list[str] | None,
 })
 StatsResponse = TypedDict('StatsResponse', {
