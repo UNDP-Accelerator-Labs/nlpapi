@@ -83,6 +83,7 @@ const CollapseButton = styled.div<CollapseButtonProps>`
   border-top: 1px solid #ddd;
   border-bottom: 1px solid #ddd;
   background-color: ${({ isCollapsed }) => (isCollapsed ? '#eee' : 'white')};
+  padding-left: 10px;
   margin-top: -1px;
   margin-bottom: -1px;
   margin-right: 10px;
@@ -104,6 +105,7 @@ const NavRow = styled.a`
   border-top: 1px solid #ddd;
   border-bottom: 1px solid #ddd;
   padding: 5px;
+  padding-left: 10px;
   margin-top: -1px;
   margin-bottom: -1px;
   margin-right: 10px;

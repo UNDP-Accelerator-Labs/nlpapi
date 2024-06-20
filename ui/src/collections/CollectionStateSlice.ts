@@ -111,12 +111,9 @@ const collectionStateSlice = createSlice<
         state.collectionTag = collectionTag;
       }
       if (collectionTag) {
-        localStorage.setItem(
-          getName('collectionFilter', isCmp),
-          collectionTag,
-        );
+        localStorage.setItem(getName('collectionTag', isCmp), collectionTag);
       } else {
-        localStorage.removeItem(getName('collectionFilter', isCmp));
+        localStorage.removeItem(getName('collectionTag', isCmp));
       }
     },
   },

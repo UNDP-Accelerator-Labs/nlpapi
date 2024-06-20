@@ -35,7 +35,6 @@ type AddDocumentsCallback = (newDocs: number) => void;
 type CollectionCallback = (collections: Collection[]) => void;
 type DocumentCallback = (documents: DocumentObj[]) => void;
 type FulltextCallback = (
-  mainId: string,
   content: string | undefined,
   error: string | undefined,
 ) => void;
@@ -141,7 +140,7 @@ export default class ApiActions {
 
   async getFulltext(mainId: string, cb: FulltextCallback) {
     const { content, error } = await this.api.getFulltext(mainId);
-    cb(mainId, content, error);
+    cb(content, error);
   }
 
   async requeue(

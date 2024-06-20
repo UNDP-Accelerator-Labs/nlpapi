@@ -15,11 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import React, {
-  ChangeEventHandler,
-  MouseEventHandler,
-  PureComponent,
-} from 'react';
+import React, { MouseEventHandler, PureComponent } from 'react';
 import { ConnectedProps, connect } from 'react-redux';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
@@ -32,8 +28,10 @@ import {
 } from '../api/types';
 import SpiderGraph from '../misc/SpiderGraph';
 import { RootState } from '../store';
-import { setCollectionFilter, setCollectionTag } from './CollectionStateSlice';
+import { setCollectionFilter } from './CollectionStateSlice';
 import Collections from './Collections';
+import Document from './Document';
+import TagFilter from './TagFilter';
 
 const CMP_COLOR = '#377eb8';
 
@@ -93,17 +91,6 @@ const SideRow = styled.div`
   margin-left: 5px;
   padding-left: 5px;
 `;
-
-const Select = styled.select`
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  font-size: 14px;
-  font-style: normal;
-  font-variant: normal;
-  font-weight: 400;
-  line-height: 30px;
-`;
-
-const Option = styled.option``;
 
 const VBuffer = styled.div`
   height: 60px;
@@ -191,169 +178,6 @@ const MainFilter = styled.span<MainFilterProps>`
   }
 `;
 
-const Document = styled.div`
-  display: flex;
-  flex-direction: column;
-  border: 1px silver solid;
-  margin: -1px 0;
-  height: 300px;
-
-  &:first-child {
-    margin-top: 0;
-  }
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-
-  &:nth-child(even) {
-    background-color: #eee;
-  }
-
-  @media (hover: none) and (max-width: 480px) {
-    height: auto;
-  }
-`;
-
-const DocumentLink = styled.a`
-  display: inline-block;
-  padding: 0 10px;
-  width: 100%;
-  color: inherit;
-  background-color: #decbe4;
-  text-decoration: none;
-  filter: none;
-
-  &:visited {
-    color: inherit;
-  }
-
-  &:hover,
-  &:focus {
-    filter: brightness(80%);
-  }
-
-  &:active {
-    filter: brightness(85%);
-  }
-`;
-
-const DocumentRow = styled.div`
-  flex-shrink: 0;
-  flex-grow: 0;
-`;
-
-const DocumentTabList = styled.div`
-  display: flex;
-  flex-direction: row;
-`;
-
-const TabSpace = styled.span`
-  flex-grow: 1;
-  display: inline-block;
-  margin: 0;
-  border: 1px silver dotted;
-  background-color: white;
-`;
-
-type DocumentTabProps = {
-  'data-main': string;
-  'data-tab': string;
-  'color'?: string;
-  'active': boolean;
-  'selected': boolean;
-};
-
-const DocumentTab = styled.span<DocumentTabProps>`
-  flex-grow: 0;
-  flex-shrink: 0;
-  margin: 0 -1px;
-  display: inline-block;
-  padding: 0 10px;
-  border: 1px silver dotted;
-  cursor: ${({ active }) => (active ? 'pointer' : 'not-allowed')};
-  background-color: ${({ color }) => (color ? color : 'white')};
-  filter: ${({ selected }) => (selected ? 'brightness(80%)' : 'none')};
-  user-select: none;
-
-  &:first-child {
-    border-left: 1px silver solid;
-  }
-
-  &:hover {
-    filter: ${({ active }) => (active ? 'brightness(80%)' : 'none')};
-  }
-
-  &:active {
-    filter: ${({ active }) => (active ? 'brightness(85%)' : 'none')};
-  }
-
-  @media (hover: none) and (max-width: 480px) {
-    flex-wrap: wrap;
-  }
-`;
-
-type DocumentTabButtonProps = {
-  'data-main': string;
-};
-
-const DocumentTabButton = styled.span<DocumentTabButtonProps>`
-  flex-grow: 0;
-  flex-shrink: 0;
-  margin: 0 -1px;
-  display: inline-block;
-  padding: 0 10px;
-  border: 1px silver dotted;
-  cursor: pointer;
-  background-color: white;
-  filter: none;
-  user-select: none;
-
-  &:last-child {
-    border-right: 1px silver solid;
-  }
-
-  &:hover {
-    filter: brightness(80%);
-  }
-
-  &:active {
-    filter: brightness(85%);
-  }
-`;
-
-const DocumentBody = styled.div`
-  display: flex;
-  flex-direction: row;
-  flex-grow: 1;
-  overflow: auto;
-
-  @media (hover: none) and (max-width: 480px) {
-    flex-wrap: wrap;
-    height: 300px;
-  }
-`;
-
-const OutputDiv = styled.div`
-  flex-grow: 1;
-  flex-shrink: 1;
-  min-width: fit-content;
-  text-align: right;
-  padding: 5px;
-`;
-
-const Output = styled.pre`
-  flex-grow: 1;
-  flex-shrink: 1;
-  font-family: 'Courier New', Courier, monospace;
-  font-weight: 500;
-  line-height: 15px;
-  white-space: pre-wrap;
-  background-color: #ddd;
-  height: fit-content;
-  margin: 0;
-`;
-
 interface CollectionViewProps extends ConnectCollectionView {
   apiActions: ApiActions;
   isLoggedIn: boolean;
@@ -368,33 +192,14 @@ type EmptyCollectionViewProps = {
   cmpCollectionTag: null;
 };
 
-const ALL_TAG = '_all';
-
-type TagStat = {
-  tag: string | null;
-  name: string;
-  totalCount: number;
-  completeCount: number;
-};
-
-type TagStatDict = { [key: string]: TagStat };
-
-const NO_TAGS: TagStat[] = [
-  { tag: null, name: 'All', totalCount: 0, completeCount: 0 },
-];
-
 type CollectionViewState = {
   documents: DocumentObj[];
   cmpDocuments: DocumentObj[];
-  selections: { [key: string]: string | undefined };
-  fullText: { [key: string]: string };
   needsUpdate: boolean;
   needsCmpUpdate: boolean;
   isLoading: boolean;
   allScores: StatNumbers;
   cmpScores: StatNumbers;
-  tags: TagStat[];
-  cmpTags: TagStat[];
 };
 
 class CollectionView extends PureComponent<
@@ -406,15 +211,11 @@ class CollectionView extends PureComponent<
     this.state = {
       documents: [],
       cmpDocuments: [],
-      selections: {},
-      fullText: {},
       needsUpdate: true,
       needsCmpUpdate: true,
       isLoading: false,
       allScores: {},
       cmpScores: {},
-      tags: [],
-      cmpTags: [],
     };
   }
 
@@ -459,14 +260,8 @@ class CollectionView extends PureComponent<
         needsCmpUpdate: true,
       });
     }
-    const {
-      needsUpdate,
-      needsCmpUpdate,
-      selections,
-      fullText,
-      documents,
-      cmpDocuments,
-    } = this.state;
+    const { needsUpdate, needsCmpUpdate, documents, cmpDocuments } =
+      this.state;
     // main docs
     if (needsUpdate) {
       this.setState(
@@ -480,7 +275,6 @@ class CollectionView extends PureComponent<
               documents: [],
               isLoading: false,
               allScores: {},
-              tags: NO_TAGS,
             });
           } else {
             apiActions.documents(collectionId, (documents) => {
@@ -491,12 +285,10 @@ class CollectionView extends PureComponent<
                   documents,
                   collectionTag,
                 );
-                const tags = this.computeTags(documents);
                 this.setState({
                   documents,
                   isLoading: false,
                   allScores,
-                  tags,
                 });
               }
             });
@@ -519,7 +311,6 @@ class CollectionView extends PureComponent<
             this.setState({
               cmpDocuments: [],
               cmpScores: {},
-              cmpTags: NO_TAGS,
             });
           } else {
             apiActions.documents(cmpCollectionId, (cmpDocuments) => {
@@ -532,8 +323,7 @@ class CollectionView extends PureComponent<
                   cmpDocuments,
                   cmpCollectionTag,
                 );
-                const cmpTags = this.computeTags(cmpDocuments);
-                this.setState({ cmpDocuments, cmpScores, cmpTags });
+                this.setState({ cmpDocuments, cmpScores });
               }
             });
           }
@@ -547,95 +337,10 @@ class CollectionView extends PureComponent<
       );
       this.setState({ cmpScores });
     }
-    // full text
-    let modified = false;
-    const newFullText = { ...fullText };
-    Object.keys(selections)
-      .filter(
-        (mainId) =>
-          selections[mainId] === 'fulltext' && fullText[mainId] === undefined,
-      )
-      .forEach((mainId) => {
-        modified = true;
-        newFullText[mainId] = '[retrieving...]';
-        apiActions.getFulltext(mainId, (mainId, content, error) => {
-          const { fullText } = this.state;
-          const err = error ? `\nERROR: ${error}` : '';
-          this.setState({
-            fullText: {
-              ...fullText,
-              [mainId]: `${content ?? ''}${err}`,
-            },
-          });
-        });
-      });
-    if (modified) {
-      this.setState({
-        fullText: newFullText,
-      });
-    }
   }
 
-  clickTab: MouseEventHandler<HTMLSpanElement> = (e) => {
-    if (e.defaultPrevented) {
-      return;
-    }
-    e.preventDefault();
-    const target = e.currentTarget;
-    const mainId = target.getAttribute('data-main');
-    const tab = target.getAttribute('data-tab');
-    if (!mainId || !tab) {
-      return;
-    }
-    const { selections } = this.state;
-    this.setState({
-      selections: {
-        ...selections,
-        [mainId]: tab,
-      },
-    });
-  };
-
-  clickRecompute: MouseEventHandler<HTMLSpanElement> = (e) => {
-    if (e.defaultPrevented) {
-      return;
-    }
-    e.preventDefault();
-    const target = e.currentTarget;
-    const mainId = target.getAttribute('data-main');
-    if (!mainId) {
-      return;
-    }
-    const { apiActions, collectionId } = this.props;
-    if (collectionId < 0) {
-      return;
-    }
-    apiActions.requeue(collectionId, [mainId], false, () => {
-      this.setState({
-        needsUpdate: true,
-      });
-    });
-  };
-
-  clickRefreshMeta: MouseEventHandler<HTMLSpanElement> = (e) => {
-    if (e.defaultPrevented) {
-      return;
-    }
-    e.preventDefault();
-    const target = e.currentTarget;
-    const mainId = target.getAttribute('data-main');
-    if (!mainId) {
-      return;
-    }
-    const { apiActions, collectionId } = this.props;
-    if (collectionId < 0) {
-      return;
-    }
-    apiActions.requeue(collectionId, [mainId], true, () => {
-      this.setState({
-        needsUpdate: true,
-      });
-    });
+  requestUpdate = () => {
+    this.setState({ needsUpdate: true });
   };
 
   clickRecomputeAll: MouseEventHandler<HTMLSpanElement> = (e) => {
@@ -683,31 +388,7 @@ class CollectionView extends PureComponent<
     dispatch(setCollectionFilter({ collectionFilter: filterValue as Filter }));
   };
 
-  onTagChange: ChangeEventHandler<HTMLSelectElement> = (e) => {
-    const { dispatch } = this.props;
-    const target = e.currentTarget;
-    const value = target.value;
-    dispatch(
-      setCollectionTag({
-        collectionTag: value === ALL_TAG ? null : value,
-        isCmp: false,
-      }),
-    );
-  };
-
-  onCmpTagChange: ChangeEventHandler<HTMLSelectElement> = (e) => {
-    const { dispatch } = this.props;
-    const target = e.currentTarget;
-    const value = target.value;
-    dispatch(
-      setCollectionTag({
-        collectionTag: value === ALL_TAG ? null : value,
-        isCmp: true,
-      }),
-    );
-  };
-
-  isType(doc: DocumentObj, filter: Filter): boolean {
+  isType = (doc: DocumentObj, filter: Filter): boolean => {
     const { isValid, deepDiveReason, error } = doc;
     if (filter === 'total') {
       return true;
@@ -728,7 +409,7 @@ class CollectionView extends PureComponent<
       return true;
     }
     return false;
-  }
+  };
 
   typeNum(doc: DocumentObj): number {
     const { isValid, deepDiveReason, error } = doc;
@@ -748,20 +429,6 @@ class CollectionView extends PureComponent<
       return 0;
     }
     return 4;
-  }
-
-  typeSelection(doc: DocumentObj): string | undefined {
-    const { isValid, deepDiveReason, error } = doc;
-    if (error) {
-      return 'error';
-    }
-    if (isValid === undefined) {
-      return undefined;
-    }
-    if (isValid === false) {
-      return 'verify';
-    }
-    return deepDiveReason ? 'scores' : 'verify';
   }
 
   compareDocs = (a: DocumentObj, b: DocumentObj): number => {
@@ -832,52 +499,6 @@ class CollectionView extends PureComponent<
     }, Object.fromEntries(keys.map((key) => [key, 0])));
   }
 
-  computeTags(docs: DocumentObj[]): TagStat[] {
-    if (!docs.length) {
-      return NO_TAGS;
-    }
-    const tally: TagStatDict = {};
-
-    const addDoc = (tag: string | undefined, doc: DocumentObj) => {
-      const sane = tag ?? ALL_TAG;
-      const isComplete = this.isType(doc, 'complete');
-      const cur = tally[sane];
-      if (!cur) {
-        tally[sane] = {
-          name: tag ?? 'All',
-          tag: tag ?? null,
-          totalCount: 1,
-          completeCount: isComplete ? 1 : 0,
-        };
-      } else {
-        cur.totalCount += 1;
-        if (isComplete) {
-          cur.completeCount += 1;
-        }
-      }
-    };
-
-    docs.forEach((doc) => {
-      const { tag } = doc;
-      addDoc(tag, doc);
-      if (tag) {
-        addDoc(undefined, doc);
-      }
-    });
-    return Object.keys(tally)
-      .map((key) => tally[key])
-      .toSorted(
-        ({ tag: ta, completeCount: ca }, { tag: tb, completeCount: cb }) =>
-          (ca === 0) !== (cb === 0)
-            ? cb - ca
-            : ta
-            ? tb
-              ? ta.localeCompare(tb)
-              : 1
-            : -1,
-      );
-  }
-
   getFilterTagFn =
     (collectionTag: string | null) =>
     ({ tag }: DocumentObj): boolean =>
@@ -888,23 +509,15 @@ class CollectionView extends PureComponent<
       isLoggedIn,
       apiActions,
       visIsRelative,
+      collectionId,
       collectionFilter,
       collectionTag,
-      cmpCollectionTag,
     } = this.props;
     if (!isLoggedIn) {
       return <VMain>You must be logged in to view collections!</VMain>;
     }
-    const {
-      documents,
-      selections,
-      fullText,
-      isLoading,
-      allScores,
-      cmpScores,
-      tags,
-      cmpTags,
-    } = this.state;
+    const { documents, cmpDocuments, isLoading, allScores, cmpScores } =
+      this.state;
     const stats = this.computeStats(documents, collectionTag);
     return (
       <React.Fragment>
@@ -941,168 +554,17 @@ class CollectionView extends PureComponent<
               .filter((doc) => this.isType(doc, collectionFilter))
               .filter(this.getFilterTagFn(collectionTag))
               .toSorted(this.compareDocs)
-              .map((doc) => {
-                const {
-                  mainId,
-                  url,
-                  title,
-                  isValid,
-                  verifyReason,
-                  deepDiveReason,
-                  scores,
-                  error,
-                  tag,
-                  tagReason,
-                } = doc;
-                const sel = selections[mainId] ?? this.typeSelection(doc);
-                const content = fullText[mainId];
-                return (
-                  <Document key={mainId}>
-                    <DocumentRow>
-                      <DocumentLink
-                        href={url ?? '#'}
-                        target="_blank">
-                        [{mainId}] {title}
-                      </DocumentLink>
-                    </DocumentRow>
-                    <DocumentTabList>
-                      <DocumentTab
-                        data-main={mainId}
-                        data-tab="tag"
-                        color={
-                          tagReason === undefined
-                            ? 'white'
-                            : tag
-                            ? '#ccebc5'
-                            : '#fed9a6'
-                        }
-                        active={tagReason !== undefined}
-                        selected={sel === 'tag'}
-                        onClick={
-                          tagReason !== undefined ? this.clickTab : undefined
-                        }>
-                        Tag:{' '}
-                        {tagReason === undefined
-                          ? '...'
-                          : tag
-                          ? `${tag}`
-                          : '???'}
-                      </DocumentTab>
-                      <DocumentTab
-                        data-main={mainId}
-                        data-tab="verify"
-                        color={
-                          isValid === undefined
-                            ? 'white'
-                            : isValid
-                            ? '#ccebc5'
-                            : '#fed9a6'
-                        }
-                        active={isValid !== undefined}
-                        selected={sel === 'verify'}
-                        onClick={
-                          isValid !== undefined ? this.clickTab : undefined
-                        }>
-                        Verify:{' '}
-                        {isValid === undefined
-                          ? error
-                            ? 'error'
-                            : 'pending'
-                          : isValid
-                          ? 'ok'
-                          : 'excluded'}
-                      </DocumentTab>
-                      <DocumentTab
-                        data-main={mainId}
-                        data-tab="scores"
-                        color={deepDiveReason ? '#ccebc5' : 'white'}
-                        active={!!deepDiveReason}
-                        selected={sel === 'scores'}
-                        onClick={deepDiveReason ? this.clickTab : undefined}>
-                        Scores
-                      </DocumentTab>
-                      <DocumentTab
-                        data-main={mainId}
-                        data-tab="fulltext"
-                        color="white"
-                        active={true}
-                        selected={sel === 'fulltext'}
-                        onClick={this.clickTab}>
-                        Full-Text
-                      </DocumentTab>
-                      {error ? (
-                        <DocumentTab
-                          data-main={mainId}
-                          data-tab="error"
-                          color="#fbb4ae"
-                          active={true}
-                          selected={sel === 'error'}
-                          onClick={this.clickTab}>
-                          Error
-                        </DocumentTab>
-                      ) : null}
-                      <TabSpace />
-                      <DocumentTabButton
-                        data-main={mainId}
-                        onClick={this.clickRefreshMeta}>
-                        Refresh Metadata
-                      </DocumentTabButton>
-                      <DocumentTabButton
-                        data-main={mainId}
-                        onClick={this.clickRecompute}>
-                        Recompute
-                      </DocumentTabButton>
-                    </DocumentTabList>
-                    {sel === 'tag' ? (
-                      <DocumentBody>
-                        <Output>{tagReason}</Output>
-                      </DocumentBody>
-                    ) : null}
-                    {sel === 'verify' ? (
-                      <DocumentBody>
-                        <Output>{verifyReason}</Output>
-                      </DocumentBody>
-                    ) : null}
-                    {sel === 'scores' ? (
-                      <DocumentBody>
-                        {deepDiveReason ? (
-                          <OutputDiv>
-                            <SpiderGraph
-                              stats={scores}
-                              cmpStats={allScores}
-                              isRelative={visIsRelative}
-                            />
-                          </OutputDiv>
-                        ) : null}
-                        {deepDiveReason ? (
-                          <OutputDiv>
-                            {Object.entries(scores)
-                              .toSorted(([a], [b]) => a.localeCompare(b))
-                              .map(([scoreKey, scoreValue]) => (
-                                <p key={scoreKey}>
-                                  {scoreKey}: {scoreValue}
-                                </p>
-                              ))}
-                          </OutputDiv>
-                        ) : null}
-                        {deepDiveReason ? (
-                          <Output>{deepDiveReason}</Output>
-                        ) : null}
-                      </DocumentBody>
-                    ) : null}
-                    {sel === 'fulltext' ? (
-                      <DocumentBody>
-                        <Output>{content}</Output>
-                      </DocumentBody>
-                    ) : null}
-                    {sel === 'error' ? (
-                      <DocumentBody>
-                        <Output>{error}</Output>
-                      </DocumentBody>
-                    ) : null}
-                  </Document>
-                );
-              })}
+              .map((doc) => (
+                <Document
+                  key={doc.mainId}
+                  doc={doc}
+                  collectionId={collectionId}
+                  allScores={allScores}
+                  visIsRelative={visIsRelative}
+                  apiActions={apiActions}
+                  requestUpdate={this.requestUpdate}
+                />
+              ))}
           </Documents>
         </VMain>
         <VSide>
@@ -1117,18 +579,11 @@ class CollectionView extends PureComponent<
             />
           </SideRow>
           <SideRow>
-            Filter Tag:{' '}
-            <Select
-              onChange={this.onTagChange}
-              value={collectionTag ?? ALL_TAG}>
-              {tags.map(({ tag, name, totalCount, completeCount }) => (
-                <Option
-                  key={tag ?? ALL_TAG}
-                  value={tag ?? ALL_TAG}>
-                  {name} {completeCount} / {totalCount}
-                </Option>
-              ))}
-            </Select>
+            <TagFilter
+              documents={documents}
+              isCmp={false}
+              isType={this.isType}
+            />
           </SideRow>
           <SideRow>
             <ColorBlock color={CMP_COLOR} />{' '}
@@ -1139,18 +594,11 @@ class CollectionView extends PureComponent<
             />
           </SideRow>
           <SideRow>
-            Compare Tag:{' '}
-            <Select
-              onChange={this.onCmpTagChange}
-              value={cmpCollectionTag ?? ALL_TAG}>
-              {cmpTags.map(({ tag, name, totalCount, completeCount }) => (
-                <Option
-                  key={tag ?? ALL_TAG}
-                  value={tag ?? ALL_TAG}>
-                  {name} {completeCount} / {totalCount}
-                </Option>
-              ))}
-            </Select>
+            <TagFilter
+              documents={cmpDocuments}
+              isCmp={true}
+              isType={this.isType}
+            />
           </SideRow>
         </VSide>
       </React.Fragment>
