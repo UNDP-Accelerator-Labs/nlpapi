@@ -150,9 +150,10 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
     const { collections } = this.state;
     const collectionObj = this.getCurrentCollection(collections, collectionId);
     if (collectionObj) {
-      const { user, isPublic } = collectionObj;
+      const { name, user, isPublic } = collectionObj;
       dispatch(
         setCollectionInfo({
+          collectionName: name,
           collectionUser: user,
           collectionIsPublic: isPublic,
         }),
@@ -160,6 +161,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
     } else {
       dispatch(
         setCollectionInfo({
+          collectionName: undefined,
           collectionUser: undefined,
           collectionIsPublic: false,
         }),

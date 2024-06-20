@@ -599,7 +599,7 @@ class CollectionView extends PureComponent<
             />
           </SideRow>
           <SideRow>
-            <ColorBlock color="black" /> Collection: {collectionName}
+            <ColorBlock color="black" /> Collection: {collectionName ?? '-'}
           </SideRow>
           <SideRow>
             <TagFilter
