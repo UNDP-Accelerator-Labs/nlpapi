@@ -126,10 +126,14 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
           if (apiNum !== newApiNum) {
             return;
           }
-          this.updateCollectionInfo();
-          this.setState({
-            collections,
-          });
+          this.setState(
+            {
+              collections,
+            },
+            () => {
+              this.updateCollectionInfo();
+            },
+          );
         });
       });
     }
@@ -278,12 +282,12 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
             <Option value={`${-1}`}>
               {canCreate ? 'New Collection' : 'No Collection'}
             </Option>
-            {collections.map(({ name, id, user }) => (
+            {collections.map(({ name, id, user, isPublic }) => (
               <Option
                 key={`${id}`}
                 value={`${id}`}>
                 {name}
-                {user === userId ? ' (private)' : ''}
+                {user === userId && !isPublic ? ' (private)' : ''}
               </Option>
             ))}
           </Select>
