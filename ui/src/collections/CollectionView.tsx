@@ -535,6 +535,7 @@ class CollectionView extends PureComponent<
             canCreate={true}
             isCmp={false}
             isHorizontal={true}
+            isInline={false}
           />
           <MainStats isLoading={isLoading}>
             {Object.entries(stats).map(([sKey, sValue]) => (
@@ -607,6 +608,7 @@ class CollectionView extends PureComponent<
               canCreate={false}
               isCmp={true}
               isHorizontal={false}
+              isInline={true}
             />
           </SideRow>
           <SideRow>

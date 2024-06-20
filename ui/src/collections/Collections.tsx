@@ -25,10 +25,11 @@ import { setCollection, setCollectionInfo } from './CollectionStateSlice';
 
 type OuterProps = {
   isHorizontal: boolean;
+  isInline: boolean;
 };
 
 const Outer = styled.div<OuterProps>`
-  display: flex;
+  display: ${({ isInline }) => (isInline ? 'inline-block' : 'flex')};
   flex-direction: ${({ isHorizontal }) => (isHorizontal ? 'row' : 'column')};
   gap: ${({ isHorizontal }) => (isHorizontal ? '5px' : '0')};
 `;
@@ -82,6 +83,7 @@ interface CollectionsProps extends ConnectCollections {
   canCreate: boolean;
   isCmp: boolean;
   isHorizontal: boolean;
+  isInline: boolean;
 }
 
 type EmptyCollectionsProps = {
@@ -260,11 +262,14 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
       canCreate,
       isCmp,
       isHorizontal,
+      isInline,
     } = this.props;
     const { collections, isCreating } = this.state;
     const cid = isCmp ? cmpCollectionId : collectionId;
     return (
-      <Outer isHorizontal={isHorizontal}>
+      <Outer
+        isInline={isInline}
+        isHorizontal={isHorizontal}>
         <Label>
           {isCmp ? 'Other ' : ''}Collection:{' '}
           <Select

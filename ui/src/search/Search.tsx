@@ -665,6 +665,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
                   canCreate={true}
                   isCmp={false}
                   isHorizontal={false}
+                  isInline={false}
                 />
                 <InputButton
                   type="button"
