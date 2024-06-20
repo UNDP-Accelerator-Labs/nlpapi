@@ -278,7 +278,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
                 key={`${id}`}
                 value={`${id}`}>
                 {name}
-                {user === collectionUser ? ' (own)' : ''}
+                {user === userId ? ' (own)' : ''}
               </Option>
             ))}
           </Select>
