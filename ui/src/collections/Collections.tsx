@@ -21,7 +21,7 @@ import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
 import { Collection, DeepDive } from '../api/types';
 import { RootState } from '../store';
-import { setCollection } from './CollectionStateSlice';
+import { setCollection, setCollectionInfo } from './CollectionStateSlice';
 
 type OuterProps = {
   isHorizontal: boolean;
@@ -81,9 +81,12 @@ interface CollectionsProps extends ConnectCollections {
   userId: string | undefined;
   canCreate: boolean;
   isCmp: boolean;
-  requestUpdate: () => void;
   isHorizontal: boolean;
 }
+
+type EmptyCollectionsProps = {
+  collectionId: number;
+};
 
 type CollectionsState = {
   collections: Collection[];
@@ -104,11 +107,14 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
   }
 
   componentDidMount() {
-    this.componentDidUpdate();
+    this.componentDidUpdate({ collectionId: -1 });
   }
 
-  componentDidUpdate() {
-    const { apiActions } = this.props;
+  componentDidUpdate(
+    prevProps: Readonly<CollectionsProps> | EmptyCollectionsProps,
+  ) {
+    const { collectionId: prevCollectionId } = prevProps;
+    const { apiActions, collectionId } = this.props;
     const { needsUpdate, apiNum } = this.state;
     if (needsUpdate) {
       const newApiNum = apiNum + 1;
@@ -118,11 +124,40 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
           if (apiNum !== newApiNum) {
             return;
           }
+          this.updateCollectionInfo();
           this.setState({
             collections,
           });
         });
       });
+    }
+    if (collectionId !== prevCollectionId) {
+      this.updateCollectionInfo();
+    }
+  }
+
+  updateCollectionInfo() {
+    const { dispatch, collectionId, isCmp } = this.props;
+    if (isCmp) {
+      return;
+    }
+    const { collections } = this.state;
+    const collectionObj = this.getCurrentCollection(collections, collectionId);
+    if (collectionObj) {
+      const { user, isPublic } = collectionObj;
+      dispatch(
+        setCollectionInfo({
+          collectionUser: user,
+          collectionIsPublic: isPublic,
+        }),
+      );
+    } else {
+      dispatch(
+        setCollectionInfo({
+          collectionUser: undefined,
+          collectionIsPublic: false,
+        }),
+      );
     }
   }
 
@@ -174,16 +209,19 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
       return;
     }
     e.preventDefault();
-    const { apiActions, isCmp, userId, collectionId, cmpCollectionId } =
-      this.props;
-    const { collections, isCreating } = this.state;
-    const cid = isCmp ? cmpCollectionId : collectionId;
-    const collectionObj = this.getCurrentCollection(collections, cid);
-    if (!collectionObj || isCreating) {
+    const {
+      apiActions,
+      isCmp,
+      userId,
+      collectionId,
+      collectionUser,
+      collectionIsPublic,
+    } = this.props;
+    const { isCreating } = this.state;
+    if (isCmp || isCreating) {
       return;
     }
-    const { user, isPublic } = collectionObj;
-    if (user !== userId) {
+    if (collectionUser !== userId) {
       return;
     }
     this.setState(
@@ -191,14 +229,16 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
         isCreating: true,
       },
       () => {
-        apiActions.setCollectionOptions(cid, { isPublic: !isPublic }, () => {
-          const { requestUpdate } = this.props;
-          requestUpdate();
-          this.setState({
-            isCreating: false,
-            needsUpdate: true,
-          });
-        });
+        apiActions.setCollectionOptions(
+          collectionId,
+          { isPublic: !collectionIsPublic },
+          () => {
+            this.setState({
+              isCreating: false,
+              needsUpdate: true,
+            });
+          },
+        );
       },
     );
   };
@@ -214,6 +254,8 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
     const {
       userId,
       collectionId,
+      collectionIsPublic,
+      collectionUser,
       cmpCollectionId,
       canCreate,
       isCmp,
@@ -221,7 +263,6 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
     } = this.props;
     const { collections, isCreating } = this.state;
     const cid = isCmp ? cmpCollectionId : collectionId;
-    const collectionObj = this.getCurrentCollection(collections, cid);
     return (
       <Outer isHorizontal={isHorizontal}>
         <Label>
@@ -232,24 +273,25 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
             <Option value={`${-1}`}>
               {canCreate ? 'New Collection' : 'No Collection'}
             </Option>
-            {collections.map(({ name, id }) => (
+            {collections.map(({ name, id, user }) => (
               <Option
                 key={`${id}`}
                 value={`${id}`}>
                 {name}
+                {user === collectionUser ? ' (own)' : ''}
               </Option>
             ))}
           </Select>
         </Label>
-        {collectionObj ? (
+        {!isCmp && collectionUser ? (
           <Label>
             Public{' '}
             <input
               type="checkbox"
-              checked={collectionObj.isPublic}
-              disabled={collectionObj.user !== userId || isCreating}
+              checked={collectionIsPublic}
+              disabled={collectionUser !== userId || isCreating}
               onChange={
-                collectionObj.user !== userId ? undefined : this.changePublic
+                collectionUser !== userId ? undefined : this.changePublic
               }
             />
           </Label>
@@ -275,6 +317,8 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
 
 const connector = connect((state: RootState) => ({
   collectionId: state.collectionState.collectionId,
+  collectionUser: state.collectionState.collectionUser,
+  collectionIsPublic: state.collectionState.collectionIsPublic,
   cmpCollectionId: state.collectionState.cmpCollectionId,
 }));
 

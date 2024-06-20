@@ -180,14 +180,13 @@ const MainFilter = styled.span<MainFilterProps>`
 
 interface CollectionViewProps extends ConnectCollectionView {
   apiActions: ApiActions;
-  isLoggedIn: boolean;
   userId: string | undefined;
   visIsRelative: boolean;
 }
 
 type EmptyCollectionViewProps = {
+  userId: string | undefined;
   collectionId: -1;
-  isLoggedIn: boolean;
   collectionTag: null;
   cmpCollectionId: -1;
   cmpCollectionTag: null;
@@ -224,8 +223,8 @@ class CollectionView extends PureComponent<
 
   componentDidMount() {
     this.componentDidUpdate({
+      userId: undefined,
       collectionId: -1,
-      isLoggedIn: false,
       collectionTag: null,
       cmpCollectionId: -1,
       cmpCollectionTag: null,
@@ -236,8 +235,8 @@ class CollectionView extends PureComponent<
     prevProps: Readonly<CollectionViewProps> | EmptyCollectionViewProps,
   ) {
     const {
+      userId: prevUserId,
       collectionId: prevCollectionId,
-      isLoggedIn: prevIsLoggedIn,
       collectionTag: prevCollectionTag,
       cmpCollectionId: prevCmpCollectionId,
       cmpCollectionTag: prevCmpCollectionTag,
@@ -245,20 +244,17 @@ class CollectionView extends PureComponent<
     const {
       collectionId,
       apiActions,
-      isLoggedIn,
+      userId,
       collectionTag,
       cmpCollectionId,
       cmpCollectionTag,
     } = this.props;
-    if (collectionId !== prevCollectionId || prevIsLoggedIn !== isLoggedIn) {
+    if (collectionId !== prevCollectionId || prevUserId !== userId) {
       this.setState({
         needsUpdate: true,
       });
     }
-    if (
-      cmpCollectionId !== prevCmpCollectionId ||
-      prevIsLoggedIn !== isLoggedIn
-    ) {
+    if (cmpCollectionId !== prevCmpCollectionId || prevUserId !== userId) {
       this.setState({
         needsCmpUpdate: true,
       });
@@ -273,7 +269,7 @@ class CollectionView extends PureComponent<
           isLoading: true,
         },
         () => {
-          if (collectionId < 0 || !isLoggedIn) {
+          if (collectionId < 0 || !userId) {
             this.setState({
               isReadonly: true,
               documents: [],
@@ -312,7 +308,7 @@ class CollectionView extends PureComponent<
           needsCmpUpdate: false,
         },
         () => {
-          if (cmpCollectionId < 0 || !isLoggedIn) {
+          if (cmpCollectionId < 0 || !userId) {
             this.setState({
               cmpDocuments: [],
               cmpScores: {},
@@ -511,7 +507,6 @@ class CollectionView extends PureComponent<
 
   render() {
     const {
-      isLoggedIn,
       userId,
       apiActions,
       visIsRelative,
@@ -519,7 +514,7 @@ class CollectionView extends PureComponent<
       collectionFilter,
       collectionTag,
     } = this.props;
-    if (!isLoggedIn) {
+    if (!userId) {
       return <VMain>You must be logged in to view collections!</VMain>;
     }
     const {
@@ -539,7 +534,6 @@ class CollectionView extends PureComponent<
             userId={userId}
             canCreate={true}
             isCmp={false}
-            requestUpdate={this.requestUpdate}
             isHorizontal={true}
           />
           <MainStats isLoading={isLoading}>
@@ -612,7 +606,6 @@ class CollectionView extends PureComponent<
               userId={userId}
               canCreate={false}
               isCmp={true}
-              requestUpdate={this.requestUpdate}
               isHorizontal={false}
             />
           </SideRow>

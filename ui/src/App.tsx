@@ -261,7 +261,6 @@ class App extends PureComponent<AppProps, AppState> {
               element={
                 <Search
                   apiActions={this.apiActions}
-                  isLoggedIn={isLoggedIn}
                   userId={userId}
                   ready={ready}
                 />
@@ -272,7 +271,6 @@ class App extends PureComponent<AppProps, AppState> {
               element={
                 <CollectionView
                   apiActions={this.apiActions}
-                  isLoggedIn={isLoggedIn}
                   userId={userId}
                   visIsRelative={false}
                 />

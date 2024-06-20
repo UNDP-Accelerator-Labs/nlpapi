@@ -294,7 +294,6 @@ interface SearchProps extends ConnectSearch {
   apiActions: ApiActions;
   userId: string | undefined;
   ready: boolean;
-  isLoggedIn: boolean;
 }
 
 type EmptySearchProps = {
@@ -386,10 +385,6 @@ class Search extends PureComponent<SearchProps, SearchState> {
       results,
       isLoading: false,
     });
-  };
-
-  nop = () => {
-    // nothing to do
   };
 
   clickGroup: MouseEventHandler<HTMLDivElement> = (e) => {
@@ -645,7 +640,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
   }
 
   render(): ReactNode {
-    const { page, query, apiActions, collectionId, isLoggedIn, userId } =
+    const { page, query, apiActions, collectionId, userId, collectionUser } =
       this.props;
     const {
       stats: { count },
@@ -658,6 +653,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
       Math.ceil((count ?? 0) / PAGE_SIZE),
       DISPLAY_PAGE_COUNT + 1,
     );
+    const isLoggedIn = !!userId;
     return (
       <React.Fragment>
         <VSide>
@@ -669,14 +665,15 @@ class Search extends PureComponent<SearchProps, SearchState> {
                   userId={userId}
                   canCreate={true}
                   isCmp={false}
-                  requestUpdate={this.nop}
                   isHorizontal={false}
                 />
                 <InputButton
                   type="button"
                   onClick={this.clickAddAll}
                   value="Add Results to Collection"
-                  disabled={collectionId < 0 || isAdding}
+                  disabled={
+                    collectionId < 0 || isAdding || collectionUser === userId
+                  }
                 />
                 {documentMessage.length ? <div>{documentMessage}</div> : null}
               </React.Fragment>
@@ -713,6 +710,7 @@ const connector = connect((state: RootState) => ({
   filters: state.searchState.filters,
   page: state.searchState.page,
   collectionId: state.collectionState.collectionId,
+  collectionUser: state.collectionState.collectionUser,
 }));
 
 export default connector(Search);

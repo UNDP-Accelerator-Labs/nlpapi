@@ -20,6 +20,8 @@ import { Filter } from '../api/types';
 
 type CollectionState = {
   collectionId: number;
+  collectionUser: string | undefined;
+  collectionIsPublic: boolean;
   collectionFilter: Filter;
   collectionTag: string | null;
   cmpCollectionId: number;
@@ -30,6 +32,13 @@ type SetCollectionAction = {
   payload: {
     isCmp: boolean;
     collectionId: number;
+  };
+};
+
+type SetCollectionInfoAction = {
+  payload: {
+    collectionUser: string | undefined;
+    collectionIsPublic: boolean;
   };
 };
 
@@ -48,6 +57,10 @@ type SetCollectionTagAction = {
 
 type CollectionReducers = {
   setCollection: (state: CollectionState, action: SetCollectionAction) => void;
+  setCollectionInfo: (
+    state: CollectionState,
+    action: SetCollectionInfoAction,
+  ) => void;
   setCollectionFilter: (
     state: CollectionState,
     action: SetCollectionFilterAction,
@@ -72,6 +85,8 @@ const collectionStateSlice = createSlice<
     collectionId: +(
       localStorage.getItem(getName('collection', false)) ?? '-1'
     ),
+    collectionUser: undefined,
+    collectionIsPublic: false,
     collectionFilter: (localStorage.getItem(
       getName('collectionFilter', false),
     ) ?? 'complete') as Filter,
@@ -98,6 +113,11 @@ const collectionStateSlice = createSlice<
       localStorage.setItem(getName('collection', isCmp), `${collectionId}`);
       localStorage.removeItem(getName('collectionTag', isCmp));
     },
+    setCollectionInfo: (state, action) => {
+      const { collectionUser, collectionIsPublic } = action.payload;
+      state.collectionUser = collectionUser;
+      state.collectionIsPublic = collectionIsPublic;
+    },
     setCollectionFilter: (state, action) => {
       const { collectionFilter } = action.payload;
       state.collectionFilter = collectionFilter;
@@ -119,7 +139,11 @@ const collectionStateSlice = createSlice<
   },
 });
 
-export const { setCollection, setCollectionFilter, setCollectionTag } =
-  collectionStateSlice.actions;
+export const {
+  setCollection,
+  setCollectionInfo,
+  setCollectionFilter,
+  setCollectionTag,
+} = collectionStateSlice.actions;
 
 export default collectionStateSlice.reducer;
