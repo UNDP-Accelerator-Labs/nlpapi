@@ -653,12 +653,11 @@ class Search extends PureComponent<SearchProps, SearchState> {
       Math.ceil((count ?? 0) / PAGE_SIZE),
       DISPLAY_PAGE_COUNT + 1,
     );
-    const isLoggedIn = !!userId;
     return (
       <React.Fragment>
         <VSide>
           <TopLeft>
-            {isLoggedIn ? (
+            {userId ? (
               <React.Fragment>
                 <Collections
                   apiActions={apiActions}

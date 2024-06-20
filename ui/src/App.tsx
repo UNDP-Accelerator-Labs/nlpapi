@@ -242,7 +242,6 @@ class App extends PureComponent<AppProps, AppState> {
 
   render() {
     const { ready, userId, userName, isCollapsed } = this.state;
-    const isLoggedIn = !!userId;
     return (
       <HMain>
         <BrowserRouter>
@@ -252,7 +251,7 @@ class App extends PureComponent<AppProps, AppState> {
               element={
                 <VMain>
                   <a href="/search">Semantic Search</a>
-                  {isLoggedIn ? <a href="/collection">Collection</a> : null}
+                  {userId ? <a href="/collection">Collection</a> : null}
                 </VMain>
               }
             />
@@ -283,18 +282,16 @@ class App extends PureComponent<AppProps, AppState> {
             <React.Fragment>
               <NavRow
                 href={
-                  isLoggedIn
+                  userId
                     ? `${LOGIN_URL}`
                     : `${LOGIN_URL}?origin=${encodeURIComponent(
                         window.location.href,
                       )}`
                 }>
-                {isLoggedIn ? `Hello, ${userName}!` : 'Login'}
+                {userId ? `Hello, ${userName}!` : 'Login'}
               </NavRow>
               <NavRow href="/search">Search</NavRow>
-              {isLoggedIn ? (
-                <NavRow href="/collection">Collection</NavRow>
-              ) : null}
+              {userId ? <NavRow href="/collection">Collection</NavRow> : null}
             </React.Fragment>
           )}
           <CollapseButton
