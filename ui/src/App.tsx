@@ -124,6 +124,7 @@ type AppProps = ConnectApp;
 
 type AppState = {
   ready: boolean;
+  userId: string | undefined;
   userName: string | undefined;
   isCollapsed: boolean;
 };
@@ -133,7 +134,12 @@ class App extends PureComponent<AppProps, AppState> {
 
   constructor(props: AppProps) {
     super(props);
-    this.state = { ready: false, userName: undefined, isCollapsed: false };
+    this.state = {
+      ready: false,
+      userId: undefined,
+      userName: undefined,
+      isCollapsed: false,
+    };
     this.apiActions = new ApiActions(undefined);
 
     window.addEventListener('popstate', (event) => {
@@ -198,8 +204,8 @@ class App extends PureComponent<AppProps, AppState> {
       page: prevPage,
     } = prevProps;
     if (!ready) {
-      this.apiActions.user((userName) => {
-        this.setState({ ready: true, userName });
+      this.apiActions.user((userId, userName) => {
+        this.setState({ ready: true, userId, userName });
       });
       return;
     }
@@ -235,8 +241,8 @@ class App extends PureComponent<AppProps, AppState> {
   };
 
   render() {
-    const { ready, userName, isCollapsed } = this.state;
-    const isLoggedIn = !!userName;
+    const { ready, userId, userName, isCollapsed } = this.state;
+    const isLoggedIn = !!userId;
     return (
       <HMain>
         <BrowserRouter>
@@ -256,6 +262,7 @@ class App extends PureComponent<AppProps, AppState> {
                 <Search
                   apiActions={this.apiActions}
                   isLoggedIn={isLoggedIn}
+                  userId={userId}
                   ready={ready}
                 />
               }
@@ -266,6 +273,7 @@ class App extends PureComponent<AppProps, AppState> {
                 <CollectionView
                   apiActions={this.apiActions}
                   isLoggedIn={isLoggedIn}
+                  userId={userId}
                   visIsRelative={false}
                 />
               }

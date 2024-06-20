@@ -181,6 +181,7 @@ const MainFilter = styled.span<MainFilterProps>`
 interface CollectionViewProps extends ConnectCollectionView {
   apiActions: ApiActions;
   isLoggedIn: boolean;
+  userId: string | undefined;
   visIsRelative: boolean;
 }
 
@@ -193,6 +194,7 @@ type EmptyCollectionViewProps = {
 };
 
 type CollectionViewState = {
+  isReadonly: boolean;
   documents: DocumentObj[];
   cmpDocuments: DocumentObj[];
   needsUpdate: boolean;
@@ -209,6 +211,7 @@ class CollectionView extends PureComponent<
   constructor(props: Readonly<CollectionViewProps>) {
     super(props);
     this.state = {
+      isReadonly: true,
       documents: [],
       cmpDocuments: [],
       needsUpdate: true,
@@ -272,12 +275,13 @@ class CollectionView extends PureComponent<
         () => {
           if (collectionId < 0 || !isLoggedIn) {
             this.setState({
+              isReadonly: true,
               documents: [],
               isLoading: false,
               allScores: {},
             });
           } else {
-            apiActions.documents(collectionId, (documents) => {
+            apiActions.documents(collectionId, (documents, isReadonly) => {
               const { collectionId: currentCollectionId, collectionTag } =
                 this.props;
               if (collectionId === currentCollectionId) {
@@ -286,6 +290,7 @@ class CollectionView extends PureComponent<
                   collectionTag,
                 );
                 this.setState({
+                  isReadonly,
                   documents,
                   isLoading: false,
                   allScores,
@@ -507,6 +512,7 @@ class CollectionView extends PureComponent<
   render() {
     const {
       isLoggedIn,
+      userId,
       apiActions,
       visIsRelative,
       collectionId,
@@ -516,16 +522,25 @@ class CollectionView extends PureComponent<
     if (!isLoggedIn) {
       return <VMain>You must be logged in to view collections!</VMain>;
     }
-    const { documents, cmpDocuments, isLoading, allScores, cmpScores } =
-      this.state;
+    const {
+      documents,
+      cmpDocuments,
+      isLoading,
+      allScores,
+      cmpScores,
+      isReadonly,
+    } = this.state;
     const stats = this.computeStats(documents, collectionTag);
     return (
       <React.Fragment>
         <VMain>
           <Collections
             apiActions={apiActions}
+            userId={userId}
             canCreate={true}
             isCmp={false}
+            requestUpdate={this.requestUpdate}
+            isHorizontal={true}
           />
           <MainStats isLoading={isLoading}>
             {Object.entries(stats).map(([sKey, sValue]) => (
@@ -538,16 +553,20 @@ class CollectionView extends PureComponent<
               </MainFilter>
             ))}
             <MainSpace />
-            <MainButton
-              type="button"
-              value="Refresh"
-              onClick={this.clickRefresh}
-            />
-            <MainButton
-              type="button"
-              value="Recompute All"
-              onClick={this.clickRecomputeAll}
-            />
+            {!isReadonly ? (
+              <React.Fragment>
+                <MainButton
+                  type="button"
+                  value="Refresh"
+                  onClick={this.clickRefresh}
+                />
+                <MainButton
+                  type="button"
+                  value="Recompute All"
+                  onClick={this.clickRecomputeAll}
+                />
+              </React.Fragment>
+            ) : null}
           </MainStats>
           <Documents isLoading={isLoading}>
             {documents
@@ -562,6 +581,7 @@ class CollectionView extends PureComponent<
                   allScores={allScores}
                   visIsRelative={visIsRelative}
                   apiActions={apiActions}
+                  isReadonly={isReadonly}
                   requestUpdate={this.requestUpdate}
                 />
               ))}
@@ -589,8 +609,11 @@ class CollectionView extends PureComponent<
             <ColorBlock color={CMP_COLOR} />{' '}
             <Collections
               apiActions={apiActions}
+              userId={userId}
               canCreate={false}
               isCmp={true}
+              requestUpdate={this.requestUpdate}
+              isHorizontal={false}
             />
           </SideRow>
           <SideRow>

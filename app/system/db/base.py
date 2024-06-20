@@ -153,6 +153,7 @@ class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
     name = sa.Column(sa.Text(), nullable=False, primary_key=True)
     verify_key = sa.Column(sa.Text(), nullable=False)
     deep_dive_key = sa.Column(sa.Text(), nullable=False)
+    is_public = sa.Column(sa.Boolean, nullable=False, default=False)
 
 
 DEEP_DIVE_ELEMENT_ID_SEQ: sa.Sequence = sa.Sequence(

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { MouseEventHandler, PureComponent } from 'react';
+import React, { MouseEventHandler, PureComponent } from 'react';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
 import { DocumentObj, StatNumbers } from '../api/types';
@@ -183,6 +183,7 @@ const Output = styled.pre`
 
 type DocumentProps = {
   apiActions: ApiActions;
+  isReadonly: boolean;
   doc: DocumentObj;
   collectionId: number;
   allScores: StatNumbers;
@@ -317,7 +318,7 @@ export default class Document extends PureComponent<
   };
 
   render() {
-    const { doc, allScores, visIsRelative } = this.props;
+    const { doc, allScores, visIsRelative, isReadonly } = this.props;
     const {
       mainId,
       url,
@@ -398,16 +399,20 @@ export default class Document extends PureComponent<
             </DocumentTab>
           ) : null}
           <TabSpace />
-          <DocumentTabButton
-            data-main={mainId}
-            onClick={this.clickRefreshMeta}>
-            Refresh Metadata
-          </DocumentTabButton>
-          <DocumentTabButton
-            data-main={mainId}
-            onClick={this.clickRecompute}>
-            Recompute
-          </DocumentTabButton>
+          {!isReadonly ? (
+            <React.Fragment>
+              <DocumentTabButton
+                data-main={mainId}
+                onClick={this.clickRefreshMeta}>
+                Refresh Metadata
+              </DocumentTabButton>
+              <DocumentTabButton
+                data-main={mainId}
+                onClick={this.clickRecompute}>
+                Recompute
+              </DocumentTabButton>
+            </React.Fragment>
+          ) : null}
         </DocumentTabList>
         {sel === 'tag' ? (
           <DocumentBody>

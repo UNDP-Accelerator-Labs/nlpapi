@@ -30,6 +30,12 @@ CollectionObj = TypedDict('CollectionObj', {
     "user": UUID,
     "name": str,
     "deep_dive_key": str,
+    "is_public": bool,
+})
+
+
+CollectionOptions = TypedDict('CollectionOptions', {
+    "is_public": bool,
 })
 
 
@@ -89,13 +95,30 @@ def add_collection(
     return int(row_id)
 
 
+def set_options(
+        db: DBConnector,
+        collection_id: int,
+        options: CollectionOptions,
+        user: UUID | None) -> None:
+    with db.get_session() as session:
+        verify_user(session, collection_id, user, write=True)
+        stmt = sa.update(DeepDiveCollection)
+        stmt = stmt.where(DeepDiveCollection.id == collection_id)
+        stmt = stmt.values(
+            is_public=options["is_public"])
+        session.execute(stmt)
+
+
 def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
     with db.get_session() as session:
         stmt = sa.select(
             DeepDiveCollection.id,
             DeepDiveCollection.name,
-            DeepDiveCollection.deep_dive_key)
-        stmt = stmt.where(DeepDiveCollection.user == user)
+            DeepDiveCollection.deep_dive_key,
+            DeepDiveCollection.is_public)
+        stmt = stmt.where(sa.or_(
+            DeepDiveCollection.user == user,
+            DeepDiveCollection.is_public))
         stmt = stmt.order_by(DeepDiveCollection.id)
         for row in session.execute(stmt):
             yield {
@@ -103,6 +126,7 @@ def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
                 "user": user,
                 "name": row.name,
                 "deep_dive_key": row.deep_dive_key,
+                "is_public": row.is_public,
             }
 
 
@@ -111,18 +135,24 @@ def verify_user(
         collection_id: int,
         user: UUID | None,
         *,
-        allow_none: bool = False) -> None:
+        write: bool,
+        allow_none: bool = False) -> bool:
     if user is None:
         if not allow_none:
             raise PreventDefaultResponse(401, "invalid collection for user")
-        return
-    stmt = sa.select(DeepDiveCollection.id)
+        return False
+    stmt = sa.select(
+        DeepDiveCollection.id,
+        (DeepDiveCollection.user != user).label("is_readonly"))
     stmt = stmt.where(sa.and_(
         DeepDiveCollection.id == collection_id,
-        DeepDiveCollection.user == user))
-    res = session.execute(stmt).scalar_one_or_none()
-    if res is None or int(res) != collection_id:
+        sa.or_(
+            DeepDiveCollection.user == user,
+            sa.false() if write else DeepDiveCollection.is_public)))
+    row = session.execute(stmt).one_or_none()
+    if row is None or int(row.id) != collection_id:
         raise PreventDefaultResponse(401, "invalid collection for user")
+    return bool(row.is_readonly)
 
 
 def add_documents(
@@ -134,7 +164,8 @@ def add_documents(
         allow_none: bool = False) -> list[int]:
     res: list[int] = []
     with db.get_session() as session:
-        verify_user(session, collection_id, user, allow_none=allow_none)
+        verify_user(
+            session, collection_id, user, write=True, allow_none=allow_none)
         for main_id in main_ids:
             cstmt = db.upsert(DeepDiveElement).values(
                 main_id=main_id,
@@ -152,9 +183,10 @@ def get_documents(
         collection_id: int,
         user: UUID | None,
         *,
-        allow_none: bool = False) -> Iterable[DocumentObj]:
+        allow_none: bool = False) -> tuple[bool, list[DocumentObj]]:
     with db.get_session() as session:
-        verify_user(session, collection_id, user, allow_none=allow_none)
+        is_readonly = verify_user(
+            session, collection_id, user, write=False, allow_none=allow_none)
         stmt = sa.select(
             DeepDiveElement.id,
             DeepDiveElement.deep_dive_id,
@@ -173,8 +205,8 @@ def get_documents(
             DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
             DeepDiveCollection.id == collection_id))
         stmt = stmt.order_by(DeepDiveElement.id)
-        for row in session.execute(stmt):
-            yield {
+        docs: list[DocumentObj] = [
+            {
                 "id": row.id,
                 "main_id": row.main_id,
                 "url": row.url,
@@ -189,6 +221,9 @@ def get_documents(
                 "tag": row.tag,
                 "tag_reason": row.tag_reason,
             }
+            for row in session.execute(stmt)
+        ]
+        return (is_readonly, docs)
 
 
 def set_url_title(
@@ -260,7 +295,8 @@ def requeue(
         *,
         allow_none: bool = False) -> None:
     with db.get_session() as session:
-        verify_user(session, collection_id, user, allow_none=allow_none)
+        verify_user(
+            session, collection_id, user, write=True, allow_none=allow_none)
         stmt = sa.update(DeepDiveElement)
         stmt = stmt.where(sa.and_(
             DeepDiveElement.deep_dive_id == collection_id,
@@ -283,7 +319,8 @@ def requeue_meta(
         *,
         allow_none: bool = False) -> None:
     with db.get_session() as session:
-        verify_user(session, collection_id, user, allow_none=allow_none)
+        verify_user(
+            session, collection_id, user, write=True, allow_none=allow_none)
         stmt = sa.update(DeepDiveElement)
         stmt = stmt.where(sa.and_(
             DeepDiveElement.deep_dive_id == collection_id,

@@ -19,6 +19,7 @@ import { ApiProvider, DEFAULT_API } from '../api/api';
 import { ALL_FIELDS, PAGE_SIZE } from '../misc/constants';
 import {
   Collection,
+  CollectionOptions,
   DeepDive,
   DocumentObj,
   SearchFilters,
@@ -26,14 +27,20 @@ import {
   Stats,
 } from './types';
 
-type UserCallback = (userName: string | undefined) => void;
+type UserCallback = (
+  userId: string | undefined,
+  userName: string | undefined,
+) => void;
 type StatCallback = (stats: Stats) => void;
 type ResultCallback = (results: SearchResult) => void;
 type AddCallback = () => void;
 type AddCollectionCallback = (collectionId: number) => void;
 type AddDocumentsCallback = (newDocs: number) => void;
 type CollectionCallback = (collections: Collection[]) => void;
-type DocumentCallback = (documents: DocumentObj[]) => void;
+type DocumentCallback = (
+  documents: DocumentObj[],
+  isReadonly: boolean,
+) => void;
 type FulltextCallback = (
   content: string | undefined,
   error: string | undefined,
@@ -52,8 +59,8 @@ export default class ApiActions {
   }
 
   async user(cb: UserCallback) {
-    const { userName } = await this.api.user();
-    cb(userName);
+    const { userId, userName } = await this.api.user();
+    cb(userId, userName);
   }
 
   async search(
@@ -124,6 +131,15 @@ export default class ApiActions {
     cb(collections);
   }
 
+  async setCollectionOptions(
+    collectionId: number,
+    options: CollectionOptions,
+    cb: AddCallback,
+  ) {
+    await this.api.setCollectionOptions(collectionId, options);
+    cb();
+  }
+
   async addDocuments(
     collectionId: number,
     mainIds: string[],
@@ -134,8 +150,8 @@ export default class ApiActions {
   }
 
   async documents(collectionId: number, cb: DocumentCallback) {
-    const { documents } = await this.api.documents(collectionId);
-    cb(documents);
+    const { documents, isReadonly } = await this.api.documents(collectionId);
+    cb(documents, isReadonly);
   }
 
   async getFulltext(mainId: string, cb: FulltextCallback) {

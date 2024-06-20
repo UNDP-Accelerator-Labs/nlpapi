@@ -35,6 +35,7 @@ from app.api.mods.loc import LocationModule
 from app.api.response_types import (
     BuildIndexResponse,
     CollectionListResponse,
+    CollectionOptionsResponse,
     CollectionResponse,
     DateResponse,
     DocumentListResponse,
@@ -58,10 +59,12 @@ from app.system.db.db import DBConnector
 from app.system.deepdive.collection import (
     add_collection,
     add_documents,
+    CollectionOptions,
     get_collections,
     get_documents,
     requeue,
     requeue_meta,
+    set_options,
 )
 from app.system.deepdive.diver import maybe_diver_thread
 from app.system.language.langdetect import LangResponse
@@ -721,6 +724,7 @@ def setup(
     def _post_user(_req: QSRH, rargs: ReqArgs) -> UserResponse:
         session: SessionInfo | None = rargs["meta"].get("session")
         return {
+            "uuid": None if session is None else session["uuid"].hex,
             "name": None if session is None else session["name"],
         }
 
@@ -895,10 +899,25 @@ def setup(
                 "collections": [
                     {
                         "id": obj["id"],
+                        "user": obj["user"].hex,
                         "name": obj["name"],
+                        "deep_dive_key": obj["deep_dive_key"],
+                        "is_public": obj["is_public"],
                     }
                     for obj in get_collections(db, session["uuid"])
                 ],
+            }
+
+        @server.json_post(f"{prefix}/collection/options")
+        def _post_collection_options(
+                _req: QSRH, rargs: ReqArgs) -> CollectionOptionsResponse:
+            args = rargs["post"]
+            collection_id = int(args["collection_id"])
+            options: CollectionOptions = args["options"]
+            session: SessionInfo = rargs["meta"]["session"]
+            set_options(db, collection_id, options, session["uuid"])
+            return {
+                "success": True,
             }
 
         @server.json_post(f"{prefix}/documents/add")
@@ -920,9 +939,11 @@ def setup(
             args = rargs["post"]
             collection_id = int(args["collection_id"])
             session: SessionInfo = rargs["meta"]["session"]
-            docs = list(get_documents(db, collection_id, session["uuid"]))
+            is_readonly, docs = get_documents(
+                db, collection_id, session["uuid"])
             return {
                 "documents": docs,
+                "is_readonly": is_readonly,
             }
 
         @server.json_post(f"{prefix}/documents/fulltext")

@@ -16,10 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 export type ApiUserResult = {
+  uuid: string | undefined;
   name: string | undefined;
 };
 
 export type UserResult = {
+  userId: string | undefined;
   userName: string | undefined;
 };
 
@@ -88,6 +90,7 @@ export type Collection = {
   user: string;
   name: string;
   deepDiveKey: string;
+  isPublic: boolean;
 };
 
 type ApiCollection = {
@@ -95,6 +98,11 @@ type ApiCollection = {
   user: string;
   name: string;
   deep_dive_key: string;
+  is_public: boolean;
+};
+
+export type CollectionOptions = {
+  isPublic: boolean;
 };
 
 type DeepDiveResult = {
@@ -169,10 +177,12 @@ export type DocumentResponse = {
 
 export type ApiDocumentListResponse = {
   documents: ApiDocumentObj[];
+  is_readonly: boolean;
 };
 
 export type DocumentListResponse = {
   documents: DocumentObj[];
+  isReadonly: boolean;
 };
 
 export type FulltextResponse = {

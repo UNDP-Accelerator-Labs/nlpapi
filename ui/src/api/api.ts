@@ -25,6 +25,7 @@ import {
   ApiStatResult,
   ApiUserResult,
   CollectionListResponse,
+  CollectionOptions,
   CollectionResponse,
   DeepDive,
   DocumentListResponse,
@@ -52,6 +53,10 @@ export type ApiProvider = {
     deepDive: DeepDive,
   ) => Promise<CollectionResponse>;
   collections: () => Promise<CollectionListResponse>;
+  setCollectionOptions: (
+    collectionId: number,
+    options: CollectionOptions,
+  ) => Promise<void>;
   addDocuments: (
     collectionId: number,
     mainIds: string[],
@@ -77,13 +82,15 @@ export const DEFAULT_API: ApiProvider = {
         },
         body: JSON.stringify({}),
       });
-      const { name }: ApiUserResult = await res.json();
+      const { uuid, name }: ApiUserResult = await res.json();
       return {
+        userId: uuid ?? undefined,
         userName: name ?? undefined,
       };
     } catch (err) {
       console.error(err);
       return {
+        userId: undefined,
         userName: undefined,
       };
     }
@@ -164,13 +171,34 @@ export const DEFAULT_API: ApiProvider = {
     });
     const { collections }: ApiCollectionListResponse = await res.json();
     return {
-      collections: collections.map(({ id, user, name, deep_dive_key }) => ({
-        id,
-        user,
-        name,
-        deepDiveKey: deep_dive_key,
-      })),
+      collections: collections.map(
+        ({ id, user, name, deep_dive_key, is_public }) => ({
+          id,
+          user,
+          name,
+          deepDiveKey: deep_dive_key,
+          isPublic: is_public,
+        }),
+      ),
     };
+  },
+  setCollectionOptions: async (collectionId, options) => {
+    const url = await getCollectionApiUrl();
+    const { isPublic } = options;
+    const res = await fetch(`${url}/api/collection/options`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        collection_id: collectionId,
+        options: {
+          is_public: isPublic,
+        },
+      }),
+    });
+    await res.json();
   },
   addDocuments: async (collectionId, mainIds) => {
     const url = await getCollectionApiUrl();
@@ -200,8 +228,10 @@ export const DEFAULT_API: ApiProvider = {
         collection_id: collectionId,
       }),
     });
-    const { documents }: ApiDocumentListResponse = await res.json();
+    const { documents, is_readonly }: ApiDocumentListResponse =
+      await res.json();
     return {
+      isReadonly: is_readonly,
       documents: documents.map(
         ({
           id,

@@ -15,17 +15,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import React, {
-  ChangeEventHandler,
-  FormEventHandler,
-  PureComponent,
-} from 'react';
+import { ChangeEventHandler, FormEventHandler, PureComponent } from 'react';
 import { ConnectedProps, connect } from 'react-redux';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
 import { Collection, DeepDive } from '../api/types';
 import { RootState } from '../store';
 import { setCollection } from './CollectionStateSlice';
+
+type OuterProps = {
+  isHorizontal: boolean;
+};
+
+const Outer = styled.div<OuterProps>`
+  display: flex;
+  flex-direction: ${({ isHorizontal }) => (isHorizontal ? 'row' : 'column')};
+  gap: ${({ isHorizontal }) => (isHorizontal ? '5px' : '0')};
+`;
 
 const Label = styled.label``;
 
@@ -72,8 +78,11 @@ const InputSubmit = styled.input`
 
 interface CollectionsProps extends ConnectCollections {
   apiActions: ApiActions;
+  userId: string | undefined;
   canCreate: boolean;
   isCmp: boolean;
+  requestUpdate: () => void;
+  isHorizontal: boolean;
 }
 
 type CollectionsState = {
@@ -160,12 +169,61 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
     );
   };
 
-  render() {
-    const { collectionId, cmpCollectionId, canCreate, isCmp } = this.props;
-    const { collections } = this.state;
+  changePublic: ChangeEventHandler<HTMLInputElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    const { apiActions, isCmp, userId, collectionId, cmpCollectionId } =
+      this.props;
+    const { collections, isCreating } = this.state;
     const cid = isCmp ? cmpCollectionId : collectionId;
+    const collectionObj = this.getCurrentCollection(collections, cid);
+    if (!collectionObj || isCreating) {
+      return;
+    }
+    const { user, isPublic } = collectionObj;
+    if (user !== userId) {
+      return;
+    }
+    this.setState(
+      {
+        isCreating: true,
+      },
+      () => {
+        apiActions.setCollectionOptions(cid, { isPublic: !isPublic }, () => {
+          const { requestUpdate } = this.props;
+          requestUpdate();
+          this.setState({
+            isCreating: false,
+            needsUpdate: true,
+          });
+        });
+      },
+    );
+  };
+
+  getCurrentCollection(collections: Collection[], cid: number) {
+    return collections.reduce((p: Collection | null, cur) => {
+      const { id } = cur;
+      return id === cid ? cur : p;
+    }, null);
+  }
+
+  render() {
+    const {
+      userId,
+      collectionId,
+      cmpCollectionId,
+      canCreate,
+      isCmp,
+      isHorizontal,
+    } = this.props;
+    const { collections, isCreating } = this.state;
+    const cid = isCmp ? cmpCollectionId : collectionId;
+    const collectionObj = this.getCurrentCollection(collections, cid);
     return (
-      <React.Fragment>
+      <Outer isHorizontal={isHorizontal}>
         <Label>
           {isCmp ? 'Other ' : ''}Collection:{' '}
           <Select
@@ -183,6 +241,19 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
             ))}
           </Select>
         </Label>
+        {collectionObj ? (
+          <Label>
+            Public{' '}
+            <input
+              type="checkbox"
+              checked={collectionObj.isPublic}
+              disabled={collectionObj.user !== userId || isCreating}
+              onChange={
+                collectionObj.user !== userId ? undefined : this.changePublic
+              }
+            />
+          </Label>
+        ) : null}
         {canCreate && cid < 0 ? (
           <Form onSubmit={this.onCreate}>
             <InputText
@@ -197,7 +268,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
             />
           </Form>
         ) : null}
-      </React.Fragment>
+      </Outer>
     );
   }
 } // Collections

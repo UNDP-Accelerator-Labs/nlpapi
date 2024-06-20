@@ -292,6 +292,7 @@ const Pagination = styled.span<PaginationProps>`
 
 interface SearchProps extends ConnectSearch {
   apiActions: ApiActions;
+  userId: string | undefined;
   ready: boolean;
   isLoggedIn: boolean;
 }
@@ -385,6 +386,10 @@ class Search extends PureComponent<SearchProps, SearchState> {
       results,
       isLoading: false,
     });
+  };
+
+  nop = () => {
+    // nothing to do
   };
 
   clickGroup: MouseEventHandler<HTMLDivElement> = (e) => {
@@ -640,7 +645,8 @@ class Search extends PureComponent<SearchProps, SearchState> {
   }
 
   render(): ReactNode {
-    const { page, query, apiActions, collectionId, isLoggedIn } = this.props;
+    const { page, query, apiActions, collectionId, isLoggedIn, userId } =
+      this.props;
     const {
       stats: { count },
       isLoading,
@@ -660,8 +666,11 @@ class Search extends PureComponent<SearchProps, SearchState> {
               <React.Fragment>
                 <Collections
                   apiActions={apiActions}
+                  userId={userId}
                   canCreate={true}
                   isCmp={false}
+                  requestUpdate={this.nop}
+                  isHorizontal={false}
                 />
                 <InputButton
                   type="button"

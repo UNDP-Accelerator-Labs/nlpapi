@@ -27,6 +27,7 @@ SourceListResponse = TypedDict('SourceListResponse', {
     "sources": list[str],
 })
 UserResponse = TypedDict('UserResponse', {
+    "uuid": str | None,
     "name": str | None,
 })
 VersionResponse = TypedDict('VersionResponse', {
@@ -66,16 +67,23 @@ CollectionResponse = TypedDict('CollectionResponse', {
 })
 CollectionJSON = TypedDict('CollectionJSON', {
     "id": int,
+    "user": str,
     "name": str,
+    "deep_dive_key": str,
+    "is_public": bool,
 })
 CollectionListResponse = TypedDict('CollectionListResponse', {
     "collections": list[CollectionJSON],
+})
+CollectionOptionsResponse = TypedDict('CollectionOptionsResponse', {
+    "success": bool,
 })
 DocumentResponse = TypedDict('DocumentResponse', {
     "document_ids": list[int],
 })
 DocumentListResponse = TypedDict('DocumentListResponse', {
     "documents": list[DocumentObj],
+    "is_readonly": bool,
 })
 FulltextResponse = TypedDict('FulltextResponse', {
     "content": str | None,
