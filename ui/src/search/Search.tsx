@@ -672,7 +672,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
                   onClick={this.clickAddAll}
                   value="Add Results to Collection"
                   disabled={
-                    collectionId < 0 || isAdding || collectionUser === userId
+                    collectionId < 0 || isAdding || collectionUser !== userId
                   }
                 />
                 {documentMessage.length ? <div>{documentMessage}</div> : null}
