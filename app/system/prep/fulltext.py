@@ -388,6 +388,7 @@ def get_status_date_type_blog(
     with db.get_session() as session:
         stmt = sa.select(
             ArticlesTable.id,
+            ArticlesTable.posted_date,
             ArticlesTable.posted_date_str,
             ArticlesTable.article_type,
             ArticlesTable.relevance,
@@ -401,9 +402,9 @@ def get_status_date_type_blog(
         if ignore_unpublished and int(row.relevance) <= 1:
             return (None, "article not relevant")
         status: DocStatus = "public"
-        if row.posted_date_str:
+        if row.posted_date:
             date: str | None = datetime.fromisoformat(
-                f"{row.posted_date_str}").isoformat()
+                f"{row.posted_date}").isoformat()
         else:
             lnc, _ = create_length_counter()
             date_res = extract_date(
