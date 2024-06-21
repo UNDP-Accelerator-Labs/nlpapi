@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 Config = TypedDict('Config', {
     "db": 'DBConfig',
     "platforms": dict[str, 'DBConfig'],
-    "blogs": 'DBConfig',
+    "blogs": dict[str, 'DBConfig'],
     "opencage": str,
     "appsecret": str,
     "vector": 'VecDBConfig | None',
@@ -76,7 +76,9 @@ def config_template() -> Config:
             "exp": default_conn.copy(),
             "ap": default_conn.copy(),
         },
-        "blogs": default_conn.copy(),
+        "blogs": {
+            "blog": default_conn.copy(),
+        },
         "opencage": "INVALID",
         "appsecret": "INVALID",
         "vector": default_vec.copy(),
@@ -115,8 +117,8 @@ def get_config() -> Config:
                 "token": envload_str("QDRANT__SERVICE__API_KEY", default=""),
             }
         platforms: dict[str, 'DBConfig'] = {}
-        dbs = envload_str("LOGIN_DB_NAME_PLATFORMS", default="").split(",")
-        for db_str in dbs:
+        pdbs = envload_str("LOGIN_DB_NAME_PLATFORMS", default="").split(",")
+        for db_str in pdbs:
             db_str = db_str.strip()
             if not db_str:
                 continue
@@ -132,6 +134,24 @@ def get_config() -> Config:
                 "schema": envload_str(
                     "LOGIN_DB_SCHEMA_PLATFORM", default="public"),
             }
+        blogs: dict[str, 'DBConfig'] = {}
+        bdbs = envload_str("BLOGS_DB_NAMES", default="").split(",")
+        for db_str in bdbs:
+            db_str = db_str.strip()
+            if not db_str:
+                continue
+            short_name, db_name = db_str.split(":")
+            blogs[short_name] = {
+                "dbname": db_name,
+                "dialect": envload_str(
+                    "BLOGS_DB_DIALECT", default="postgresql"),
+                "host": envload_str("BLOGS_DB_HOST"),
+                "port": envload_int("BLOGS_DB_PORT", default=5432),
+                "user": envload_str("BLOGS_DB_USERNAME"),
+                "passwd": envload_str("BLOGS_DB_PASSWORD"),
+                "schema": envload_str(
+                    "BLOGS_DB_SCHEMA", default="public"),
+            }
         CONFIG = {
             "db": {
                 "dbname": envload_str("LOGIN_DB_NAME"),
@@ -144,16 +164,7 @@ def get_config() -> Config:
                 "schema": envload_str("LOGIN_DB_SCHEMA", default="nlpapi"),
             },
             "platforms": platforms,
-            "blogs": {
-                "dbname": envload_str("BLOGS_DB_NAME"),
-                "dialect": envload_str(
-                    "BLOGS_DB_DIALECT", default="postgresql"),
-                "host": envload_str("BLOGS_DB_HOST"),
-                "port": envload_int("BLOGS_DB_PORT", default=5432),
-                "user": envload_str("BLOGS_DB_USERNAME"),
-                "passwd": envload_str("BLOGS_DB_PASSWORD"),
-                "schema": envload_str("BLOGS_DB_SCHEMA", default="public"),
-            },
+            "blogs": blogs,
             "opencage": envload_str("OPENCAGE_API"),
             "appsecret": envload_str("APP_SECRET"),
             "vector": vector,

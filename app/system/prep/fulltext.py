@@ -113,7 +113,7 @@ FULL_TEXT_LRU: LRU[str, tuple[str | None, str | None]] = LRU(100)
 
 def create_full_text(
         platforms: dict[str, DBConnector],
-        blogs_db: DBConnector,
+        blogs: dict[str, DBConnector],
         *,
         combine_title: bool,
         ignore_unpublished: bool,
@@ -126,15 +126,16 @@ def create_full_text(
             try:
                 base, doc_id = get_base_doc(main_id)
                 pdb = platforms.get(base)
+                bdb = blogs.get(base)
                 if pdb is not None:
                     res = read_pad(
                         pdb,
                         doc_id,
                         combine_title=combine_title,
                         ignore_unpublished=ignore_unpublished)
-                elif base == "blog":
+                elif bdb is not None:
                     res = read_blog(
-                        blogs_db,
+                        bdb,
                         doc_id,
                         combine_title=combine_title,
                         ignore_unpublished=ignore_unpublished)
@@ -214,7 +215,7 @@ def get_url_title_blog(
 
 def create_url_title(
         platforms: dict[str, DBConnector],
-        blogs_db: DBConnector,
+        blogs: dict[str, DBConnector],
         *,
         get_full_text: FullTextFn,
         ignore_unpublished: bool) -> UrlTitleFn:
@@ -225,15 +226,16 @@ def create_url_title(
         try:
             base, doc_id = get_base_doc(main_id)
             pdb = platforms.get(base)
+            bdb = blogs.get(base)
             if pdb is not None:
                 res = get_url_title_pad(
                     pdb,
                     base,
                     doc_id,
                     ignore_unpublished=ignore_unpublished)
-            elif base == "blog":
+            elif bdb is not None:
                 res = get_url_title_blog(
-                    blogs_db,
+                    bdb,
                     doc_id,
                     ignore_unpublished=ignore_unpublished)
             else:
@@ -311,7 +313,7 @@ def get_tag_blog(
 
 def create_tag_fn(
         platforms: dict[str, DBConnector],
-        blogs_db: DBConnector,
+        blogs: dict[str, DBConnector],
         *,
         ignore_unpublished: bool) -> TagFn:
 
@@ -319,6 +321,7 @@ def create_tag_fn(
         try:
             base, doc_id = get_base_doc(main_id)
             pdb = platforms.get(base)
+            bdb = blogs.get(base)
             if pdb is not None:
                 login_db = platforms["login"]
                 res = get_tag_pad(
@@ -326,9 +329,9 @@ def create_tag_fn(
                     pdb,
                     doc_id,
                     ignore_unpublished=ignore_unpublished)
-            elif base == "blog":
+            elif bdb is not None:
                 res = get_tag_blog(
-                    blogs_db,
+                    bdb,
                     doc_id,
                     ignore_unpublished=ignore_unpublished)
             else:
@@ -422,7 +425,7 @@ def get_status_date_type_blog(
 
 def create_status_date_type(
         platforms: dict[str, DBConnector],
-        blogs_db: DBConnector,
+        blogs: dict[str, DBConnector],
         *,
         ignore_unpublished: bool) -> StatusDateTypeFn:
 
@@ -432,15 +435,16 @@ def create_status_date_type(
         try:
             base, doc_id = get_base_doc(main_id)
             pdb = platforms.get(base)
+            bdb = blogs.get(base)
             if pdb is not None:
                 res = get_status_date_type_pad(
                     pdb,
                     base,
                     doc_id,
                     ignore_unpublished=ignore_unpublished)
-            elif base == "blog":
+            elif bdb is not None:
                 res = get_status_date_type_blog(
-                    blogs_db,
+                    bdb,
                     doc_id,
                     ignore_unpublished=ignore_unpublished)
             else:

@@ -560,7 +560,15 @@ def setup(
         raise ValueError(
             f"must define login in {ps_str}. "
             "format is '<short>:<dbname>'") from kerr
-    blogs_db = DBConnector(config["blogs"])
+    blogs = {
+        bname: DBConnector(bconfig)
+        for bname, bconfig in config["blogs"].items()
+    }
+    if "blog" not in blogs:
+        bs_str = envload_str("BLOGS_DB_NAMES", default="")
+        raise ValueError(
+            f"must define blog in {bs_str}. "
+            "format is '<short>:<dbname>'")
 
     vec_db = get_vec_client(config)
 
@@ -575,17 +583,17 @@ def setup(
 
     get_full_text = create_full_text(
         platforms,
-        blogs_db,
+        blogs,
         combine_title=True,
         ignore_unpublished=True)
     get_url_title = create_url_title(
         platforms,
-        blogs_db,
+        blogs,
         get_full_text=get_full_text,
         ignore_unpublished=True)
-    get_tag = create_tag_fn(platforms, blogs_db, ignore_unpublished=True)
+    get_tag = create_tag_fn(platforms, blogs, ignore_unpublished=True)
     get_status_date_type = create_status_date_type(
-        platforms, blogs_db, ignore_unpublished=True)
+        platforms, blogs, ignore_unpublished=True)
     if graph_llama is not None:
 
         def _maybe_start_dive() -> None:

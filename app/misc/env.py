@@ -29,7 +29,7 @@ EnvStr = Literal[
     "APP_SECRET",
     "BLOGS_DB_DIALECT",
     "BLOGS_DB_HOST",
-    "BLOGS_DB_NAME",
+    "BLOGS_DB_NAMES",
     "BLOGS_DB_PASSWORD",
     "BLOGS_DB_SCHEMA",
     "BLOGS_DB_USERNAME",
