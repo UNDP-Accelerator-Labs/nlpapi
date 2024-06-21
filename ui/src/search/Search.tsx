@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import React, {
+  ChangeEventHandler,
   KeyboardEventHandler,
   MouseEventHandler,
   PureComponent,
@@ -24,7 +25,7 @@ import React, {
 import { ConnectedProps, connect } from 'react-redux';
 import styled, { css } from 'styled-components';
 import ApiActions from '../api/ApiActions';
-import { SearchFilters, SearchResult, Stats } from '../api/types';
+import { DBName, SearchFilters, SearchResult, Stats } from '../api/types';
 import Collections from '../collections/Collections';
 import { DISPLAY_PAGE_COUNT, MID_PAGE, PAGE_SIZE } from '../misc/constants';
 import { RootState } from '../store';
@@ -139,6 +140,19 @@ const FieldLi = styled.li<FieldLiProps>`
       isFieldSelected ? 'salmon' : 'lightgray'};
   }
 `;
+
+const Label = styled.label``;
+
+const Select = styled.select`
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-variant: normal;
+  font-weight: 400;
+  line-height: 30px;
+`;
+
+const Option = styled.option``;
 
 const Error = styled.div`
   cursor: pointer;
@@ -294,6 +308,7 @@ interface SearchProps extends ConnectSearch {
   apiActions: ApiActions;
   userId: string | undefined;
   ready: boolean;
+  dbs: DBName[];
 }
 
 type EmptySearchProps = {
@@ -351,13 +366,13 @@ class Search extends PureComponent<SearchProps, SearchState> {
       query: oldQuery,
       page: oldPage,
     } = prevProps;
-    const { ready, filters, query, page, apiActions } = this.props;
+    const { ready, db, filters, query, page, apiActions } = this.props;
     if (!ready) {
       return;
     }
     const forceUpdate = ready !== oldReady;
     if (forceUpdate || filters !== oldFilters) {
-      apiActions.stats(filters, this.setStats);
+      apiActions.stats(db, filters, this.setStats);
     }
     if (
       forceUpdate ||
@@ -369,7 +384,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
         {
           isLoading: true,
         },
-        () => apiActions.search(query, filters, page, this.setResults),
+        () => apiActions.search(query, db, filters, page, this.setResults),
       );
     }
   }
@@ -385,6 +400,27 @@ class Search extends PureComponent<SearchProps, SearchState> {
       results,
       isLoading: false,
     });
+  };
+
+  onDBChange: ChangeEventHandler<HTMLSelectElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    const { dbs, db, query, dispatch } = this.props;
+    const target = e.currentTarget;
+    const newDB = target.value as DBName;
+    if (!dbs.includes(newDB) || newDB === db) {
+      return;
+    }
+    dispatch(
+      setSearch({
+        db: newDB,
+        query,
+        filters: {},
+        page: 0,
+      }),
+    );
   };
 
   clickGroup: MouseEventHandler<HTMLDivElement> = (e) => {
@@ -410,7 +446,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
       return;
     }
     e.preventDefault();
-    const { dispatch, query, filters } = this.props;
+    const { dispatch, db, query, filters } = this.props;
     const target = e.currentTarget;
     const field = target.getAttribute('data-field');
     const groupName = target.getAttribute('data-group');
@@ -425,6 +461,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
     }
     dispatch(
       setSearch({
+        db,
         query,
         filters: Object.fromEntries(
           Object.entries({
@@ -442,7 +479,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
       return;
     }
     e.preventDefault();
-    const { dispatch, query, filters } = this.props;
+    const { dispatch, db, query, filters } = this.props;
     const target = e.currentTarget;
     const page = target.getAttribute('data-page');
     if (page === null) {
@@ -450,6 +487,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
     }
     dispatch(
       setSearch({
+        db,
         query,
         filters,
         page: +page,
@@ -462,9 +500,10 @@ class Search extends PureComponent<SearchProps, SearchState> {
       return;
     }
     e.preventDefault();
-    const { dispatch, query, filters, page } = this.props;
+    const { dispatch, db, query, filters, page } = this.props;
     dispatch(
       setSearch({
+        db,
         query,
         filters: { ...filters },
         page,
@@ -514,9 +553,10 @@ class Search extends PureComponent<SearchProps, SearchState> {
     }
     e.preventDefault();
     const target = e.currentTarget;
-    const { dispatch, filters } = this.props;
+    const { dispatch, db, filters } = this.props;
     dispatch(
       setSearch({
+        db,
         query: target.value,
         filters: { ...filters },
         page: 0,
@@ -640,8 +680,16 @@ class Search extends PureComponent<SearchProps, SearchState> {
   }
 
   render(): ReactNode {
-    const { page, query, apiActions, collectionId, userId, collectionUser } =
-      this.props;
+    const {
+      dbs,
+      db,
+      page,
+      query,
+      apiActions,
+      collectionId,
+      userId,
+      collectionUser,
+    } = this.props;
     const {
       stats: { count },
       isLoading,
@@ -657,6 +705,20 @@ class Search extends PureComponent<SearchProps, SearchState> {
       <React.Fragment>
         <VSide>
           <TopLeft>
+            <Label>
+              Database:{' '}
+              <Select
+                onChange={this.onDBChange}
+                value={db}>
+                {dbs.map((db) => (
+                  <Option
+                    key={db}
+                    value={db}>
+                    {db}
+                  </Option>
+                ))}
+              </Select>
+            </Label>
             {userId ? (
               <React.Fragment>
                 <Collections
@@ -706,6 +768,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
 } // Search
 
 const connector = connect((state: RootState) => ({
+  db: state.searchState.db,
   query: state.searchState.query,
   filters: state.searchState.filters,
   page: state.searchState.page,

@@ -50,6 +50,14 @@ def get_base_doc(main_id: str) -> tuple[str, int]:
     return base.strip(), int(doc_id_str)
 
 
+def get_title(title: str | None) -> str | None:
+    if title is not None and not f"{title}".strip():
+        title = None
+    if title is not None:
+        title = sanity_check(f"{title}")
+    return title
+
+
 def read_pad(
         db: DBConnector,
         doc_id: int,
@@ -66,11 +74,8 @@ def read_pad(
         if ignore_unpublished and int(row.status) <= 1:
             return (None, "pad is unpublished")
         res = sanity_check(f"{row.full_text}")
-        title = row.title
-        if title is not None and not f"{title}".strip():
-            title = None
+        title = get_title(row.title)
         if combine_title and title:
-            title = sanity_check(f"{title}")
             res = f"{title}\n\n{res}"
         return (res, None)
 
@@ -99,11 +104,8 @@ def read_blog(
         content = sanity_check(f"{row.content}".strip())
         if not content:
             return (None, "empty content")
-        title = row.title
-        if title is not None and not f"{title}".strip():
-            title = None
+        title = get_title(row.title)
         if combine_title and title:
-            title = sanity_check(f"{title}")
             content = f"{title}\n\n{content}"
         return (content, None)
 
@@ -178,11 +180,7 @@ def get_url_title_pad(
             return (None, f"could not find {doc_id=}")
         if ignore_unpublished and int(row.status) <= 1:
             return (None, "pad is unpublished")
-        title: str | None = row.title
-        if title is not None and not f"{title}".strip():
-            title = None
-        if title is not None:
-            title = sanity_check(f"{title}")
+        title = get_title(row.title)
         return ((url, title), None)
 
 
@@ -205,11 +203,7 @@ def get_url_title_blog(
         if ignore_unpublished and int(row.relevance) <= 1:
             return (None, "article not relevant")
         url = f"{row.url}"
-        title: str | None = row.title
-        if title is not None and not f"{title}".strip():
-            title = None
-        if title is not None:
-            title = sanity_check(f"{title}")
+        title = get_title(row.title)
         return ((url, title), None)
 
 

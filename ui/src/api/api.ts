@@ -27,7 +27,8 @@ import {
   CollectionListResponse,
   CollectionOptions,
   CollectionResponse,
-  DeepDive,
+  DBName,
+  DeepDiveName,
   DocumentListResponse,
   DocumentResponse,
   FulltextResponse,
@@ -39,18 +40,20 @@ import {
 export type ApiProvider = {
   user: () => Promise<UserResult>;
   stats: (
+    vecdb: Readonly<DBName>,
     fields: Readonly<string[]>,
     filters: Readonly<SearchFilters>,
   ) => Promise<ApiStatResult>;
   search: (
     input: Readonly<string>,
+    vecdb: Readonly<DBName>,
     filters: Readonly<SearchFilters>,
     offset: number,
     limit: number,
   ) => Promise<ApiSearchResult>;
   addCollection: (
     name: string,
-    deepDive: DeepDive,
+    deepDive: DeepDiveName,
   ) => Promise<CollectionResponse>;
   collections: () => Promise<CollectionListResponse>;
   setCollectionOptions: (
@@ -95,7 +98,7 @@ export const DEFAULT_API: ApiProvider = {
       };
     }
   },
-  stats: async (fields, filters) => {
+  stats: async (vecdb, fields, filters) => {
     const url = await getSearchApiUrl();
     try {
       const res = await fetch(`${url}/api/stats`, {
@@ -104,7 +107,7 @@ export const DEFAULT_API: ApiProvider = {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ fields, filters }),
+        body: JSON.stringify({ vecdb, fields, filters }),
       });
       return await res.json();
     } catch (err) {
@@ -115,7 +118,7 @@ export const DEFAULT_API: ApiProvider = {
       };
     }
   },
-  search: async (input, filters, offset, limit) => {
+  search: async (input, vecdb, filters, offset, limit) => {
     const url = await getSearchApiUrl();
     try {
       const res = await fetch(`${url}/api/search`, {
@@ -126,6 +129,7 @@ export const DEFAULT_API: ApiProvider = {
         },
         body: JSON.stringify({
           input,
+          vecdb,
           filters,
           offset,
           limit,

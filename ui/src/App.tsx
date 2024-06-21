@@ -20,7 +20,7 @@ import { ConnectedProps, connect } from 'react-redux';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import styled from 'styled-components';
 import ApiActions from './api/ApiActions';
-import { SearchState } from './api/types';
+import { DBName, SearchState } from './api/types';
 import CollectionView from './collections/CollectionView';
 import { LOGIN_URL } from './misc/constants';
 import Search from './search/Search';
@@ -123,10 +123,14 @@ const NavRow = styled.a`
 type AppProps = ConnectApp;
 
 type AppState = {
-  ready: boolean;
+  userStart: boolean;
+  dbStart: boolean;
+  userReady: boolean;
+  dbReady: boolean;
   userId: string | undefined;
   userName: string | undefined;
   isCollapsed: boolean;
+  dbs: DBName[];
 };
 
 class App extends PureComponent<AppProps, AppState> {
@@ -135,20 +139,28 @@ class App extends PureComponent<AppProps, AppState> {
   constructor(props: AppProps) {
     super(props);
     this.state = {
-      ready: false,
+      userStart: false,
+      dbStart: false,
+      userReady: false,
+      dbReady: false,
       userId: undefined,
       userName: undefined,
       isCollapsed: +(localStorage.getItem('menuCollapse') ?? 0) > 0,
+      dbs: ['main'],
     };
     this.apiActions = new ApiActions(undefined);
 
     window.addEventListener('popstate', (event) => {
-      const { dispatch, query, filters, page } = this.props;
+      const { dispatch, db: oldDB, query, filters, page } = this.props;
       const state: SearchState = event.state;
-      const { q, filter, p } = state;
+      const { db, q, filter, p } = state;
+      let newDB = oldDB;
       let newQuery = query;
       let newFilters = filters;
       let newPage = page;
+      if (db) {
+        newDB = db;
+      }
       if (q) {
         newQuery = q;
       }
@@ -159,61 +171,72 @@ class App extends PureComponent<AppProps, AppState> {
         newPage = p;
       }
       dispatch(
-        setSearch({ query: newQuery, filters: newFilters, page: newPage }),
+        setSearch({
+          db: newDB,
+          query: newQuery,
+          filters: newFilters,
+          page: newPage,
+        }),
       );
     });
   }
 
   componentDidMount(): void {
-    const { dispatch } = this.props;
-    const params = new URL(window.location.href).searchParams;
-    const query = params.get('q');
-    let newQuery = '';
-    let newFilters = {};
-    let newPage = 0;
-    if (query) {
-      newQuery = query;
-    }
-    const filters = params.get('filters');
-    try {
-      if (filters) {
-        const filtersObj = JSON.parse(filters);
-        newFilters = filtersObj;
-      }
-    } catch (_) {
-      // nop
-    }
-    const page = params.get('p');
-    if (page !== undefined && page !== null) {
-      const pageNum = +page;
-      if (Number.isFinite(pageNum)) {
-        newPage = pageNum;
-      }
-    }
-    dispatch(
-      setSearch({ query: newQuery, filters: newFilters, page: newPage }),
-    );
+    this.componentDidUpdate(undefined);
   }
 
-  componentDidUpdate(prevProps: Readonly<AppProps>): void {
-    const { ready } = this.state;
-    const { query, filters, page } = this.props;
+  componentDidUpdate(prevProps: Readonly<AppProps> | undefined): void {
+    const apiActions = this.apiActions;
+    const { userStart, userReady, dbStart, dbReady } = this.state;
+    const { db, query, filters, page } = this.props;
+    if (!dbStart) {
+      this.setState(
+        {
+          dbStart: true,
+        },
+        () => {
+          this.apiActions.vecDBs((vecdbs) => {
+            this.setState({ dbReady: true, dbs: vecdbs });
+          });
+        },
+      );
+    }
+    if (!userStart) {
+      this.setState(
+        {
+          userStart: true,
+        },
+        () => {
+          apiActions.user((userId, userName) => {
+            this.setState({ userReady: true, userId, userName });
+          });
+        },
+      );
+    }
+    if (!userReady || !dbReady || !prevProps) {
+      return;
+    }
     const {
+      db: prevDB,
       query: prevQuery,
       filters: prevFilters,
       page: prevPage,
     } = prevProps;
-    if (!ready) {
-      this.apiActions.user((userId, userName) => {
-        this.setState({ ready: true, userId, userName });
-      });
-      return;
-    }
-    if (query !== prevQuery || filters !== prevFilters || page !== prevPage) {
+    if (
+      db !== prevDB ||
+      query !== prevQuery ||
+      filters !== prevFilters ||
+      page !== prevPage
+    ) {
       const history = window.history;
       const params = new URLSearchParams(
         new URL(window.location.href).searchParams,
       );
+      if (db !== 'main') {
+        params.set('db', `${db}`);
+      } else {
+        params.delete('db');
+      }
       if (query) {
         params.set('q', `${query}`);
       } else {
@@ -243,7 +266,9 @@ class App extends PureComponent<AppProps, AppState> {
   };
 
   render() {
-    const { ready, userId, userName, isCollapsed } = this.state;
+    const { userReady, dbReady, dbs, userId, userName, isCollapsed } =
+      this.state;
+    const ready = userReady && dbReady;
     return (
       <HMain>
         <BrowserRouter>
@@ -262,6 +287,7 @@ class App extends PureComponent<AppProps, AppState> {
               element={
                 <Search
                   apiActions={this.apiActions}
+                  dbs={dbs}
                   userId={userId}
                   ready={ready}
                 />
@@ -308,6 +334,7 @@ class App extends PureComponent<AppProps, AppState> {
 } // App
 
 const connector = connect((state: RootState) => ({
+  db: state.searchState.db,
   query: state.searchState.query,
   filters: state.searchState.filters,
   page: state.searchState.page,

@@ -16,17 +16,25 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ApiProvider, DEFAULT_API } from '../api/api';
-import { ALL_FIELDS, PAGE_SIZE } from '../misc/constants';
+import {
+  ALL_FIELDS,
+  PAGE_SIZE,
+  getDeepDives,
+  getVecDBs,
+} from '../misc/constants';
 import {
   Collection,
   CollectionOptions,
-  DeepDive,
+  DBName,
+  DeepDiveName,
   DocumentObj,
   SearchFilters,
   SearchResult,
   Stats,
 } from './types';
 
+type VecDBsCallback = (vecdbs: DBName[]) => void;
+type DeepDivesCallback = (deepDives: DeepDiveName[]) => void;
 type UserCallback = (
   userId: string | undefined,
   userName: string | undefined,
@@ -58,6 +66,16 @@ export default class ApiActions {
     this.responseNum = 0;
   }
 
+  async vecDBs(cb: VecDBsCallback) {
+    const vecdbs = await getVecDBs();
+    cb(vecdbs);
+  }
+
+  async deepDives(cb: DeepDivesCallback) {
+    const deepDives = await getDeepDives();
+    cb(deepDives);
+  }
+
   async user(cb: UserCallback) {
     const { userId, userName } = await this.api.user();
     cb(userId, userName);
@@ -65,6 +83,7 @@ export default class ApiActions {
 
   async search(
     query: string,
+    vecdb: DBName,
     filters: SearchFilters,
     page: number,
     cb: ResultCallback,
@@ -73,6 +92,7 @@ export default class ApiActions {
     const responseNum = this.responseNum;
     const result = await this.api.search(
       query,
+      vecdb,
       filters,
       page * PAGE_SIZE,
       PAGE_SIZE,
@@ -107,10 +127,14 @@ export default class ApiActions {
     });
   }
 
-  async stats(filters: SearchFilters, cb: StatCallback) {
+  async stats(vecdb: DBName, filters: SearchFilters, cb: StatCallback) {
     this.statNum += 1;
     const statNum = this.statNum;
-    const { doc_count, fields } = await this.api.stats(ALL_FIELDS, filters);
+    const { doc_count, fields } = await this.api.stats(
+      vecdb,
+      ALL_FIELDS,
+      filters,
+    );
     if (statNum !== this.statNum) {
       return;
     }
@@ -119,7 +143,7 @@ export default class ApiActions {
 
   async addCollection(
     name: string,
-    deepDive: DeepDive,
+    deepDive: DeepDiveName,
     cb: AddCollectionCallback,
   ) {
     const { collectionId } = await this.api.addCollection(name, deepDive);

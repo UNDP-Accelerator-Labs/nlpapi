@@ -77,7 +77,11 @@ META_CAT = "_"
 META_PREFIX = f"meta{META_CAT}"
 
 
-DBName: TypeAlias = str
+DBName: TypeAlias = Literal["main", "test", "rave_ce"]
+DBS: tuple[DBName] = get_args(DBName)
+
+
+DBQName: TypeAlias = str
 InternalDataKey: TypeAlias = str
 InternalSnippetKey: TypeAlias = str
 
@@ -130,6 +134,7 @@ StatEmbed = TypedDict('StatEmbed', {
 
 
 VecDBStat = TypedDict('VecDBStat', {
+    "ext_name": str | None,
     "name": str,
     "db_name": str,
     "status": str,
@@ -290,6 +295,7 @@ def get_vec_stats(
             lambda: db.get_collection(db_name))
         count = retry_err(lambda: db.count(db_name))
         return {
+            "ext_name": None,
             "name": name,
             "db_name": db_name,
             "status": status.status,
@@ -299,7 +305,7 @@ def get_vec_stats(
         return None
 
 
-def get_db_name(name: str, *, is_vec: bool) -> DBName:
+def get_db_name(name: str, *, is_vec: bool) -> DBQName:
     return f"{name}_vec" if is_vec else f"{name}_data"
 
 
@@ -400,7 +406,7 @@ def build_db_name(
 
 def create_index(
         db: QdrantClient,
-        db_name: DBName,
+        db_name: DBQName,
         field_name: str,
         field_schema: PayloadSchemaType,
         *,

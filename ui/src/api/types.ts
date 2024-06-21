@@ -15,6 +15,22 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+export type DBName = 'main' | 'test' | 'rave_ce';
+export type DeepDiveName = 'circular_economy' | 'circular_economy_undp';
+
+export type VersionResponse = {
+  app_name: string;
+  app_commit: string;
+  python: string;
+  deploy_date: string;
+  start_date: string;
+  has_vecdb: boolean;
+  has_llm: boolean;
+  vecdbs: DBName[];
+  deepdives: DeepDiveName[];
+  error: string[] | undefined;
+};
+
 export type ApiUserResult = {
   uuid: string | undefined;
   name: string | undefined;
@@ -78,12 +94,11 @@ export type SearchResult = {
 };
 
 export type SearchState = {
+  db: DBName;
   q: string;
   filter: string;
   p: number;
 };
-
-export type DeepDive = 'circular_economy';
 
 export type Collection = {
   id: number;

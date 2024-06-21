@@ -15,7 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import TypedDict
 
-from app.system.deepdive.collection import DocumentObj
+from app.api.server import DBName
+from app.system.deepdive.collection import DeepDiveName, DocumentObj
 from app.system.smind.api import QueueStat
 from app.system.smind.vec import VecDBStat
 
@@ -39,6 +40,8 @@ VersionResponse = TypedDict('VersionResponse', {
     "has_vecdb": bool,
     "has_llm": bool,
     "vecdb_ready": bool,
+    "vecdbs": list[DBName],
+    "deepdives": list[DeepDiveName],
     "error": list[str] | None,
 })
 StatsResponse = TypedDict('StatsResponse', {

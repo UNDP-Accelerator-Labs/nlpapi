@@ -19,7 +19,7 @@ import { ChangeEventHandler, FormEventHandler, PureComponent } from 'react';
 import { ConnectedProps, connect } from 'react-redux';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
-import { Collection, DeepDive } from '../api/types';
+import { Collection, DeepDiveName } from '../api/types';
 import { RootState } from '../store';
 import { setCollection, setCollectionInfo } from './CollectionStateSlice';
 
@@ -92,6 +92,7 @@ type EmptyCollectionsProps = {
 
 type CollectionsState = {
   collections: Collection[];
+  deepDives: DeepDiveName[] | undefined;
   needsUpdate: boolean;
   isCreating: boolean;
   apiNum: number;
@@ -102,6 +103,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
     super(props);
     this.state = {
       collections: [],
+      deepDives: undefined,
       needsUpdate: true,
       isCreating: false,
       apiNum: 0,
@@ -117,7 +119,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
   ) {
     const { collectionId: prevCollectionId } = prevProps;
     const { apiActions, collectionId } = this.props;
-    const { needsUpdate, apiNum } = this.state;
+    const { needsUpdate, apiNum, deepDives } = this.state;
     if (needsUpdate) {
       const newApiNum = apiNum + 1;
       this.setState({ needsUpdate: false, apiNum: newApiNum }, () => {
@@ -139,6 +141,20 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
     }
     if (collectionId !== prevCollectionId) {
       this.updateCollectionInfo();
+    }
+    if (deepDives === undefined) {
+      this.setState(
+        {
+          deepDives: [],
+        },
+        () => {
+          apiActions.deepDives((deepDives) => {
+            this.setState({
+              deepDives,
+            });
+          });
+        },
+      );
     }
   }
 
@@ -180,7 +196,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
       return;
     }
     e.preventDefault();
-    const { isCreating } = this.state;
+    const { isCreating, deepDives } = this.state;
     if (isCreating) {
       return;
     }
@@ -188,14 +204,21 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
     const target = e.currentTarget;
     const formData = new FormData(target);
     const nameValue = formData.get('name');
-    if (!nameValue) {
+    const deepDiveValue = formData.get('deepdive');
+    if (!nameValue || !deepDiveValue || !deepDives) {
       return;
     }
     const newName = `${nameValue}`;
     if (!newName.length) {
       return;
     }
-    const deepDive: DeepDive = 'circular_economy';
+    const deepDive = deepDives.reduce(
+      (p: DeepDiveName | null, cur) => (cur === deepDiveValue ? cur : p),
+      null,
+    );
+    if (deepDive === null) {
+      return;
+    }
     this.setState(
       {
         isCreating: true,
@@ -270,7 +293,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
       isHorizontal,
       isInline,
     } = this.props;
-    const { collections, isCreating } = this.state;
+    const { collections, isCreating, deepDives } = this.state;
     const cid = isCmp ? cmpCollectionId : collectionId;
     return (
       <Outer
@@ -307,7 +330,7 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
             />
           </Label>
         ) : null}
-        {canCreate && cid < 0 ? (
+        {canCreate && deepDives && deepDives.length && cid < 0 ? (
           <Form onSubmit={this.onCreate}>
             <InputText
               type="text"
@@ -315,6 +338,15 @@ class Collections extends PureComponent<CollectionsProps, CollectionsState> {
               autoComplete="off"
               placeholder="Collection Name"
             />
+            <Select name="deepdive">
+              {deepDives.map((deepDive) => (
+                <Option
+                  key={deepDive}
+                  value={deepDive}>
+                  {deepDive}
+                </Option>
+              ))}
+            </Select>
             <InputSubmit
               type="submit"
               value="Create"

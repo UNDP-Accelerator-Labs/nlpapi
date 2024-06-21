@@ -1,3 +1,5 @@
+import { DBName, DeepDiveName, VersionResponse } from '../api/types';
+
 /**
  * NLP-API provides useful Natural Language Processing capabilities as API.
  * Copyright (C) 2024 UNDP Accelerator Labs, Josua Krause
@@ -20,25 +22,19 @@ export const DISPLAY_PAGE_COUNT = 10;
 export const MID_PAGE = Math.floor(DISPLAY_PAGE_COUNT / 2);
 export const ALL_FIELDS = ['doc_type', 'iso3', 'language', 'status'];
 
-type VersionResponse = {
-  app_name: string;
-  app_commit: string;
-  python: string;
-  deploy_date: string;
-  start_date: string;
-  has_vecdb: boolean;
-  has_llm: boolean;
-  error: string[] | undefined;
-};
-
 const HOST_URL = `${window.location.origin}`;
 const LIVE_URL = 'https://nlpapi.sdg-innovation-commons.org';
 
-const getVersionObj = async () => {
+const VERSION_OBJS: { [key: string]: VersionResponse } = {};
+
+const getVersionObj = async (base = '') => {
   try {
-    const versionResponse = await fetch('/api/version');
-    const versionObj: VersionResponse = await versionResponse.json();
-    return versionObj;
+    if (!VERSION_OBJS[base]) {
+      const versionResponse = await fetch(`${base}/api/version`);
+      const versionObj: VersionResponse = await versionResponse.json();
+      VERSION_OBJS[base] = versionObj;
+    }
+    return VERSION_OBJS[base];
   } catch (_) {
     const res: VersionResponse = {
       app_name: 'error',
@@ -48,6 +44,8 @@ const getVersionObj = async () => {
       start_date: 'error',
       has_vecdb: false,
       has_llm: false,
+      vecdbs: [],
+      deepdives: [],
       error: ['error'],
     };
     return res;
@@ -85,3 +83,28 @@ export const getCollectionApiUrl = async () => {
 };
 
 export const LOGIN_URL = 'https://login.sdg-innovation-commons.org/login';
+
+let DEEP_DIVES: DeepDiveName[] | null = null;
+
+export const getDeepDives = async () => {
+  if (!DEEP_DIVES) {
+    const versionObj = await getVersionObj();
+    DEEP_DIVES = versionObj.deepdives;
+  }
+  return DEEP_DIVES;
+};
+
+let VEC_DBS: DBName[] | null = null;
+
+export const getVecDBs = async () => {
+  if (!VEC_DBS) {
+    const versionObj = await getVersionObj();
+    if (versionObj.error || !versionObj.has_vecdb) {
+      const liveVersion = await getVersionObj(LIVE_URL);
+      VEC_DBS = liveVersion.vecdbs;
+    } else {
+      VEC_DBS = versionObj.vecdbs;
+    }
+  }
+  return VEC_DBS;
+};

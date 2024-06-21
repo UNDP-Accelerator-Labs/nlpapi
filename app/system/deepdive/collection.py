@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from collections.abc import Iterable
-from typing import TypedDict
+from typing import cast, get_args, Literal, TypedDict
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -23,6 +23,16 @@ from sqlalchemy.orm import Session
 
 from app.system.db.base import DeepDiveCollection, DeepDiveElement
 from app.system.db.db import DBConnector
+
+
+DeepDiveName = Literal["circular_economy", "circular_economy_undp"]
+DEEP_DIVE_NAMES: tuple[DeepDiveName] = get_args(DeepDiveName)
+
+
+def get_deep_dive_name(name: str) -> DeepDiveName:
+    if name not in DEEP_DIVE_NAMES:
+        raise ValueError(f"{name} is not a deep dive ({DEEP_DIVE_NAMES})")
+    return cast(DeepDiveName, name)
 
 
 CollectionObj = TypedDict('CollectionObj', {
@@ -73,14 +83,19 @@ DocumentObj = TypedDict('DocumentObj', {
 })
 
 
-def get_deep_dive_keys(deep_dive: str) -> tuple[str, str]:
+def get_deep_dive_keys(deep_dive: DeepDiveName) -> tuple[str, str]:
     if deep_dive == "circular_economy":
         return ("verify_circular_economy", "rate_circular_economy")
+    if deep_dive == "circular_economy_undp":
+        return ("verify_circular_economy_no_acclab", "rate_circular_economy")
     raise ValueError(f"unknown {deep_dive=}")
 
 
 def add_collection(
-        db: DBConnector, user: UUID, name: str, deep_dive: str) -> int:
+        db: DBConnector,
+        user: UUID,
+        name: str,
+        deep_dive: DeepDiveName) -> int:
     verify_key, deep_dive_key = get_deep_dive_keys(deep_dive)
     with db.get_session() as session:
         stmt = sa.insert(DeepDiveCollection).values(

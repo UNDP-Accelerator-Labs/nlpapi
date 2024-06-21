@@ -139,7 +139,7 @@ user provides to you talks about <topic>.
 The article is considered a hit if <topic> is the main subject of the text but
 also if <topic> is only mentioned, explained, or hinted at. If the article
 talks about a topic that could be described as <topic> without naming it
-explicitly it is still considered a hit.
+explicitly it is still considered a hit.<acclab>
 
 Your entire response is a JSON and nothing else. The JSON is an object with
 two fields: "reason" which provides a short (50 - 100 words) justification for
@@ -162,6 +162,14 @@ answer. You will be penalized for any text that is not in the JSON format.
 {BR_C}
 ```
 """
+
+
+NO_ACCLAB = """
+If the article was written by a member of an Accelerator Lab or the work
+was performed by an Accelerator Lab the article is considered a miss and
+not a hit. Accelerator Labs is also often abbreviated as AccLabs.
+"""
+
 
 CIRCULAR_ECONOMY_DEFINITION = """
 Circular economy is a concept that aims to reduce waste and the consumption of
@@ -188,15 +196,27 @@ Circular economy is still an evolving concept, but it has the potential to
 transform the way we produce, consume, and interact with goods and services.
 """.strip()
 
+
 VERIFY_CIRCULAR_ECONOMY = replacer(
     VERIFY_PROMPT,
     {
         "topic": "circular economy",
         "topic_definition": CIRCULAR_ECONOMY_DEFINITION,
+        "acclab": "",
+    })
+
+
+VERIFY_CIRCULAR_ECONOMY_NO_ACCLAB = replacer(
+    VERIFY_PROMPT,
+    {
+        "topic": "circular economy",
+        "topic_definition": CIRCULAR_ECONOMY_DEFINITION,
+        "acclab": f" {NO_ACCLAB.strip()}",
     })
 
 
 SYSTEM_PROMPTS: dict[str, str] = {
+    "verify_circular_economy_no_acclab": VERIFY_CIRCULAR_ECONOMY_NO_ACCLAB,
     "verify_circular_economy": VERIFY_CIRCULAR_ECONOMY,
     "rate_circular_economy": RATING_CIRCULAR_ECONOMY,
 }

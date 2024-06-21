@@ -20,7 +20,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from typing import Any, cast, get_args, Literal, TypeAlias, TypedDict
+from typing import Any, cast, Literal, TypedDict
 
 from qdrant_client import QdrantClient
 from quick_server import create_server, MiddlewareF, QuickServer
@@ -68,7 +68,9 @@ from app.system.deepdive.collection import (
     add_collection,
     add_documents,
     CollectionOptions,
+    DEEP_DIVE_NAMES,
     get_collections,
+    get_deep_dive_name,
     get_documents,
     requeue,
     requeue_meta,
@@ -117,6 +119,8 @@ from app.system.smind.search import (
 from app.system.smind.vec import (
     build_db_name,
     build_scalar_index,
+    DBName,
+    DBS,
     get_vec_client,
     get_vec_stats,
     MetaKey,
@@ -128,12 +132,8 @@ from app.system.stats import create_length_counter
 from app.system.urlinspect.inspect import inspect_url
 
 
-DBName: TypeAlias = Literal["main", "test"]
-
-
 MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
 MAX_LINKS = 20
-DBS: tuple[DBName] = get_args(DBName)
 
 
 VersionDict = TypedDict('VersionDict', {
@@ -199,14 +199,11 @@ def add_vec_features(
         verify_input: MiddlewareF,
         verify_token: MiddlewareF,
         verify_write: MiddlewareF,
-        verify_tanuki: MiddlewareF) -> Callable[[], list[str]]:
+        verify_tanuki: MiddlewareF) -> Callable[[], dict[DBName, str]]:
     cond = threading.Condition()
-    articles_main = None
-    articles_test = None
+    articles_dict: dict[DBName, str] = {}
 
     def init_vec_db() -> None:
-        nonlocal articles_main, articles_test
-
         tstart = time.monotonic()
         print("start loading vector database...")
         articles_main = get_vec_db(
@@ -215,12 +212,23 @@ def add_vec_features(
             graph_embed=graph_embed,
             force_clear=False,
             force_index=False)
+        articles_dict["main"] = articles_main
+
         articles_test = get_vec_db(
             vec_db,
             name="test",
             graph_embed=graph_embed,
             force_clear=False,
             force_index=False)
+        articles_dict["test"] = articles_test
+
+        articles_rave_ce = get_vec_db(
+            vec_db,
+            name="rave_ce",
+            graph_embed=graph_embed,
+            force_clear=False,
+            force_index=False)
+        articles_dict["rave_ce"] = articles_rave_ce
 
         set_main_articles(
             db, vec_db, articles=articles_main, articles_graph=graph_embed)
@@ -239,35 +247,19 @@ def add_vec_features(
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
         return cast(DBName, vdb_str)
 
-    def _get_articles(vdb: DBName) -> str | None:
-        nonlocal articles_main, articles_test
-
-        if vdb == "main":
-            return articles_main
-        if vdb == "test":
-            return articles_test
-        raise ValueError(f"db ({vdb}) must be one of {DBS}")
-
     def get_articles(vdb_str: str) -> str:
         vdb = parse_vdb(vdb_str)
-        res = _get_articles(vdb)
+        res = articles_dict.get(vdb)
         if res:
             return res
         with cond:
-            res = cond.wait_for(lambda: _get_articles(vdb), 120.0)
+            res = cond.wait_for(lambda: articles_dict.get(vdb), 120.0)
         if res:
             return res
         raise ValueError("vector database is not ready yet!")
 
-    def get_articles_arr() -> list[str]:
-        nonlocal articles_main, articles_test
-
-        if articles_main is None or articles_test is None:
-            return []
-        return [
-            get_articles(vdb)
-            for vdb in DBS
-        ]
+    def get_articles_dict() -> dict[DBName, str]:
+        return dict(articles_dict)
 
     @server.json_post(f"{prefix}/stats")
     @server.middleware(verify_readonly)
@@ -279,7 +271,7 @@ def add_vec_features(
         filters: dict[MetaKey, list[str]] = args.get("filters", {})
         if session is None:  # NOTE: not logged in!
             filters["status"] = ["public"]
-        articles = get_articles("main")
+        articles = get_articles(args.get("vecdb", "main"))
         return vec_filter(
             vec_db,
             qdrant_cache=qdrant_cache,
@@ -306,7 +298,7 @@ def add_vec_features(
             args.get("score_threshold"))
         short_snippets = bool(args.get("short_snippets", True))
         order_by: MetaKey = "date"  # FIXME: order_by
-        articles = get_articles("main")
+        articles = get_articles(args.get("vecdb", "main"))
         return vec_search(
             db,
             vec_db,
@@ -504,7 +496,7 @@ def add_vec_features(
                 score_threshold=score_threshold,
                 short_snippets=short_snippets)
 
-    return get_articles_arr
+    return get_articles_dict
 
 
 def setup(
@@ -746,7 +738,7 @@ def setup(
         return okay
 
     if vec_db is not None:
-        get_articles_arr = add_vec_features(
+        get_articles_dict = add_vec_features(
             server,
             db,
             vec_db,
@@ -766,16 +758,17 @@ def setup(
             verify_tanuki=verify_tanuki)
     else:
 
-        def no_articles() -> list[str]:
-            return []
+        def no_articles() -> dict[DBName, str]:
+            return {}
 
-        get_articles_arr = no_articles
+        get_articles_dict = no_articles
 
     # *** misc ***
 
     @server.json_get(f"{prefix}/version")
     @server.middleware(verify_readonly)
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
+        articles_dbs = sorted(get_articles_dict().keys())
         return {
             "app_name": versions["app_version"],
             "app_commit": versions["commit"],
@@ -784,7 +777,9 @@ def setup(
             "start_date": versions["start_time"],
             "has_vecdb": vec_db is not None,
             "has_llm": graph_llama is not None,
-            "vecdb_ready": bool(get_articles_arr()),
+            "vecdb_ready": bool(articles_dbs),
+            "vecdbs": articles_dbs,
+            "deepdives": sorted(DEEP_DIVE_NAMES),
             "error": None,
         }
 
@@ -802,11 +797,12 @@ def setup(
     def _get_info(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
         vecdbs: list[VecDBStat] = []
         if vec_db is not None:
-            for article in get_articles_arr():
+            for ext_name, article in get_articles_dict().items():
                 for is_vec in [False, True]:
                     article_stats = get_vec_stats(
                         vec_db, article, is_vec=is_vec)
                     if article_stats is not None:
+                        article_stats["ext_name"] = ext_name
                         vecdbs.append(article_stats)
         return {
             "vecdbs": vecdbs,
@@ -953,7 +949,7 @@ def setup(
                 _req: QSRH, rargs: ReqArgs) -> CollectionResponse:
             args = rargs["post"]
             name: str = args["name"]
-            deep_dive: str = args["deep_dive"]
+            deep_dive = get_deep_dive_name(args["deep_dive"])
             session: SessionInfo = rargs["meta"]["session"]
             res = add_collection(db, session["uuid"], name, deep_dive)
             return {
@@ -1121,6 +1117,8 @@ def fallback_server(
             "has_vecdb": False,
             "has_llm": False,
             "vecdb_ready": False,
+            "vecdbs": [],
+            "deepdives": [],
             "error": exc_strs,
         }
 

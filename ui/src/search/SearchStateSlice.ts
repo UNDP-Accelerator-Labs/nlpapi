@@ -16,9 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { createSlice } from '@reduxjs/toolkit';
-import { SearchFilters } from '../api/types';
+import { DBName, SearchFilters } from '../api/types';
 
 type SearchState = {
+  db: Readonly<DBName>;
   query: Readonly<string>;
   filters: Readonly<SearchFilters>;
   page: number;
@@ -26,6 +27,7 @@ type SearchState = {
 
 type SetAction = {
   payload: {
+    db: Readonly<DBName>;
     query: Readonly<string>;
     filters: Readonly<SearchFilters>;
     page: number;
@@ -38,14 +40,47 @@ type SearchReducers = {
 
 const searchStateSlice = createSlice<SearchState, SearchReducers, string>({
   name: 'searchState',
-  initialState: {
-    query: '',
-    filters: {},
-    page: 0,
+  initialState: () => {
+    const params = new URL(window.location.href).searchParams;
+    let newDB: DBName = 'main';
+    let newQuery = '';
+    let newFilters = {};
+    let newPage = 0;
+    const query = params.get('q');
+    if (query) {
+      newQuery = query;
+    }
+    const urlDB = params.get('db');
+    if (urlDB) {
+      newDB = urlDB as DBName;
+    }
+    const filters = params.get('filters');
+    try {
+      if (filters) {
+        const filtersObj = JSON.parse(filters);
+        newFilters = filtersObj;
+      }
+    } catch (_) {
+      // nop
+    }
+    const page = params.get('p');
+    if (page !== undefined && page !== null) {
+      const pageNum = +page;
+      if (Number.isFinite(pageNum)) {
+        newPage = pageNum;
+      }
+    }
+    return {
+      db: newDB,
+      query: newQuery,
+      filters: newFilters,
+      page: newPage,
+    };
   },
   reducers: {
     setSearch: (state, action) => {
-      const { query, filters, page } = action.payload;
+      const { db, query, filters, page } = action.payload;
+      state.db = db;
       state.query = query;
       state.filters = filters;
       state.page = page;
