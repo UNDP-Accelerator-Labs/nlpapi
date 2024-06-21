@@ -21,6 +21,22 @@ import { StatNumbers } from '../api/types';
 
 const MAX_STAT_VALUE = 4;
 
+const ORDER = [
+  'cultural',
+  'educational',
+  'economic',
+  'technological',
+  'institutional',
+  'legal',
+  'political',
+];
+
+const cmpStatsFn = (a: string, b: string): number => {
+  const aIx = ORDER.indexOf(a);
+  const bIx = ORDER.indexOf(b);
+  return aIx < 0 || bIx < 0 ? a.localeCompare(b) : aIx - bIx;
+};
+
 const SvgText = styled.text`
   font: 10px sans-serif;
   text-anchor: middle;
@@ -74,7 +90,7 @@ export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
     } = this.props;
     const mid = radius + padding;
     const size = mid * 2;
-    const order = Object.keys(stats).toSorted((a, b) => a.localeCompare(b));
+    const order = Object.keys(stats).toSorted(cmpStatsFn);
     const count = Math.max(order.length, 1);
     const angles = order.map((_, ix) => (ix * 360) / count);
     const rads = this.getRads(stats, order, radius);
