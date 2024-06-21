@@ -25,12 +25,18 @@ from typing import Literal, Protocol, TypedDict
 import numpy as np
 from qdrant_client import QdrantClient
 from redipy import Redis
+from scattermind.system.util import first
 
 from app.misc.util import (
+    CHUNK_PADDING,
+    CHUNK_SIZE,
+    DOC_STATUS,
     fmt_time,
     json_compact_str,
     json_maybe_read,
     parse_time_str,
+    SMALL_CHUNK_SIZE,
+    TITLE_CHUNK_SIZE,
     to_list,
 )
 from app.system.db.db import DBConnector
@@ -52,7 +58,6 @@ from app.system.smind.cache import cached, clear_cache
 from app.system.smind.log import log_query, sample_query_log
 from app.system.smind.vec import (
     add_embed,
-    DOC_STATUS,
     EmbedChunk,
     EmbedMain,
     MetaKey,
@@ -199,13 +204,6 @@ def update_last_query(*, update_time: bool = True) -> None:
         th.start()
 
 
-CHUNK_SIZE = 600
-SMALL_CHUNK_SIZE = 150
-TITLE_CHUNK_SIZE = 60
-CHUNK_PADDING = 20
-DEFAULT_HIT_LIMIT = 1
-
-
 def vec_clear(
         vec_db: QdrantClient,
         smind_config: str,
@@ -341,12 +339,10 @@ def vec_add(
     # validate title
     title = normalize_text(sanity_check(title))
     if not title:
-        title_loc = next(
-            iter(snippify_text(
-                input_str,
-                chunk_size=TITLE_CHUNK_SIZE,
-                chunk_padding=CHUNK_PADDING)),
-            None)
+        title_loc = first(snippify_text(
+            input_str,
+            chunk_size=TITLE_CHUNK_SIZE,
+            chunk_padding=CHUNK_PADDING))
         if title_loc is None:
             raise ValueError(f"cannot infer title for {input_str=}")
         title, _ = title_loc
@@ -370,11 +366,12 @@ def vec_add(
     if not isinstance(doc_type, str):
         raise TypeError(f"doc_type {doc_type} must be string")
     # validate date
-    if meta_obj.get("date") is not None:
+    meta_date = meta_obj.get("date")
+    if meta_date is not None:
         if isinstance(meta_obj["date"], list):
             raise TypeError(f"date {meta_obj['date']} must be string")
-        meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
-        if parse_time_str(meta_obj["date"]).date() < LOW_CUTOFF_DATE:
+        meta_obj["date"] = fmt_time(parse_time_str(meta_date))
+        if parse_time_str(meta_date).date() < LOW_CUTOFF_DATE:
             meta_obj.pop("date", None)  # NOTE: 1970 dates are invalid dates!
     # fill language if missing
     language_start = time.monotonic()

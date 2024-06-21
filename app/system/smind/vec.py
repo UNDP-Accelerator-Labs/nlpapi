@@ -61,7 +61,7 @@ from qdrant_client.models import (
     WithLookup,
 )
 
-from app.misc.util import get_time_str, parse_time_str
+from app.misc.util import DocStatus, get_time_str, parse_time_str
 from app.system.config import Config
 
 
@@ -85,16 +85,12 @@ InternalSnippetKey: TypeAlias = str
 HashTup: TypeAlias = tuple[str, int]
 
 
-DocStatus: TypeAlias = Literal["public", "preview"]
-DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
-
-
 MetaObject = TypedDict('MetaObject', {
-    "date": NotRequired[str],
+    "date": NotRequired[str | None],
     "status": DocStatus,
     "doc_type": str,
-    "language": dict[str, float],
-    "iso3": dict[str, float],
+    "language": NotRequired[dict[str, float]],
+    "iso3": NotRequired[dict[str, float]],
 })
 MetaObjectOpt = TypedDict('MetaObjectOpt', {
     "date": NotRequired[str],

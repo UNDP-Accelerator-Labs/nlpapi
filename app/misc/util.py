@@ -24,7 +24,7 @@ import threading
 import uuid
 from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timezone
-from typing import Any, IO, NoReturn, TypeVar
+from typing import Any, get_args, IO, Literal, NoReturn, TypeAlias, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -45,6 +45,17 @@ NL = "\n"
 
 TEST_SALT_LOCK = threading.RLock()
 TEST_SALT: dict[str, str] = {}
+
+
+DocStatus: TypeAlias = Literal["public", "preview"]
+DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
+
+
+CHUNK_SIZE = 600
+SMALL_CHUNK_SIZE = 150
+TITLE_CHUNK_SIZE = 60
+CHUNK_PADDING = 20
+DEFAULT_HIT_LIMIT = 1
 
 
 def is_test() -> bool:

@@ -241,7 +241,7 @@ class PadTable(Base):  # pylint: disable=too-few-public-methods
     #     REFERENCES public.templates (id) MATCH SIMPLE
     #     ON UPDATE NO ACTION
     #     ON DELETE NO ACTION
-    updated_at = sa.Column(
+    update_at = sa.Column(
         sa.DateTime(timezone=True),
         nullable=False,
         server_default=sa.func.now())  # pylint: disable=not-callable
@@ -303,6 +303,27 @@ class ArticleContentTable(Base):  # pylint: disable=too-few-public-methods
         sa.DateTime(timezone=False),
         server_default=sa.func.now())  # pylint: disable=not-callable
     updated_at = sa.Column(
+        sa.DateTime(timezone=False),
+        server_default=sa.func.now())  # pylint: disable=not-callable
+    updated_at = sa.Column(
+        sa.DateTime(timezone=False),
+        server_default=sa.func.now())  # pylint: disable=not-callable
+
+
+class ArticlesRawHTMLTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "raw_html"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    article_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            ArticlesTable.id,
+            onupdate="NO ACTION",
+            ondelete="CASCADE"),
+        nullable=False,
+        unique=True)
+    raw_html = sa.Column(sa.Text())
+    created_at = sa.Column(
         sa.DateTime(timezone=False),
         server_default=sa.func.now())  # pylint: disable=not-callable
     updated_at = sa.Column(

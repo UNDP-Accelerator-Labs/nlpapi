@@ -18,8 +18,7 @@ import json
 import os
 import sys
 import time
-from collections.abc import Iterable
-from typing import TypedDict, TypeVar
+from typing import TypedDict
 
 import pandas as pd
 from scattermind.api.api import ScattermindAPI
@@ -27,6 +26,7 @@ from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
 from scattermind.system.names import GNamespace
 from scattermind.system.torch_util import tensor_to_str
+from scattermind.system.util import first
 
 from app.system.prep.clean import normalize_text
 from app.system.prep.snippify import snippify_text
@@ -111,15 +111,6 @@ def load_graph(
 #     duration = time.monotonic() - start_time
 #     print(f"tokenization time: {duration}s")
 #     return res
-
-
-T = TypeVar('T')
-
-
-def first(iterator: Iterable[T]) -> T:
-    for res in iterator:
-        return res
-    raise ValueError("empty iterator!")
 
 
 def run() -> None:

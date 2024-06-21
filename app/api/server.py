@@ -50,7 +50,15 @@ from app.api.response_types import (
     VersionResponse,
 )
 from app.misc.env import envload_bool, envload_int, envload_path, envload_str
-from app.misc.util import get_time_str, maybe_float, to_bool
+from app.misc.util import (
+    CHUNK_PADDING,
+    CHUNK_SIZE,
+    DEFAULT_HIT_LIMIT,
+    get_time_str,
+    maybe_float,
+    SMALL_CHUNK_SIZE,
+    to_bool,
+)
 from app.misc.version import get_version
 from app.system.auth import get_session, is_valid_token, SessionInfo
 from app.system.config import get_config
@@ -80,8 +88,13 @@ from app.system.location.response import (
 from app.system.prep.clean import normalize_text, sanity_check
 from app.system.prep.fulltext import (
     create_full_text,
+    create_status_date_type,
     create_tag_fn,
     create_url_title,
+    FullTextFn,
+    get_base_doc,
+    StatusDateTypeFn,
+    UrlTitleFn,
 )
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
@@ -93,13 +106,9 @@ from app.system.smind.api import (
 )
 from app.system.smind.search import (
     AddEmbed,
-    CHUNK_PADDING,
-    CHUNK_SIZE,
     ClearResponse,
-    DEFAULT_HIT_LIMIT,
     QueryEmbed,
     set_main_articles,
-    SMALL_CHUNK_SIZE,
     vec_add,
     vec_clear,
     vec_filter,
@@ -111,6 +120,7 @@ from app.system.smind.vec import (
     get_vec_client,
     get_vec_stats,
     MetaKey,
+    MetaObject,
     StatEmbed,
     VecDBStat,
 )
@@ -181,6 +191,9 @@ def add_vec_features(
         smind_config: str,
         graph_embed: GraphProfile,
         ner_graphs: dict[LanguageStr, GraphProfile],
+        get_full_text: FullTextFn,
+        get_url_title: UrlTitleFn,
+        get_status_date_type: StatusDateTypeFn,
         maybe_session: MiddlewareF,
         verify_readonly: MiddlewareF,
         verify_input: MiddlewareF,
@@ -358,6 +371,47 @@ def add_vec_features(
 
         # *** embeddings ***
 
+        @server.json_post(f"{prefix}/embed/add")
+        @server.middleware(verify_write)
+        def _post_embed_add(_req: QSRH, rargs: ReqArgs) -> AddEmbed:
+            args = rargs["post"]
+            meta = rargs["meta"]
+            main_id = args["main_id"]
+            base, doc_id = get_base_doc(main_id)
+            vdb_str: str = args["db"]
+            articles = get_articles(vdb_str)
+            input_str, error_input = get_full_text(main_id)
+            if input_str is None:
+                raise ValueError(error_input)
+            info, error_info = get_url_title(main_id)
+            if info is None:
+                raise ValueError(error_info)
+            url, title = info
+            sdt, error_sdt = get_status_date_type(main_id)
+            if sdt is None:
+                raise ValueError(error_sdt)
+            status, date_str, doc_type = sdt
+            meta_obj: MetaObject = {
+                "status": status,
+                "date": date_str,
+                "doc_type": doc_type,
+            }
+            user: uuid.UUID = meta["user"]
+            return vec_add(
+                db,
+                vec_db,
+                input_str,
+                qdrant_cache=qdrant_cache,
+                articles=articles,
+                articles_graph=graph_embed,
+                ner_graphs=ner_graphs,
+                user=user,
+                base=base,
+                doc_id=doc_id,
+                url=url,
+                title=title,
+                meta_obj=meta_obj)
+
         @server.json_post(f"{prefix}/add_embed")
         @server.middleware(verify_write)
         @server.middleware(verify_input)
@@ -524,12 +578,15 @@ def setup(
         blogs_db,
         combine_title=True,
         ignore_unpublished=True)
+    get_url_title = create_url_title(
+        platforms,
+        blogs_db,
+        get_full_text=get_full_text,
+        ignore_unpublished=True)
+    get_tag = create_tag_fn(platforms, blogs_db, ignore_unpublished=True)
+    get_status_date_type = create_status_date_type(
+        platforms, blogs_db, ignore_unpublished=True)
     if graph_llama is not None:
-        get_url_title = create_url_title(
-            platforms,
-            blogs_db,
-            ignore_unpublished=True)
-        get_tag = create_tag_fn(platforms, blogs_db, ignore_unpublished=True)
 
         def _maybe_start_dive() -> None:
             maybe_diver_thread(
@@ -690,6 +747,9 @@ def setup(
             smind_config=smind_config,
             graph_embed=graph_embed,
             ner_graphs=ner_graphs,
+            get_full_text=get_full_text,
+            get_url_title=get_url_title,
+            get_status_date_type=get_status_date_type,
             maybe_session=maybe_session,
             verify_readonly=verify_readonly,
             verify_input=verify_input,
