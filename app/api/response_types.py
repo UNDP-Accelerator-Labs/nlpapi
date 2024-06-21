@@ -15,10 +15,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import TypedDict
 
-from app.api.server import DBName
 from app.system.deepdive.collection import DeepDiveName, DocumentObj
 from app.system.smind.api import QueueStat
-from app.system.smind.vec import VecDBStat
+from app.system.smind.vec import DBName, VecDBStat
 
 
 SourceResponse = TypedDict('SourceResponse', {
