@@ -3,6 +3,8 @@ NLPAPI
 
 This repo contains a python based API server that provides various NLP APIs.
 
+A public facing UI can be found [here](https://nlpapi.sdg-innovation-commons.org/search/).
+
 ## Setup Python
 
 In order to setup python install `python >= 3.11` and `conda`.
