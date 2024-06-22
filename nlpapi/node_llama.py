@@ -157,7 +157,7 @@ class LlamaNode(Node):
         system_prompt_keys = inputs.get_data("system_prompt_key")
         tasks = inputs.get_current_tasks()
 
-        model.set_cache(llama_cpp.LlamaDiskCache(  # type: ignore
+        model.set_cache(llama_cpp.llama_cache.LlamaDiskCache(
             os.path.join(cache_dir, self.get_id().to_parseable())))
         for prompt, system_prompt_key, task in zip(
                 prompts.iter_values(),
