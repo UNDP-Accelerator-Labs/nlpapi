@@ -42,17 +42,17 @@ const searchStateSlice = createSlice<SearchState, SearchReducers, string>({
   name: 'searchState',
   initialState: () => {
     const params = new URL(window.location.href).searchParams;
-    let newDB: DBName = 'main';
+    let newDB = (localStorage.getItem('vecdb') ?? 'main') as DBName;
     let newQuery = '';
     let newFilters = {};
     let newPage = 0;
-    const query = params.get('q');
-    if (query) {
-      newQuery = query;
-    }
     const urlDB = params.get('db');
     if (urlDB) {
       newDB = urlDB as DBName;
+    }
+    const query = params.get('q');
+    if (query) {
+      newQuery = query;
     }
     const filters = params.get('filters');
     try {
@@ -80,7 +80,10 @@ const searchStateSlice = createSlice<SearchState, SearchReducers, string>({
   reducers: {
     setSearch: (state, action) => {
       const { db, query, filters, page } = action.payload;
-      state.db = db;
+      if (state.db !== db) {
+        localStorage.setItem('vecdb', db);
+        state.db = db;
+      }
       state.query = query;
       state.filters = filters;
       state.page = page;
