@@ -147,7 +147,7 @@ def update_last_query(*, long_time: bool, update_time: bool = True) -> None:
 
     if update_time:
         delay = 600.0 if long_time else 0.0
-        LAST_QUERY = time.monotonic() + delay
+        LAST_QUERY = max(LAST_QUERY, time.monotonic() + delay)
     if KEEP_ALIVE_TH is not None and KEEP_ALIVE_TH.is_alive():
         return
     m_db = MAIN_DB
