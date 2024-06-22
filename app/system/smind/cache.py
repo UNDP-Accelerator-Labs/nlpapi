@@ -22,8 +22,12 @@ from redipy import Redis
 T = TypeVar('T')
 
 
-def clear_cache(cache: Redis) -> None:
-    cache.flushall()
+def clear_cache(cache: Redis, *, db_name: str | None) -> None:
+    if db_name is None:
+        cache.flushall()
+    else:
+        for key in cache.keys(match=f"{db_name}:*", block=True):
+            cache.delete(key)
 
 
 def cached(
@@ -38,7 +42,7 @@ def cached(
         timeout: float = 300.0,  # pylint: disable=unused-argument
         wait_sleep: float = 0.1,  # pylint: disable=unused-argument
         ) -> T:
-    cache_key = f"{cache_type}:{db_name}:{cache_hash}"
+    cache_key = f"{db_name}:{cache_type}:{cache_hash}"
     res = cache.get_value(cache_key)
     if res is not None:
         if not res:

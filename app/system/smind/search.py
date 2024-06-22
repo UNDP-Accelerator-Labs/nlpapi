@@ -138,15 +138,16 @@ def set_main_articles(
     MAIN_ARTICLES = articles
     MAIN_GRAPH = articles_graph
     KEEP_ALIVE_LOCK = threading.RLock()
-    update_last_query(update_time=False)
+    update_last_query(long_time=False, update_time=False)
 
 
-def update_last_query(*, update_time: bool = True) -> None:
+def update_last_query(*, long_time: bool, update_time: bool = True) -> None:
     global LAST_QUERY  # pylint: disable=global-statement
     global KEEP_ALIVE_TH  # pylint: disable=global-statement
 
     if update_time:
-        LAST_QUERY = time.monotonic()
+        delay = 600.0 if long_time else 0.0
+        LAST_QUERY = time.monotonic() + delay
     if KEEP_ALIVE_TH is not None and KEEP_ALIVE_TH.is_alive():
         return
     m_db = MAIN_DB
@@ -257,7 +258,7 @@ def vec_clear(
             clear_rworker = False
     if clear_veccache:
         try:
-            clear_cache(qdrant_cache)
+            clear_cache(qdrant_cache, db_name=None)
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_veccache = False
@@ -328,12 +329,12 @@ def vec_add(
         url: str,
         title: str | None,
         meta_obj: MetaObject) -> AddEmbed:
-    update_last_query()
+    update_last_query(long_time=True)
     # FIXME: make "smart" features optional
     full_start = time.monotonic()
     # clear caches
     cache_start = time.monotonic()
-    clear_cache(qdrant_cache)
+    clear_cache(qdrant_cache, db_name=articles)
     cache_time = time.monotonic() - cache_start
     preprocess_start = time.monotonic()
     # validate title
@@ -661,7 +662,7 @@ def vec_search(
         hit_limit: int,
         score_threshold: float | None,
         short_snippets: bool) -> QueryEmbed:
-    update_last_query()
+    update_last_query(long_time=False)
     if filters is not None:
         filters = {
             key: to_list(value)
