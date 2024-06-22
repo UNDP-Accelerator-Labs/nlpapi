@@ -232,11 +232,7 @@ class App extends PureComponent<AppProps, AppState> {
       const params = new URLSearchParams(
         new URL(window.location.href).searchParams,
       );
-      if (db !== 'main') {
-        params.set('db', `${db}`);
-      } else {
-        params.delete('db');
-      }
+      params.set('db', `${db}`);
       if (query) {
         params.set('q', `${query}`);
       } else {
