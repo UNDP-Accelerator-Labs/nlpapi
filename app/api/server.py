@@ -335,6 +335,12 @@ def add_vec_features(
 
     # *** system ***
 
+    @server.json_get(f"{prefix}/embed/error")
+    def _get_embed_error(_req: QSRH, _rargs: ReqArgs) -> ErrorEmbedQueue:
+        return {
+            "errors": get_embed_errors(add_queue_redis),
+        }
+
     with server.middlewares(verify_token):
         @server.json_post(f"{prefix}/clear")
         @server.middleware(verify_write)
@@ -410,13 +416,6 @@ def add_vec_features(
                 url=url,
                 title=title,
                 meta_obj=meta_obj)
-
-        @server.json_get(f"{prefix}/embed/error")
-        @server.middleware(verify_write)
-        def _get_embed_error(_req: QSRH, _rargs: ReqArgs) -> ErrorEmbedQueue:
-            return {
-                "errors": get_embed_errors(add_queue_redis),
-            }
 
         @server.json_post(f"{prefix}/embed/requeue")
         @server.middleware(verify_write)
