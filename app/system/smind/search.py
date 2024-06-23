@@ -34,6 +34,7 @@ from app.misc.util import (
     fmt_time,
     json_compact_str,
     json_maybe_read,
+    json_read_str,
     parse_time_str,
     SMALL_CHUNK_SIZE,
     TITLE_CHUNK_SIZE,
@@ -83,12 +84,36 @@ class GetVecDB(Protocol):  # pylint: disable=too-few-public-methods
         ...
 
 
+ProcessError = TypedDict('ProcessError', {
+    "db": str,
+    "main_id": str,
+    "user": str,
+    "error": str,
+})
+ProcessEntry = TypedDict('ProcessEntry', {
+    "db": str,
+    "main_id": str,
+    "user": uuid.UUID,
+})
+ProcessEntryJSON = TypedDict('ProcessEntryJSON', {
+    "main_id": str,
+    "db": str,
+    "user": str,
+})
+EmbedQueueStats = TypedDict('EmbedQueueStats', {
+    "queue": int,
+    "error": int,
+})
+AddEmbedFn = Callable[[ProcessEntry], 'AddEmbed']
+
+
 ClearResponse = TypedDict('ClearResponse', {
     "clear_rmain": bool,
     "clear_rdata": bool,
     "clear_rcache": bool,
     "clear_rbody": bool,
     "clear_rworker": bool,
+    "clear_adder": bool,
     "clear_veccache": bool,
     "clear_vecdb_all": bool,
     "clear_vecdb_main": bool,
@@ -205,10 +230,155 @@ def update_last_query(*, long_time: bool, update_time: bool = True) -> None:
         th.start()
 
 
+ADDER_LOCK = threading.RLock()
+ADDER_COND = threading.Condition(ADDER_LOCK)
+ADDER_THREAD: threading.Thread | None = None
+ADDER_QUEUE_KEY = "main_ids"
+ADDER_ERROR_KEY = "errors"
+
+
+def adder_info(add_queue_redis: Redis) -> EmbedQueueStats:
+    adder_queue_key = ADDER_QUEUE_KEY
+    adder_error_key = ADDER_ERROR_KEY
+
+    with add_queue_redis.pipeline() as pipe:
+        pipe.llen(adder_queue_key)
+        pipe.llen(adder_error_key)
+        queue_len, error_len = pipe.execute()
+    return {
+        "queue": queue_len,
+        "error": error_len,
+    }
+
+
+def get_process_error(obj_str: str) -> ProcessError:
+    return json_read_str(obj_str)
+
+
+def get_process_entry(obj_str: str) -> ProcessEntry:
+    obj: ProcessEntryJSON = json_read_str(obj_str)
+    return {
+        "db": obj["db"],
+        "main_id": obj["main_id"],
+        "user": uuid.UUID(obj["user"]),
+    }
+
+
+def process_entry_to_json(entry: ProcessEntry) -> str:
+    obj: ProcessEntryJSON = {
+        "db": entry["db"],
+        "main_id": entry["main_id"],
+        "user": entry["user"].hex,
+    }
+    return process_entry_json_to_str(obj)
+
+
+def process_entry_json_to_str(obj: ProcessEntryJSON) -> str:
+    return json_compact_str(obj)
+
+
+def get_embed_errors(add_queue_redis: Redis) -> list[ProcessError]:
+    adder_error_key = ADDER_ERROR_KEY
+
+    return [
+        get_process_error(obj_str)
+        for obj_str in add_queue_redis.lrange(adder_error_key, 0, -1)
+    ]
+
+
+def adder_enqueue(
+        add_queue_redis: Redis,
+        add_embed_fn: AddEmbedFn,
+        entry: ProcessEntry) -> None:
+    adder_queue_key = ADDER_QUEUE_KEY
+
+    add_queue_redis.rpush(adder_queue_key, process_entry_to_json(entry))
+    maybe_adder_thread(add_queue_redis, add_embed_fn)
+
+
+def requeue_errors(
+        add_queue_redis: Redis,
+        add_embed_fn: AddEmbedFn) -> bool:
+    adder_queue_key = ADDER_QUEUE_KEY
+    adder_error_key = ADDER_ERROR_KEY
+
+    any_enqueued = False
+    while True:
+        obj_str = add_queue_redis.lpop(adder_error_key)
+        if obj_str is None:
+            break
+        error = get_process_error(obj_str)
+        add_queue_redis.rpush(
+            adder_queue_key,
+            process_entry_json_to_str({
+                "db": error["db"],
+                "main_id": error["main_id"],
+                "user": error["user"],
+            }))
+        any_enqueued = True
+    if any_enqueued:
+        maybe_adder_thread(add_queue_redis, add_embed_fn)
+    return any_enqueued
+
+
+def maybe_adder_thread(
+        add_queue_redis: Redis,
+        add_embed_fn: AddEmbedFn) -> None:
+    global ADDER_THREAD  # pylint: disable=global-statement
+
+    adder_queue_key = ADDER_QUEUE_KEY
+    adder_error_key = ADDER_ERROR_KEY
+
+    def get_item() -> ProcessEntry | None:
+        res = add_queue_redis.lpop(adder_queue_key)
+        if res is None:
+            return None
+        return get_process_entry(res)
+
+    def run() -> None:
+        global ADDER_THREAD  # pylint: disable=global-statement
+
+        try:
+            while th is ADDER_THREAD:
+                with ADDER_LOCK:
+                    entry = ADDER_COND.wait_for(get_item, 600.0)
+                if entry is None:
+                    continue
+                print(f"ADDER: processing {entry['main_id']} to {entry['db']}")
+                try:
+                    info = add_embed_fn(entry)
+                    print(f"ADDER: done {entry['main_id']}: {info}")
+                except BaseException:  # pylint: disable=broad-except
+                    error_str = traceback.format_exc()
+                    error: ProcessError = {
+                        "db": entry["db"],
+                        "main_id": entry["main_id"],
+                        "user": entry["user"].hex,
+                        "error": error_str,
+                    }
+                    add_queue_redis.rpush(
+                        adder_error_key,
+                        json_compact_str(error))
+                    print(f"ADDER: error {entry['main_id']}")
+        finally:
+            with ADDER_LOCK:
+                if th is ADDER_THREAD:
+                    ADDER_THREAD = None
+
+    with ADDER_LOCK:
+        if ADDER_THREAD is not None and ADDER_THREAD.is_alive():
+            ADDER_COND.notify_all()
+            return
+        th = threading.Thread(target=run, daemon=True)
+        ADDER_THREAD = th
+        th.start()
+
+
 def vec_clear(
         vec_db: QdrantClient,
         smind_config: str,
         *,
+        add_queue_redis: Redis,
         qdrant_cache: Redis,
         get_vec_db: GetVecDB,
         clear_rmain: bool,
@@ -216,6 +386,7 @@ def vec_clear(
         clear_rcache: bool,
         clear_rbody: bool,
         clear_rworker: bool,
+        clear_adder: bool,
         clear_veccache: bool,
         clear_vecdb_main: bool,
         clear_vecdb_test: bool,
@@ -256,6 +427,12 @@ def vec_clear(
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_rworker = False
+    if clear_adder:
+        try:
+            add_queue_redis.flushall()
+        except Exception:  # pylint: disable=broad-except
+            print(traceback.format_exc())
+            clear_adder = False
     if clear_veccache:
         try:
             clear_cache(qdrant_cache, db_name=None)
@@ -302,6 +479,7 @@ def vec_clear(
         "clear_rcache": clear_rcache,
         "clear_rbody": clear_rbody,
         "clear_rworker": clear_rworker,
+        "clear_adder": clear_adder,
         "clear_veccache": clear_veccache,
         "clear_vecdb_all": clear_vecdb_all,
         "clear_vecdb_main": clear_vecdb_main,

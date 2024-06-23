@@ -33,6 +33,7 @@ from app.api.mod import Module
 from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
 from app.api.response_types import (
+    AddEmbedQueue,
     BuildIndexResponse,
     CollectionListResponse,
     CollectionOptionsResponse,
@@ -40,6 +41,7 @@ from app.api.response_types import (
     DateResponse,
     DocumentListResponse,
     DocumentResponse,
+    ErrorEmbedQueue,
     FulltextResponse,
     RequeueResponse,
     Snippy,
@@ -108,8 +110,13 @@ from app.system.smind.api import (
 )
 from app.system.smind.search import (
     AddEmbed,
+    adder_enqueue,
+    adder_info,
     ClearResponse,
+    get_embed_errors,
+    ProcessEntry,
     QueryEmbed,
+    requeue_errors,
     set_main_articles,
     vec_add,
     vec_clear,
@@ -187,6 +194,7 @@ def add_vec_features(
         vec_db: QdrantClient,
         *,
         prefix: str,
+        add_queue_redis: Redis,
         qdrant_cache: Redis,
         smind_config: str,
         graph_embed: GraphProfile,
@@ -338,6 +346,7 @@ def add_vec_features(
             clear_rcache = bool(args.get("clear_rcache", False))
             clear_rbody = bool(args.get("clear_rbody", False))
             clear_rworker = bool(args.get("clear_rworker", False))
+            clear_adder = bool(args.get("clear_adder", False))
             clear_veccache = bool(args.get("clear_veccache", False))
             clear_vecdb_main = bool(args.get("clear_vecdb_main", False))
             clear_vecdb_test = bool(args.get("clear_vecdb_test", False))
@@ -347,6 +356,7 @@ def add_vec_features(
             return vec_clear(
                 vec_db,
                 smind_config,
+                add_queue_redis=add_queue_redis,
                 qdrant_cache=qdrant_cache,
                 get_vec_db=get_ctx_vec_db,
                 clear_rmain=clear_rmain,
@@ -354,6 +364,7 @@ def add_vec_features(
                 clear_rcache=clear_rcache,
                 clear_rbody=clear_rbody,
                 clear_rworker=clear_rworker,
+                clear_adder=clear_adder,
                 clear_veccache=clear_veccache,
                 clear_vecdb_main=clear_vecdb_main,
                 clear_vecdb_test=clear_vecdb_test,
@@ -363,14 +374,11 @@ def add_vec_features(
 
         # *** embeddings ***
 
-        @server.json_post(f"{prefix}/embed/add")
-        @server.middleware(verify_write)
-        def _post_embed_add(_req: QSRH, rargs: ReqArgs) -> AddEmbed:
-            args = rargs["post"]
-            meta = rargs["meta"]
-            main_id = args["main_id"]
+        def add_embed_fn(entry: ProcessEntry) -> AddEmbed:
+            vdb_str = entry["db"]
+            main_id = entry["main_id"]
+            user = entry["user"]
             base, doc_id = get_base_doc(main_id)
-            vdb_str: str = args["db"]
             articles = get_articles(vdb_str)
             input_str, error_input = get_full_text(main_id)
             if input_str is None:
@@ -388,7 +396,6 @@ def add_vec_features(
                 "date": date_str,
                 "doc_type": doc_type,
             }
-            user: uuid.UUID = meta["user"]
             return vec_add(
                 db,
                 vec_db,
@@ -403,6 +410,45 @@ def add_vec_features(
                 url=url,
                 title=title,
                 meta_obj=meta_obj)
+
+        @server.json_post(f"{prefix}/embed/error")
+        @server.middleware(verify_write)
+        def _post_embed_error(_req: QSRH, _rargs: ReqArgs) -> ErrorEmbedQueue:
+            return {
+                "errors": get_embed_errors(add_queue_redis),
+            }
+
+        @server.json_post(f"{prefix}/embed/requeue")
+        @server.middleware(verify_write)
+        def _post_embed_requeue(
+                _req: QSRH, _rargs: ReqArgs) -> AddEmbedQueue:
+            res = requeue_errors(add_queue_redis, add_embed_fn)
+            return {
+                "enqueued": res,
+            }
+
+        @server.json_post(f"{prefix}/embed/add")
+        @server.middleware(verify_write)
+        def _post_embed_add(_req: QSRH, rargs: ReqArgs) -> AddEmbedQueue:
+            args = rargs["post"]
+            meta = rargs["meta"]
+            main_id = args["main_id"]
+            vdb_str: str = args["db"]
+            user: uuid.UUID = meta["user"]
+            info, error_info = get_url_title(main_id)
+            if info is None:
+                raise ValueError(error_info)
+            adder_enqueue(
+                add_queue_redis,
+                add_embed_fn,
+                {
+                    "db": vdb_str,
+                    "main_id": main_id,
+                    "user": user,
+                })
+            return {
+                "enqueued": True,
+            }
 
         @server.json_post(f"{prefix}/add_embed")
         @server.middleware(verify_write)
@@ -614,6 +660,8 @@ def setup(
 
     qdrant_cache = get_redis(
         smind_config, redis_name="rcache", overwrite_prefix="qdrant")
+    add_queue_redis = get_redis(
+        smind_config, redis_name="rmain", overwrite_prefix="embed_add")
 
     write_token = config["write_token"]
     tanuki_token = config["tanuki"]  # the nuke key
@@ -743,6 +791,7 @@ def setup(
             db,
             vec_db,
             prefix=prefix,
+            add_queue_redis=add_queue_redis,
             qdrant_cache=qdrant_cache,
             smind_config=smind_config,
             graph_embed=graph_embed,
@@ -807,6 +856,7 @@ def setup(
         return {
             "vecdbs": vecdbs,
             "queues": get_queue_stats(smind),
+            "vec_queue": adder_info(add_queue_redis),
         }
 
     # # # SECURE # # #

@@ -280,12 +280,18 @@ def json_compact_str(obj: Any) -> str:
         separators=(',', ':'))
 
 
+def json_read_str(data: str) -> Any:
+    try:
+        return json.loads(data)
+    except json.JSONDecodeError as e:
+        report_json_error(e)
+
+
 def json_read(data: bytes) -> Any:
     try:
         return json.loads(data.decode("utf-8"))
     except json.JSONDecodeError as e:
         report_json_error(e)
-        raise e
 
 
 def read_jsonl(fin: IO[str]) -> Iterable[Any]:
@@ -297,7 +303,6 @@ def read_jsonl(fin: IO[str]) -> Iterable[Any]:
             yield json.loads(line)
         except json.JSONDecodeError as e:
             report_json_error(e)
-            raise e
 
 
 UNIX_EPOCH = pd.Timestamp("1970-01-01", tz="UTC")
