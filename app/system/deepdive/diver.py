@@ -22,7 +22,7 @@ from scattermind.api.api import ScattermindAPI
 from scattermind.system.response import TASK_COMPLETE
 from scattermind.system.torch_util import tensor_to_str
 
-from app.misc.util import get_json_error_str, to_bool
+from app.misc.util import get_json_error_str, get_time_str, to_bool
 from app.system.db.db import DBConnector
 from app.system.deepdive.collection import (
     DeepDiveResult,
@@ -43,6 +43,10 @@ from app.system.smind.api import GraphProfile
 DIVER_LOCK = threading.RLock()
 DIVER_COND = threading.Condition(DIVER_LOCK)
 DIVER_THREAD: threading.Thread | None = None
+
+
+def log_diver(msg: str) -> None:
+    print(f"{get_time_str()} DIVER: {msg}")
 
 
 def maybe_diver_thread(
@@ -100,12 +104,13 @@ def process_pending(
         get_tag: TagFn) -> None:
     if not docs:
         return
-    print(f"DIVER: found {len(docs)} for processing!")
+    log_diver(f"found {len(docs)} for processing!")
     ns = graph_llama.get_ns()
     for doc in docs:
         doc_id = doc["id"]
         main_id = doc["main_id"]
         if doc["url"] is None or doc["title"] is None:
+            log_diver(f"processing {main_id}: url and title")
             url_title, error = get_url_title(doc["main_id"])
             url = "#"
             title = "ERROR: unknown"
@@ -115,10 +120,12 @@ def process_pending(
                 url, title = url_title
             set_url_title(db, doc_id, url, title)
         if doc["tag_reason"] is None:
+            log_diver(f"processing {main_id}: tag")
             tag, tag_reason = get_tag(doc["main_id"])
             set_tag(db, doc_id, tag, tag_reason)
         if doc["is_valid"] is not None and doc["deep_dive_result"] is not None:
             continue
+        log_diver(f"processing {main_id}: getting full text")
         full_text, error_msg = get_full_text(main_id)
         full_text = normalize_text(full_text)
         warning = None
@@ -140,6 +147,7 @@ def process_pending(
         elif doc["is_valid"] is True:
             sp_key = doc["deep_dive_key"]
         else:
+            log_diver(f"processing {main_id}: skip invalid")
             set_deep_dive(db, doc_id, {
                 "reason": (
                     "Document is not about circular economy! "
@@ -155,6 +163,7 @@ def process_pending(
             sp_key = None
         if sp_key is None:
             continue
+        log_diver(f"processing {main_id}: llm ({sp_key})")
         task_id = smind.enqueue_task(
             ns,
             {
@@ -191,7 +200,7 @@ def process_pending(
                     set_error(db, doc_id, f"{error_msg}{derror}")
                 else:
                     set_deep_dive(db, doc_id, ddres)
-    print("DIVER: done processing")
+    log_diver("done processing")
 
 
 LP = r"{"
