@@ -411,9 +411,9 @@ def add_vec_features(
                 title=title,
                 meta_obj=meta_obj)
 
-        @server.json_post(f"{prefix}/embed/error")
+        @server.json_get(f"{prefix}/embed/error")
         @server.middleware(verify_write)
-        def _post_embed_error(_req: QSRH, _rargs: ReqArgs) -> ErrorEmbedQueue:
+        def _get_embed_error(_req: QSRH, _rargs: ReqArgs) -> ErrorEmbedQueue:
             return {
                 "errors": get_embed_errors(add_queue_redis),
             }
