@@ -18,6 +18,7 @@ import os
 import sys
 import threading
 import time
+import traceback
 import uuid
 from collections.abc import Callable
 from typing import Any, cast, Literal, TypedDict
@@ -212,41 +213,46 @@ def add_vec_features(
     articles_dict: dict[DBName, str] = {}
 
     def init_vec_db() -> None:
-        tstart = time.monotonic()
         time.sleep(360.0)  # NOTE: give qdrant plenty of time...
-        print("start loading vector database...")
-        articles_main = get_vec_db(
-            vec_db,
-            name="main",
-            graph_embed=graph_embed,
-            force_clear=False,
-            force_index=False)
-        articles_dict["main"] = articles_main
+        try:
+            tstart = time.monotonic()
+            print("start loading vector database...")
+            articles_main = get_vec_db(
+                vec_db,
+                name="main",
+                graph_embed=graph_embed,
+                force_clear=False,
+                force_index=False)
+            articles_dict["main"] = articles_main
 
-        articles_test = get_vec_db(
-            vec_db,
-            name="test",
-            graph_embed=graph_embed,
-            force_clear=False,
-            force_index=False)
-        articles_dict["test"] = articles_test
+            articles_test = get_vec_db(
+                vec_db,
+                name="test",
+                graph_embed=graph_embed,
+                force_clear=False,
+                force_index=False)
+            articles_dict["test"] = articles_test
 
-        articles_rave_ce = get_vec_db(
-            vec_db,
-            name="rave_ce",
-            graph_embed=graph_embed,
-            force_clear=False,
-            force_index=False)
-        articles_dict["rave_ce"] = articles_rave_ce
+            articles_rave_ce = get_vec_db(
+                vec_db,
+                name="rave_ce",
+                graph_embed=graph_embed,
+                force_clear=False,
+                force_index=False)
+            articles_dict["rave_ce"] = articles_rave_ce
 
-        set_main_articles(
-            db, vec_db, articles=articles_main, articles_graph=graph_embed)
+            set_main_articles(
+                db, vec_db, articles=articles_main, articles_graph=graph_embed)
 
-        with cond:
-            cond.notify_all()
-        print(
-            "loading vector database complete "
-            f"in {time.monotonic() - tstart}s!")
+            with cond:
+                cond.notify_all()
+            print(
+                "loading vector database complete "
+                f"in {time.monotonic() - tstart}s!")
+        except BaseException:  # pylint: disable=broad-except
+            print(
+                "ERROR! loading vector database "
+                f"failed:\n{traceback.format_exc()}")
 
     th = threading.Thread(target=init_vec_db, daemon=True)
     th.start()
