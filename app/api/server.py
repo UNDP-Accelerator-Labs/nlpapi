@@ -213,7 +213,7 @@ def add_vec_features(
 
     def init_vec_db() -> None:
         tstart = time.monotonic()
-        time.sleep(180.0)  # NOTE: give qdrant plenty of time...
+        time.sleep(360.0)  # NOTE: give qdrant plenty of time...
         print("start loading vector database...")
         articles_main = get_vec_db(
             vec_db,
