@@ -170,7 +170,7 @@ def process_pending(
                 "prompt": full_text,
                 "system_prompt_key": sp_key,
             })
-        for _, result in smind.wait_for([task_id], timeout=600):
+        for _, result in smind.wait_for([task_id], timeout=None):
             if result["status"] not in TASK_COMPLETE:
                 continue
             res = result["result"]
