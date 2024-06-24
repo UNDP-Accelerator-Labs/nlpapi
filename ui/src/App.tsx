@@ -295,7 +295,6 @@ class App extends PureComponent<AppProps, AppState> {
                 <CollectionView
                   apiActions={this.apiActions}
                   userId={userId}
-                  visIsRelative={false}
                 />
               }
             />

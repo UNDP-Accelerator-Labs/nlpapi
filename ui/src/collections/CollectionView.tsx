@@ -15,7 +15,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import React, { MouseEventHandler, PureComponent } from 'react';
+import React, {
+  ChangeEventHandler,
+  MouseEventHandler,
+  PureComponent,
+} from 'react';
 import { ConnectedProps, connect } from 'react-redux';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
@@ -181,7 +185,6 @@ const MainFilter = styled.span<MainFilterProps>`
 interface CollectionViewProps extends ConnectCollectionView {
   apiActions: ApiActions;
   userId: string | undefined;
-  visIsRelative: boolean;
 }
 
 type EmptyCollectionViewProps = {
@@ -201,6 +204,7 @@ type CollectionViewState = {
   isLoading: boolean;
   allScores: StatNumbers;
   cmpScores: StatNumbers;
+  visIsRelative: boolean;
 };
 
 class CollectionView extends PureComponent<
@@ -218,6 +222,7 @@ class CollectionView extends PureComponent<
       isLoading: false,
       allScores: {},
       cmpScores: {},
+      visIsRelative: false,
     };
   }
 
@@ -379,6 +384,15 @@ class CollectionView extends PureComponent<
     this.setState({ needsUpdate: true });
   };
 
+  clickVisIsRelative: ChangeEventHandler<HTMLInputElement> = (e) => {
+    if (e.defaultPrevented) {
+      return;
+    }
+    e.preventDefault();
+    const { visIsRelative } = this.state;
+    this.setState({ visIsRelative: !visIsRelative });
+  };
+
   clickFilter: MouseEventHandler<HTMLSpanElement> = (e) => {
     if (e.defaultPrevented) {
       return;
@@ -477,7 +491,7 @@ class CollectionView extends PureComponent<
     if (!docs.length) {
       return {};
     }
-    const { visIsRelative } = this.props;
+    const { visIsRelative } = this.state;
     const keys = Array.from(
       docs.reduce(
         (p, { scores }) =>
@@ -513,7 +527,6 @@ class CollectionView extends PureComponent<
     const {
       userId,
       apiActions,
-      visIsRelative,
       collectionId,
       collectionName,
       collectionFilter,
@@ -529,6 +542,7 @@ class CollectionView extends PureComponent<
       allScores,
       cmpScores,
       isReadonly,
+      visIsRelative,
     } = this.state;
     const stats = this.computeStats(documents, collectionTag);
     return (
@@ -625,6 +639,16 @@ class CollectionView extends PureComponent<
               isCmp={true}
               isType={this.isType}
             />
+          </SideRow>
+          <SideRow>
+            <label>
+              Normalize Article Contribution{' '}
+              <input
+                type="checkbox"
+                checked={visIsRelative}
+                onChange={this.clickVisIsRelative}
+              />
+            </label>
           </SideRow>
         </VSide>
       </React.Fragment>
