@@ -175,6 +175,7 @@ def process_pending(
             if result["status"] not in TASK_COMPLETE:
                 log_diver(f"processing {main_id}: llm timed out ({sp_key})")
                 set_error(db, doc_id, f"llm timed out for {doc['main_id']}")
+                smind.clear_task(task_id)
                 continue
             res = result["result"]
             if warning is None:
