@@ -326,7 +326,8 @@ def add_vec_features(
             limit=limit,
             hit_limit=hit_limit,
             score_threshold=score_threshold,
-            short_snippets=short_snippets)
+            short_snippets=short_snippets,
+            no_log=False)
 
     def get_ctx_vec_db(
             *,
@@ -546,7 +547,8 @@ def add_vec_features(
                 limit=limit,
                 hit_limit=hit_limit,
                 score_threshold=score_threshold,
-                short_snippets=short_snippets)
+                short_snippets=short_snippets,
+                no_log=False)
 
     return get_articles_dict
 

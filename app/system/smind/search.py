@@ -211,7 +211,8 @@ def update_last_query(*, long_time: bool, update_time: bool = True) -> None:
                     limit=10,
                     hit_limit=1,
                     score_threshold=None,
-                    short_snippets=True)
+                    short_snippets=True,
+                    no_log=True)
                 if res["status"] != "ok":
                     print(
                         f"WARNING: keepalive query {input_str} was not okay! "
@@ -839,7 +840,8 @@ def vec_search(
         limit: int,
         hit_limit: int,
         score_threshold: float | None,
-        short_snippets: bool) -> QueryEmbed:
+        short_snippets: bool,
+        no_log: bool) -> QueryEmbed:
     update_last_query(long_time=False)
     if filters is not None:
         filters = {
@@ -871,7 +873,8 @@ def vec_search(
     embed_time = time.monotonic() - embed_start
 
     log_start = time.monotonic()
-    log_query(db, db_name=articles, text=input_str, filters=filters)
+    if not no_log:
+        log_query(db, db_name=articles, text=input_str, filters=filters)
     log_time = time.monotonic() - log_start
 
     if embed is None:
