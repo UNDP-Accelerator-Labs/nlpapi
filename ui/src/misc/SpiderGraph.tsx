@@ -55,19 +55,23 @@ type SpiderGraphProps = {
 };
 
 export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
-  getMax(stats: StatNumbers): number {
-    const { isRelative } = this.props;
+  getDenom(): number {
+    const { stats, cmpStats, isRelative } = this.props;
     if (!isRelative) {
       return MAX_STAT_VALUE;
     }
-    return Object.keys(stats).reduce(
-      (p, key) => Math.max(p, +(stats[key] ?? 0)),
-      1,
-    );
+
+    const getMax = (vals: StatNumbers): number =>
+      Object.keys(vals).reduce((p, key) => Math.max(p, +(vals[key] ?? 0)), 0);
+
+    return Math.max(getMax(stats), cmpStats ? getMax(cmpStats) : 0);
   }
 
   getRads(stats: StatNumbers, order: string[], radius: number): number[] {
-    const allMax = this.getMax(stats);
+    const allMax = this.getDenom();
+    if (allMax === 0) {
+      return order.map(() => 0);
+    }
     return order.map((key) => (+(stats[key] ?? 0) / allMax) * radius);
   }
 

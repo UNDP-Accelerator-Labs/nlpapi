@@ -208,6 +208,10 @@ type CollectionViewState = {
   visIsRelative: boolean;
 };
 
+type EmptyCollectionViewState = {
+  visIsRelative: boolean;
+};
+
 class CollectionView extends PureComponent<
   CollectionViewProps,
   CollectionViewState
@@ -228,17 +232,23 @@ class CollectionView extends PureComponent<
   }
 
   componentDidMount() {
-    this.componentDidUpdate({
-      userId: undefined,
-      collectionId: -1,
-      collectionTag: null,
-      cmpCollectionId: -1,
-      cmpCollectionTag: null,
-    });
+    this.componentDidUpdate(
+      {
+        userId: undefined,
+        collectionId: -1,
+        collectionTag: null,
+        cmpCollectionId: -1,
+        cmpCollectionTag: null,
+      },
+      {
+        visIsRelative: false,
+      },
+    );
   }
 
   componentDidUpdate(
     prevProps: Readonly<CollectionViewProps> | EmptyCollectionViewProps,
+    prevState: Readonly<CollectionViewState> | EmptyCollectionViewState,
   ) {
     const {
       userId: prevUserId,
@@ -265,8 +275,14 @@ class CollectionView extends PureComponent<
         needsCmpUpdate: true,
       });
     }
-    const { needsUpdate, needsCmpUpdate, documents, cmpDocuments } =
-      this.state;
+    const { visIsRelative: prevVisIsRelative } = prevState;
+    const {
+      needsUpdate,
+      needsCmpUpdate,
+      documents,
+      cmpDocuments,
+      visIsRelative,
+    } = this.state;
     // main docs
     if (needsUpdate) {
       this.setState(
@@ -303,7 +319,10 @@ class CollectionView extends PureComponent<
         },
       );
     }
-    if (collectionTag !== prevCollectionTag) {
+    if (
+      collectionTag !== prevCollectionTag ||
+      visIsRelative !== prevVisIsRelative
+    ) {
       const allScores = this.computeTotalScores(documents, collectionTag);
       this.setState({ allScores });
     }
@@ -337,7 +356,10 @@ class CollectionView extends PureComponent<
         },
       );
     }
-    if (cmpCollectionTag !== prevCmpCollectionTag) {
+    if (
+      cmpCollectionTag !== prevCmpCollectionTag ||
+      visIsRelative !== prevVisIsRelative
+    ) {
       const cmpScores = this.computeTotalScores(
         cmpDocuments,
         cmpCollectionTag,
@@ -488,7 +510,8 @@ class CollectionView extends PureComponent<
     if (!docs.length) {
       return {};
     }
-    const { visIsRelative } = this.state;
+    // FIXME make use of visIsRelative
+    // const { visIsRelative } = this.state;
     const keys = Array.from(
       docs.reduce(
         (p, { scores }) =>
@@ -496,19 +519,16 @@ class CollectionView extends PureComponent<
         new Set<string>(),
       ),
     );
-    const maxs = docs.reduce(
+    const denoms = docs.reduce(
       (p, { scores }) => [
         ...p,
-        Object.keys(scores).reduce(
-          (m, mKey) => Math.max(m, +(scores[mKey] ?? 0)),
-          0,
-        ),
+        Object.keys(scores).reduce((m, mKey) => m + +(scores[mKey] ?? 0), 0),
       ],
       [] as number[],
     );
-    const count = maxs.reduce((p, maxValue) => p + (maxValue > 0 ? 1 : 0));
-    return docs.reduce((p, { scores }, ix) => {
-      const total = Math.max(visIsRelative ? maxs[ix] : count, 1);
+    const count = denoms.reduce((p, denom) => p + (denom > 0 ? 1 : 0));
+    return docs.reduce((p, { scores }) => {
+      const total = Math.max(count, 1);
       return Object.fromEntries(
         keys.map((key) => [key, p[key] + +(scores[key] ?? 0) / total]),
       );
