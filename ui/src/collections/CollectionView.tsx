@@ -384,11 +384,7 @@ class CollectionView extends PureComponent<
     this.setState({ needsUpdate: true });
   };
 
-  clickVisIsRelative: ChangeEventHandler<HTMLInputElement> = (e) => {
-    if (e.defaultPrevented) {
-      return;
-    }
-    e.preventDefault();
+  clickVisIsRelative: ChangeEventHandler<HTMLInputElement> = () => {
     const { visIsRelative } = this.state;
     this.setState({ visIsRelative: !visIsRelative });
   };
