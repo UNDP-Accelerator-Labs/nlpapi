@@ -37,7 +37,8 @@ import Collections from './Collections';
 import Document from './Document';
 import TagFilter from './TagFilter';
 
-const CMP_COLOR = '#377eb8';
+const MAIN_COLOR = '#377eb8';
+const CMP_COLOR = '#e41a1c';
 
 type ColorBlockProps = {
   color: string;
@@ -603,13 +604,15 @@ class CollectionView extends PureComponent<
             <SpiderGraph
               stats={allScores}
               isRelative={visIsRelative}
+              color={MAIN_COLOR}
               cmpColor={CMP_COLOR}
               cmpStats={cmpScores}
               showCmpCircles={true}
             />
           </SideRow>
           <SideRow>
-            <ColorBlock color="black" /> Collection: {collectionName ?? '-'}
+            <ColorBlock color={MAIN_COLOR} /> Collection:{' '}
+            {collectionName ?? '-'}
           </SideRow>
           <SideRow>
             <TagFilter

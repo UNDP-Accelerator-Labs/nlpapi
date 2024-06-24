@@ -48,6 +48,7 @@ type SpiderGraphProps = {
   cmpStats?: StatNumbers;
   radius?: number;
   padding?: number;
+  color?: string;
   cmpColor?: string;
   isRelative: boolean;
   showCmpCircles?: boolean;
@@ -83,6 +84,7 @@ export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
     const {
       radius = 100,
       padding = 5,
+      color = 'black',
       cmpColor = '#f781bf',
       stats,
       cmpStats,
@@ -162,7 +164,7 @@ export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
             : null}
           <path
             d={d}
-            stroke="black"
+            stroke={color}
             fill="none"
           />
           {order.map((key, ix) => (
@@ -173,7 +175,7 @@ export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
                 cx={rads[ix]}
                 cy={0}
                 r={padding * 0.5}
-                fill="black"
+                fill={color}
               />
             </g>
           ))}

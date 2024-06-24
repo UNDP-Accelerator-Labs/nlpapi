@@ -130,6 +130,7 @@ def process_pending(
         full_text = normalize_text(full_text)
         warning = None
         if full_text is None:
+            log_diver(f"processing {main_id}: error retrieving full text")
             set_error(
                 db,
                 doc_id,
@@ -170,8 +171,10 @@ def process_pending(
                 "prompt": full_text,
                 "system_prompt_key": sp_key,
             })
-        for _, result in smind.wait_for([task_id], timeout=None):
+        for _, result in smind.wait_for([task_id], timeout=1200):
             if result["status"] not in TASK_COMPLETE:
+                log_diver(f"processing {main_id}: llm timed out ({sp_key})")
+                set_error(db, doc_id, f"llm timed out for {doc['main_id']}")
                 continue
             res = result["result"]
             if warning is None:
@@ -179,6 +182,7 @@ def process_pending(
             else:
                 warning = f"\nWARNING: {warning}"
             if res is None:
+                log_diver(f"processing {main_id}: llm error ({sp_key})")
                 set_error(db, doc_id, f"error in task: {result}{warning}")
                 continue
             text = tensor_to_str(res["response"])
