@@ -1,0 +1,88 @@
+North Macedonia's Accelerator Lab team, as part of the City Experiment Fund (CEF), embarked on a journey to create a dynamic learning portfolio that will address some of the burning issues facing the capital city of Skopje. This blog post is the second in a 3-part series that documents our journey achieved in the City of Skopje. The other two posts in the series are available here:
+Part 1: Working with complex systems
+Part 3: What is 10kg of citrus biowaste worth?
+
+---
+ 
+
+ 
+
+(Framing) the intent
+Throughout the process, we experimented with the possibility of leveraging a set of distinct capabilities to catalyze system transformation, particularly focusing on biowaste, that would reduce the amount of biowaste that end up in a landfill. Using the Agora City Stencil, a system mapping tool co-developed by UNDP’s Istanbul Regional Hub and the Chôra Foundation, we were able to map the social system represent and focus on the elements that shape key dynamics in the system, called system intervention points (SIP). SIP is placed in the system that either currently shapes a key dynamic, the way the system does things, or has the potential to create shifts with small actions that produce a domino effect. The SIPs in the system that we developed had a three-fold intention.
+
+Primarily, we wanted to test if we can enable shifts in the prevailing narratives about biowaste. We were mostly interested in pursuing the narrative of biowaste as a valuable resource that could inspire the mobilization of the public, private and civil society sectors. The idea was to test if there is a possibility of creating an ecosystem and collective identity around biowaste.
+
+We also wanted to experiment with the emergence of technologies that could transform biowaste into valuable products, thereby redefining biowaste as a resource rather than waste. We wanted to learn if waste transformation can become a vibrant sector of economic activity that can create a demand for new professional profiles and future skills. Finally, we wanted to see if it was possible to mobilize different stakeholders around the oft unrecognized value of biowaste and empower them to lead the transformation of Skopje’s waste ecosystem.
+
+Interventions in the system
+In accordance with our goals, we selected seven system intervention points through which we wanted to nudge Skopje’s waste ecosystem to re-structure itself towards not only as a waste-reduction method but also as a foundation for new businesses, employment opportunities, and green economic development. All options were focused on the transformation potential of selected biowaste streams (tea, coffee, and citrus leftovers) coming from Skopje’s hotel/restaurant/café sector (HoReCa).
+
+ 
+
+ 
+ 
+
+
+Option 1
+Development of a waste valorization index for three biowaste streams (coffee, tea, citrus) that can be used to rank biowaste in relative value in terms of their market potential. Together with the Faculty of Technology and Metallurgy, we created such an index that proved that biowaste can be valorized with a variety of techniques leading to economic and environmental benefits, such as extraction of biologically active components and thermochemical and biological conversion techniques to obtain biofuels and energy waste valorization index for the selected biowaste streams that can help the industry to rank biowaste in relative value in terms of their market potential.
+
+Option 2
+Complete laboratory research for biowaste transformation of selected biowaste streams and methodological framework for research on how selected biowaste streams can be transformed was created. The methods developed showcased that biowaste can be transformed into business opportunities and innovative marketable products. In total five new methods for coffee leftovers were developed seven new methods for citrus leftovers were developed; four new methods for tea leftovers were developed. 
+
+ 
+
+ 
+The process of turning coffee leftovers into mosquito repellent candles
+
+ 
+
+
+Option 3
+ 
+
+Implemented first Waste audit on Tea, Coffee, Citrus leftovers created by the HOREKA sector during summer 2021. The audit was created to collect reliable and primary data on the creation and generators of bio-waste, patterns of creation as well as practices related to its management, in order to plan and assess possible future ways to act in order to reduce and exploit it. A visualization map of the biowaste can be found here in Macedonian and in English. This waste audit should be a general practice that is done by the city to show the potential of biowaste to businesses.
+
+Type of waste
+
+Amount of waste generated (kg/month) Coffebars
+
+Amount of waste generated (kg/month) restaurants
+
+Citrus fruit residues
+
+5663
+
+2312
+
+Coffee grounds
+
+1735
+
+759
+
+Tea waste
+
+95
+
+46
+
+Option 4
+A feasibility analysis of world markets concluded that biowaste coming from citrus leftover are highly valuable on global markets and the demand for such oils is 17,2 Bullion dollars, with a demand of around 247 000 tones/year with CAGR 7,5% in past 13 years. A similar analysis was created for Wild oregano and paprika leftovers, which proved that at the moment it is not feasible to pursue biowaste transformation activities on a city level from these leftovers.
+
+Option 5
+A GAP analysis on the current management of bio-waste in Skopje identified that the establishment of a joint venture between the local government for bio-waste research, prototyping, and commercial production facility is a must.
+
+Option 6
+A blueprint for such a facility was created. Opening such a Biohacking lab will help the local ecosystem in building knowledge about biotechnologies, by providing easy and open access to amateur equipment, knowledge, and skills for learning and using biotechnologies in waste treatment and valorization.
+
+Option 7
+A report on the Economic activity around biowaste in Europe found and mapped 260 Horizon 2020 projects related to bio-waste have been co-financed by the European Union. The total costs related to the realization of the projects are EUR 912.821.358. In addition, 700 entities both startups and established businesses that work with biowaste transformation were mapped.
+
+In the third and final blog post of this series, What is 10kg of citrus biowaste worth?,  we explain how these options can be applied within the system in a practical sense.
+
+---
+
+The City Experiment Fund (CEF) is an initiative of the UNDP RBEC and the Slovak Ministry of Finance to support resilience and renewal of cities. Since 2018, through CEF, we have been exploring and experimenting use of systemic approaches to address pollution in Skopje. CEF is a part of Transformative Governance and Finance Facility (2015-2021), and the Slovak Transformation Fund (2021-2024).
+ 
+
+Special acknowledgment to Jystina Khrol and Mariela Atanassova for their contributions to this blog series and the CEF portfolio design process.

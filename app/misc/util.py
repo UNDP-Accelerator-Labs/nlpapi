@@ -1,3 +1,18 @@
+# NLP-API provides useful Natural Language Processing capabilities as API.
+# Copyright (C) 2024 UNDP Accelerator Labs, Josua Krause
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import contextlib
 import hashlib
 import inspect
@@ -9,7 +24,7 @@ import threading
 import uuid
 from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timezone
-from typing import Any, IO, TypeVar
+from typing import Any, get_args, IO, Literal, NoReturn, TypeAlias, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -30,6 +45,17 @@ NL = "\n"
 
 TEST_SALT_LOCK = threading.RLock()
 TEST_SALT: dict[str, str] = {}
+
+
+DocStatus: TypeAlias = Literal["public", "preview"]
+DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
+
+
+CHUNK_SIZE = 600
+SMALL_CHUNK_SIZE = 150
+TITLE_CHUNK_SIZE = 60
+CHUNK_PADDING = 20
+DEFAULT_HIT_LIMIT = 1
 
 
 def is_test() -> bool:
@@ -130,9 +156,9 @@ def elapsed_time_string(elapsed: float) -> str:
 
 def to_bool(value: bool | float | int | str) -> bool:
     value = f"{value}".lower()
-    if value == "true":
+    if value in ("true", "yes", "y"):
         return True
-    if value == "false":
+    if value in ("false", "no", "n"):
         return False
     try:
         return bool(int(float(value)))
@@ -183,10 +209,45 @@ def is_json(value: str) -> bool:
     return True
 
 
-def report_json_error(err: json.JSONDecodeError) -> None:
-    raise ValueError(
-        f"JSON parse error ({err.lineno}:{err.colno}): "
-        f"{repr(err.doc)}") from err
+def get_json_error_str(err: json.JSONDecodeError) -> str:
+    ctx = 2
+    max_length = 80
+    lineno = err.lineno - 1
+    colno = err.colno - 1
+    all_lines = []
+
+    def add_line(ix: int, line: str) -> None:
+        if ix < lineno - ctx:
+            return
+        if ix > lineno + ctx:
+            return
+        all_lines.append(line)
+
+    def add_insert(insertline: int | None) -> int | None:
+        if insertline is None:
+            return None
+        if insertline <= max_length:
+            all_lines.append(f"{' ' * insertline}^")
+            return None
+        return insertline - max_length
+
+    for ix, line in enumerate(err.doc.splitlines()):
+        insertline = None
+        if ix == lineno:
+            insertline = colno
+        while len(line) > max_length:
+            add_line(ix, line[:max_length])
+            line = line[max_length:]
+            insertline = add_insert(insertline)
+        add_line(ix, line)
+        add_insert(insertline)
+
+    line_str = "\n".join(all_lines)
+    return f"JSON parse error ({err.lineno}:{err.colno}):\n{line_str}"
+
+
+def report_json_error(err: json.JSONDecodeError) -> NoReturn:
+    raise ValueError(get_json_error_str(err)) from err
 
 
 def json_maybe_read(data: str) -> Any | None:
@@ -201,7 +262,6 @@ def json_load(fin: IO[str]) -> Any:
         return json.load(fin)
     except json.JSONDecodeError as e:
         report_json_error(e)
-        raise e
 
 
 def json_dump(obj: Any, fout: IO[str]) -> None:
@@ -220,12 +280,18 @@ def json_compact_str(obj: Any) -> str:
         separators=(',', ':'))
 
 
+def json_read_str(data: str) -> Any:
+    try:
+        return json.loads(data)
+    except json.JSONDecodeError as e:
+        report_json_error(e)
+
+
 def json_read(data: bytes) -> Any:
     try:
         return json.loads(data.decode("utf-8"))
     except json.JSONDecodeError as e:
         report_json_error(e)
-        raise e
 
 
 def read_jsonl(fin: IO[str]) -> Iterable[Any]:
@@ -237,7 +303,6 @@ def read_jsonl(fin: IO[str]) -> Iterable[Any]:
             yield json.loads(line)
         except json.JSONDecodeError as e:
             report_json_error(e)
-            raise e
 
 
 UNIX_EPOCH = pd.Timestamp("1970-01-01", tz="UTC")
@@ -542,3 +607,9 @@ def progress(
 
     with tqdm(desc=desc, total=total) as pbar:
         yield pbar.update
+
+
+def single(arr: list[str]) -> str:
+    if len(arr) != 1:
+        raise ValueError(f"expected single item got {arr}")
+    return arr[0]

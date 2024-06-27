@@ -12,6 +12,49 @@ on:
 
 
 jobs:
+  ts_pipeline:
+    name: Node CI Pipeline
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [16]
+    env:
+      ENV: CI
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install node ${{ matrix.node }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Cache node modules
+        uses: actions/cache@v3
+        with:
+          path: ui/node_modules/
+          key: v1-${{ matrix.node }}-${{ hashFiles('ui/yarn.lock') }}
+
+      - name: Yarn Install
+        run: |
+          make install-ts
+
+      - name: Unused exports (ts)
+        run: |
+          make ts-unused
+
+      - name: Lint Code (ts)
+        run: |
+          make lint-ts
+
+      - name: Test Code (ts)
+        run: |
+          make test-ts
+
+      - name: Test Build (ts)
+        run: |
+          make ts-build
+
   lints_pipeline:
     name: Lints CI Pipeline
     runs-on: ubuntu-latest
@@ -37,10 +80,6 @@ jobs:
     - name: Lint Code (use uppercase TODO, XXX, FIXME, NOTE and explain nopep8)
       run: |
         make lint-comment
-
-    - name: Lint Code (use empty main inits)
-      run: |
-        make lint-emptyinit
 
     - name: Lint Code (sort requirements)
       run: |
@@ -85,7 +124,7 @@ jobs:
 
   deploy_pipeline_v2:
     name: Deploy
-    needs: lints_pipeline  # , tests_pipeline
+    needs: [lints_pipeline, ts_pipeline]  # , tests_pipeline
     if: startsWith(github.ref, 'refs/tags/v2')
     runs-on: ubuntu-latest
 

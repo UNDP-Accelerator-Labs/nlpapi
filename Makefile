@@ -5,7 +5,6 @@ help:
 	@echo "azlogin	log in to azure container storage"
 	@echo "install	install all python dependencies"
 	@echo "lint-comment	ensures fixme comments are grepable"
-	@echo "lint-emptyinit	main inits must be empty"
 	@echo "lint-flake8	run flake8 checker to deteck missing trailing comma"
 	@echo "lint-forgottenformat	ensures format strings are used"
 	@echo "lint-indent	run indent format check"
@@ -35,16 +34,15 @@ help:
 export LC_ALL=C
 export LANG=C
 
-PYTHON=python3
-NS=default
+PYTHON?=python
+NS?=default
+TS_ROOT?=ui/
+DOCKER_COMPOSE_OUT?=docker-compose.yml
 
 lint-comment:
 	! ./sh/findpy.sh \
 	| xargs grep --color=always -nE \
 	  '#.*(todo|xxx|fixme|n[oO][tT][eE]:|Note:|nopep8\s*$$)|.\"^s%'
-
-lint-emptyinit:
-	[ ! -s app/__init__.py ]
 
 lint-pyi:
 	./sh/pyi.sh
@@ -85,9 +83,14 @@ lint-flake8:
 	flake8 --verbose --select C812,C815,I001,I002,I003,I004,I005 --exclude \
 	venv,.git,.mypy_cache --show-source ./
 
+lint-ts:
+	yarn --cwd $(TS_ROOT) lint
+
+lint-ts-fix:
+	yarn --cwd $(TS_ROOT) lint --fix
+
 lint-all: \
 	lint-comment \
-	lint-emptyinit \
 	lint-pyi \
 	lint-stringformat \
 	lint-indent \
@@ -108,8 +111,23 @@ build-dev:
 compose:
 	./sh/compose.sh
 
+show-compose:
+	@echo "================================================="
+	@grep -Ev '^\s*$|^\s*\#' "${DOCKER_COMPOSE_OUT}"
+	@echo "# eof"
+
+run-docker-api: build-dev compose
+
+run-ts:
+	yarn --cwd $(TS_ROOT) start
+
 publish:
 	./sh/deploy.sh
+
+publish-local: \
+	build \
+	dockerpush \
+	show-compose
 
 azlogin:
 	./sh/azlogin.sh
@@ -126,35 +144,47 @@ install-api:
 install-worker:
 	PYTHON=$(PYTHON) MODE=worker REQUIREMENTS_PATH=$(REQUIREMENTS_PATH) ./sh/install.sh
 
+install-ts:
+	yarn --cwd $(TS_ROOT) install
+
 requirements-check:
 	PYTHON=$(PYTHON) ./sh/requirements_check.sh $(FILE)
 
 requirements-complete:
 	PYTHON=$(PYTHON) ./sh/requirements_complete.sh $(FILE)
 
+test-ts:
+	yarn --cwd $(TS_ROOT) testall
+
+ts-unused:
+	yarn --cwd $(TS_ROOT) unused
+
+ts-build:
+	yarn --cwd $(TS_ROOT) build
+
 uuid:
-	python -c "import uuid; print(f'{uuid.uuid4().hex}')"
+	@python -c "import uuid; print(f'{uuid.uuid4().hex}')"
 
 name:
-	git describe --tags --match `git tag --merged | sort -rV | head -n 1`
+	@git describe --tags --match `git tag --merged | sort -rV | head -n 1`
 
 commit:
-	git describe --match NOTATAG --always --abbrev=40 --dirty='*'
+	@git describe --match NOTATAG --always --abbrev=40 --dirty='*'
 
 branch:
-	git rev-parse --abbrev-ref HEAD
+	@git rev-parse --abbrev-ref HEAD
 
 version-file:
-	./sh/versionfile.sh
+	@./sh/versionfile.sh
 
 current-version:
-	./sh/version.sh --current
+	@./sh/version.sh --current
 
 next-version:
-	./sh/version.sh
+	@./sh/version.sh
 
 git-check:
-	./sh/git_check.sh
+	@./sh/git_check.sh
 
 pre-commit:
 	pre-commit install
@@ -166,6 +196,9 @@ pytest:
 run-api:
 	API_SERVER_NAMESPACE=$(NS) $(PYTHON) -m app
 
+run-local:
+	./sh/run_local.sh
+
 coverage-report:
 	cd coverage/reports/html_report && open index.html
 
@@ -173,7 +206,7 @@ stubgen:
 	PYTHON=$(PYTHON) FORCE=$(FORCE) ./sh/stubgen.sh $(PKG)
 
 allapps:
-	./sh/findpy.sh \
+	@./sh/findpy.sh \
 	| xargs grep '__name__ == "__main__"' \
 	| cut -d: -f1 \
 	| sed -e 's/^.\///' -e 's/\/__main__.py$$//' -e 's/.py$$//'

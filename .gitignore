@@ -17,6 +17,7 @@
 *.pkl
 *.zip
 *.json
+*.out.txt
 .env.local
 .env.development.local
 .env.test.local
@@ -37,3 +38,6 @@ __pycache__
 /docker-compose.dev.yml
 /docker-compose.wipe.yml
 /queries.txt
+
+/models/*
+!/models/.empty

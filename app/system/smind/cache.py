@@ -1,3 +1,18 @@
+# NLP-API provides useful Natural Language Processing capabilities as API.
+# Copyright (C) 2024 UNDP Accelerator Labs, Josua Krause
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from collections.abc import Callable
 from typing import TypeVar
 
@@ -7,8 +22,12 @@ from redipy import Redis
 T = TypeVar('T')
 
 
-def clear_cache(cache: Redis) -> None:
-    cache.flushall()
+def clear_cache(cache: Redis, *, db_name: str | None) -> None:
+    if db_name is None:
+        cache.flushall()
+    else:
+        for key in cache.keys(match=f"{db_name}:*", block=True):
+            cache.delete(key)
 
 
 def cached(
@@ -23,7 +42,7 @@ def cached(
         timeout: float = 300.0,  # pylint: disable=unused-argument
         wait_sleep: float = 0.1,  # pylint: disable=unused-argument
         ) -> T:
-    cache_key = f"{cache_type}:{db_name}:{cache_hash}"
+    cache_key = f"{db_name}:{cache_type}:{cache_hash}"
     res = cache.get_value(cache_key)
     if res is not None:
         if not res:

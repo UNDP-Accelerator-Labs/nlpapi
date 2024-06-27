@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+Disallow: /api/
+Disallow: /qdrant/
+Disallow: /dashboard/
+Disallow: /collections/
+Disallow: /cluster/
+Disallow: /telemetry/
+
+Sitemap: https://nlpapi.sdg-innovation-commons.org/sitemap.xml

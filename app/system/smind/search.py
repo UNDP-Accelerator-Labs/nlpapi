@@ -1,5 +1,21 @@
+# NLP-API provides useful Natural Language Processing capabilities as API.
+# Copyright (C) 2024 UNDP Accelerator Labs, Josua Krause
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import hashlib
 import re
+import threading
 import time
 import traceback
 import uuid
@@ -9,12 +25,19 @@ from typing import Literal, Protocol, TypedDict
 import numpy as np
 from qdrant_client import QdrantClient
 from redipy import Redis
+from scattermind.system.util import first
 
 from app.misc.util import (
+    CHUNK_PADDING,
+    CHUNK_SIZE,
+    DOC_STATUS,
     fmt_time,
     json_compact_str,
     json_maybe_read,
+    json_read_str,
     parse_time_str,
+    SMALL_CHUNK_SIZE,
+    TITLE_CHUNK_SIZE,
     to_list,
 )
 from app.system.db.db import DBConnector
@@ -33,10 +56,9 @@ from app.system.smind.api import (
     GraphProfile,
 )
 from app.system.smind.cache import cached, clear_cache
-from app.system.smind.log import log_query
+from app.system.smind.log import log_query, sample_query_log
 from app.system.smind.vec import (
     add_embed,
-    DOC_STATUS,
     EmbedChunk,
     EmbedMain,
     MetaKey,
@@ -55,10 +77,34 @@ from app.system.urlinspect.inspect import inspect_url
 class GetVecDB(Protocol):  # pylint: disable=too-few-public-methods
     def __call__(
             self,
+            *,
             name: Literal["main", "test"],
             force_clear: bool,
             force_index: bool) -> str:
         ...
+
+
+ProcessError = TypedDict('ProcessError', {
+    "db": str,
+    "main_id": str,
+    "user": str,
+    "error": str,
+})
+ProcessEntry = TypedDict('ProcessEntry', {
+    "db": str,
+    "main_id": str,
+    "user": uuid.UUID,
+})
+ProcessEntryJSON = TypedDict('ProcessEntryJSON', {
+    "main_id": str,
+    "db": str,
+    "user": str,
+})
+EmbedQueueStats = TypedDict('EmbedQueueStats', {
+    "queue": int,
+    "error": int,
+})
+AddEmbedFn = Callable[[ProcessEntry], 'AddEmbed']
 
 
 ClearResponse = TypedDict('ClearResponse', {
@@ -67,6 +113,7 @@ ClearResponse = TypedDict('ClearResponse', {
     "clear_rcache": bool,
     "clear_rbody": bool,
     "clear_rworker": bool,
+    "clear_adder": bool,
     "clear_veccache": bool,
     "clear_vecdb_all": bool,
     "clear_vecdb_main": bool,
@@ -85,17 +132,254 @@ QueryEmbed = TypedDict('QueryEmbed', {
 })
 
 
-CHUNK_SIZE = 600
-SMALL_CHUNK_SIZE = 150
-TITLE_CHUNK_SIZE = 60
-CHUNK_PADDING = 20
-DEFAULT_HIT_LIMIT = 1
+MAIN_DB: DBConnector | None = None
+MAIN_VEC_DB: QdrantClient | None = None
+MAIN_ARTICLES: str | None = None
+MAIN_GRAPH: GraphProfile | None = None
+LAST_QUERY: float = 0.0
+KEEP_ALIVE_LOCK: 'threading.RLock | None' = None  # FIXME: type fixed in p3.13
+KEEP_ALIVE_TH: threading.Thread | None = None
+KEEP_ALIVE_FREQ: float = 60.0  # 1min
+
+
+def set_main_articles(
+        db: DBConnector,
+        vec_db: QdrantClient,
+        *,
+        articles: str,
+        articles_graph: GraphProfile) -> None:
+    global MAIN_DB  # pylint: disable=global-statement
+    global MAIN_VEC_DB  # pylint: disable=global-statement
+    global MAIN_ARTICLES  # pylint: disable=global-statement
+    global MAIN_GRAPH  # pylint: disable=global-statement
+    global KEEP_ALIVE_LOCK  # pylint: disable=global-statement
+
+    if MAIN_ARTICLES is not None or KEEP_ALIVE_LOCK is not None:
+        raise ValueError(
+            f"{set_main_articles.__name__} can only be called once!")
+
+    MAIN_DB = db
+    MAIN_VEC_DB = vec_db
+    MAIN_ARTICLES = articles
+    MAIN_GRAPH = articles_graph
+    KEEP_ALIVE_LOCK = threading.RLock()
+    update_last_query(long_time=False, update_time=False)
+
+
+def update_last_query(*, long_time: bool, update_time: bool = True) -> None:
+    global LAST_QUERY  # pylint: disable=global-statement
+    global KEEP_ALIVE_TH  # pylint: disable=global-statement
+
+    if update_time:
+        delay = 600.0 if long_time else 0.0
+        LAST_QUERY = max(LAST_QUERY, time.monotonic() + delay)
+    if KEEP_ALIVE_TH is not None and KEEP_ALIVE_TH.is_alive():
+        return
+    m_db = MAIN_DB
+    m_vec_db = MAIN_VEC_DB
+    m_lock = KEEP_ALIVE_LOCK
+    m_articles = MAIN_ARTICLES
+    m_articles_graph = MAIN_GRAPH
+    if (
+            m_db is None
+            or m_vec_db is None
+            or m_lock is None
+            or m_articles is None
+            or m_articles_graph is None):
+        raise ValueError(f"must call {set_main_articles.__name__} first!")
+    db = m_db
+    vec_db = m_vec_db
+    lock = m_lock
+    articles = m_articles
+    articles_graph = m_articles_graph
+
+    def run() -> None:
+        freq = KEEP_ALIVE_FREQ
+        while th is KEEP_ALIVE_TH:
+            last_query = time.monotonic() - LAST_QUERY
+            if last_query >= freq:
+                input_str = sample_query_log(db, db_name=articles)
+                res = vec_search(
+                    db,
+                    vec_db,
+                    input_str,
+                    articles=articles,
+                    articles_graph=articles_graph,
+                    filters=None,
+                    order_by=None,
+                    offset=None,
+                    limit=10,
+                    hit_limit=1,
+                    score_threshold=None,
+                    short_snippets=True,
+                    no_log=True)
+                if res["status"] != "ok":
+                    print(
+                        f"WARNING: keepalive query {input_str} was not okay! "
+                        f"{res}")
+                    time.sleep(freq)
+            else:
+                sleep = freq - last_query
+                if sleep > 0.0:
+                    time.sleep(sleep)
+
+    with lock:
+        if KEEP_ALIVE_TH is not None and KEEP_ALIVE_TH.is_alive():
+            return
+        th = threading.Thread(target=run, daemon=True)
+        KEEP_ALIVE_TH = th
+        th.start()
+
+
+ADDER_LOCK = threading.RLock()
+ADDER_COND = threading.Condition(ADDER_LOCK)
+ADDER_THREAD: threading.Thread | None = None
+ADDER_QUEUE_KEY = "main_ids"
+ADDER_ERROR_KEY = "errors"
+
+
+def adder_info(add_queue_redis: Redis) -> EmbedQueueStats:
+    adder_queue_key = ADDER_QUEUE_KEY
+    adder_error_key = ADDER_ERROR_KEY
+
+    with add_queue_redis.pipeline() as pipe:
+        pipe.llen(adder_queue_key)
+        pipe.llen(adder_error_key)
+        queue_len, error_len = pipe.execute()
+    return {
+        "queue": queue_len,
+        "error": error_len,
+    }
+
+
+def get_process_error(obj_str: str) -> ProcessError:
+    return json_read_str(obj_str)
+
+
+def get_process_entry(obj_str: str) -> ProcessEntry:
+    obj: ProcessEntryJSON = json_read_str(obj_str)
+    return {
+        "db": obj["db"],
+        "main_id": obj["main_id"],
+        "user": uuid.UUID(obj["user"]),
+    }
+
+
+def process_entry_to_json(entry: ProcessEntry) -> str:
+    obj: ProcessEntryJSON = {
+        "db": entry["db"],
+        "main_id": entry["main_id"],
+        "user": entry["user"].hex,
+    }
+    return process_entry_json_to_str(obj)
+
+
+def process_entry_json_to_str(obj: ProcessEntryJSON) -> str:
+    return json_compact_str(obj)
+
+
+def get_embed_errors(add_queue_redis: Redis) -> list[ProcessError]:
+    adder_error_key = ADDER_ERROR_KEY
+
+    return [
+        get_process_error(obj_str)
+        for obj_str in add_queue_redis.lrange(adder_error_key, 0, -1)
+    ]
+
+
+def adder_enqueue(
+        add_queue_redis: Redis,
+        add_embed_fn: AddEmbedFn,
+        entry: ProcessEntry) -> None:
+    adder_queue_key = ADDER_QUEUE_KEY
+
+    add_queue_redis.rpush(adder_queue_key, process_entry_to_json(entry))
+    maybe_adder_thread(add_queue_redis, add_embed_fn)
+
+
+def requeue_errors(
+        add_queue_redis: Redis,
+        add_embed_fn: AddEmbedFn) -> bool:
+    adder_queue_key = ADDER_QUEUE_KEY
+    adder_error_key = ADDER_ERROR_KEY
+
+    any_enqueued = False
+    while True:
+        obj_str = add_queue_redis.lpop(adder_error_key)
+        if obj_str is None:
+            break
+        error = get_process_error(obj_str)
+        add_queue_redis.rpush(
+            adder_queue_key,
+            process_entry_json_to_str({
+                "db": error["db"],
+                "main_id": error["main_id"],
+                "user": error["user"],
+            }))
+        any_enqueued = True
+    if any_enqueued:
+        maybe_adder_thread(add_queue_redis, add_embed_fn)
+    return any_enqueued
+
+
+def maybe_adder_thread(
+        add_queue_redis: Redis,
+        add_embed_fn: AddEmbedFn) -> None:
+    global ADDER_THREAD  # pylint: disable=global-statement
+
+    adder_queue_key = ADDER_QUEUE_KEY
+    adder_error_key = ADDER_ERROR_KEY
+
+    def get_item() -> ProcessEntry | None:
+        res = add_queue_redis.lpop(adder_queue_key)
+        if res is None:
+            return None
+        return get_process_entry(res)
+
+    def run() -> None:
+        global ADDER_THREAD  # pylint: disable=global-statement
+
+        try:
+            while th is ADDER_THREAD:
+                with ADDER_LOCK:
+                    entry = ADDER_COND.wait_for(get_item, 600.0)
+                if entry is None:
+                    continue
+                print(f"ADDER: processing {entry['main_id']} to {entry['db']}")
+                try:
+                    info = add_embed_fn(entry)
+                    print(f"ADDER: done {entry['main_id']}: {info}")
+                except BaseException:  # pylint: disable=broad-except
+                    error_str = traceback.format_exc()
+                    error: ProcessError = {
+                        "db": entry["db"],
+                        "main_id": entry["main_id"],
+                        "user": entry["user"].hex,
+                        "error": error_str,
+                    }
+                    add_queue_redis.rpush(
+                        adder_error_key,
+                        json_compact_str(error))
+                    print(f"ADDER: error {entry['main_id']}")
+        finally:
+            with ADDER_LOCK:
+                if th is ADDER_THREAD:
+                    ADDER_THREAD = None
+
+    with ADDER_LOCK:
+        if ADDER_THREAD is not None and ADDER_THREAD.is_alive():
+            ADDER_COND.notify_all()
+            return
+        th = threading.Thread(target=run, daemon=True)
+        ADDER_THREAD = th
+        th.start()
 
 
 def vec_clear(
         vec_db: QdrantClient,
         smind_config: str,
         *,
+        add_queue_redis: Redis,
         qdrant_cache: Redis,
         get_vec_db: GetVecDB,
         clear_rmain: bool,
@@ -103,6 +387,7 @@ def vec_clear(
         clear_rcache: bool,
         clear_rbody: bool,
         clear_rworker: bool,
+        clear_adder: bool,
         clear_veccache: bool,
         clear_vecdb_main: bool,
         clear_vecdb_test: bool,
@@ -143,9 +428,15 @@ def vec_clear(
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_rworker = False
+    if clear_adder:
+        try:
+            add_queue_redis.flushall()
+        except Exception:  # pylint: disable=broad-except
+            print(traceback.format_exc())
+            clear_adder = False
     if clear_veccache:
         try:
-            clear_cache(qdrant_cache)
+            clear_cache(qdrant_cache, db_name=None)
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_veccache = False
@@ -159,27 +450,27 @@ def vec_clear(
             clear_vecdb_test = False
     if clear_vecdb_main:
         try:
-            get_vec_db("main", force_clear=True, force_index=False)
+            get_vec_db(name="main", force_clear=True, force_index=False)
             index_vecdb_main = False
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_vecdb_main = False
     if clear_vecdb_test:
         try:
-            get_vec_db("test", force_clear=True, force_index=False)
+            get_vec_db(name="test", force_clear=True, force_index=False)
             index_vecdb_test = False
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_vecdb_test = False
     if index_vecdb_main:
         try:
-            get_vec_db("main", force_clear=False, force_index=True)
+            get_vec_db(name="main", force_clear=False, force_index=True)
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             index_vecdb_main = False
     if index_vecdb_test:
         try:
-            get_vec_db("test", force_clear=False, force_index=True)
+            get_vec_db(name="test", force_clear=False, force_index=True)
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             index_vecdb_test = False
@@ -189,6 +480,7 @@ def vec_clear(
         "clear_rcache": clear_rcache,
         "clear_rbody": clear_rbody,
         "clear_rworker": clear_rworker,
+        "clear_adder": clear_adder,
         "clear_veccache": clear_veccache,
         "clear_vecdb_all": clear_vecdb_all,
         "clear_vecdb_main": clear_vecdb_main,
@@ -216,22 +508,21 @@ def vec_add(
         url: str,
         title: str | None,
         meta_obj: MetaObject) -> AddEmbed:
+    update_last_query(long_time=True)
     # FIXME: make "smart" features optional
     full_start = time.monotonic()
     # clear caches
     cache_start = time.monotonic()
-    clear_cache(qdrant_cache)
+    clear_cache(qdrant_cache, db_name=articles)
     cache_time = time.monotonic() - cache_start
     preprocess_start = time.monotonic()
     # validate title
     title = normalize_text(sanity_check(title))
     if not title:
-        title_loc = next(
-            iter(snippify_text(
-                input_str,
-                chunk_size=TITLE_CHUNK_SIZE,
-                chunk_padding=CHUNK_PADDING)),
-            None)
+        title_loc = first(snippify_text(
+            input_str,
+            chunk_size=TITLE_CHUNK_SIZE,
+            chunk_padding=CHUNK_PADDING))
         if title_loc is None:
             raise ValueError(f"cannot infer title for {input_str=}")
         title, _ = title_loc
@@ -255,11 +546,12 @@ def vec_add(
     if not isinstance(doc_type, str):
         raise TypeError(f"doc_type {doc_type} must be string")
     # validate date
-    if meta_obj.get("date") is not None:
+    meta_date = meta_obj.get("date")
+    if meta_date is not None:
         if isinstance(meta_obj["date"], list):
             raise TypeError(f"date {meta_obj['date']} must be string")
-        meta_obj["date"] = fmt_time(parse_time_str(meta_obj["date"]))
-        if parse_time_str(meta_obj["date"]).date() < LOW_CUTOFF_DATE:
+        meta_obj["date"] = fmt_time(parse_time_str(meta_date))
+        if parse_time_str(meta_date).date() < LOW_CUTOFF_DATE:
             meta_obj.pop("date", None)  # NOTE: 1970 dates are invalid dates!
     # fill language if missing
     language_start = time.monotonic()
@@ -548,7 +840,9 @@ def vec_search(
         limit: int,
         hit_limit: int,
         score_threshold: float | None,
-        short_snippets: bool) -> QueryEmbed:
+        short_snippets: bool,
+        no_log: bool) -> QueryEmbed:
+    update_last_query(long_time=False)
     if filters is not None:
         filters = {
             key: to_list(value)
@@ -579,7 +873,8 @@ def vec_search(
     embed_time = time.monotonic() - embed_start
 
     log_start = time.monotonic()
-    log_query(db, db_name=articles, text=input_str, filters=filters)
+    if not no_log:
+        log_query(db, db_name=articles, text=input_str, filters=filters)
     log_time = time.monotonic() - log_start
 
     if embed is None:

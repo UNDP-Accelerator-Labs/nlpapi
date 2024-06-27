@@ -1,3 +1,18 @@
+# NLP-API provides useful Natural Language Processing capabilities as API.
+# Copyright (C) 2024 UNDP Accelerator Labs, Josua Krause
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import contextlib
 import inspect
 import sys
@@ -61,8 +76,8 @@ def get_engine(config: DBConfig) -> sa.engine.Engine:
             print(
                 "dialects other than 'postgresql' are not supported. "
                 "continue at your own risk", file=sys.stderr)
-        user = urllib.parse.quote_plus(config["user"])
-        passwd = urllib.parse.quote_plus(config["passwd"])
+        user = urllib.parse.quote(config["user"])
+        passwd = urllib.parse.quote(config["passwd"])
         host = config["host"]
         port = config["port"]
         dbname = config["dbname"]
@@ -89,6 +104,7 @@ class DBConnector:
     def create_tables(self, tables: list[type['Base']]) -> None:
         from app.system.db.base import Base
 
+        print(f"creating {tables=}")
         Base.metadata.create_all(
             self._engine,
             tables=[table.__table__ for table in tables],

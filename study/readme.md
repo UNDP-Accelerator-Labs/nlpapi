@@ -44,3 +44,19 @@ run all benchmarks:
 ./run.sh &> "run.cpu.$(date +%Y%m%d).log"
 ./bench.sh &> "bench.cpu.$(date +%Y%m%d).log"
 ```
+
+LLama:
+
+```
+python -m nlpapi --config study/config.json --graph study/graphs/graph_llama.json --input 'today we are baking a chocolate cake' --system-prompt-key 'verify_circular_economy' --output -
+```
+
+```
+python -m nlpapi --config study/config.json --graph study/graphs/graph_llama.json --input "@study/prompts/ce/ce_test_3.txt" --system-prompt-key 'verify_circular_economy' --output -
+```
+
+folder:
+
+```
+python -m nlpapi --config study/config.json --graph study/graphs/graph_llama.json --input "@study/prompts/ce/" --system-prompt-key 'verify_circular_economy' --output -
+```

@@ -19,9 +19,10 @@ RUN REQUIREMENTS_PATH="requirements.docker.txt" make install-api
 COPY LICENSE .
 COPY sh/ sh/
 COPY nlpapi/ nlpapi/
-COPY public/ public/
 COPY app/ app/
 COPY static/ static/
+COPY buildtmp/build build/
+ENV UI_PATH=build/
 RUN python -m compileall .
 COPY version.txt .
 ARG PORT=8080

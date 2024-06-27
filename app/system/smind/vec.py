@@ -1,3 +1,18 @@
+# NLP-API provides useful Natural Language Processing capabilities as API.
+# Copyright (C) 2024 UNDP Accelerator Labs, Josua Krause
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import collections
 import hashlib
 import time
@@ -46,7 +61,7 @@ from qdrant_client.models import (
     WithLookup,
 )
 
-from app.misc.util import get_time_str, parse_time_str
+from app.misc.util import DocStatus, get_time_str, parse_time_str
 from app.system.config import Config
 
 
@@ -62,7 +77,11 @@ META_CAT = "_"
 META_PREFIX = f"meta{META_CAT}"
 
 
-DBName: TypeAlias = str
+DBName: TypeAlias = Literal["main", "test", "rave_ce"]
+DBS: tuple[DBName] = get_args(DBName)
+
+
+DBQName: TypeAlias = str
 InternalDataKey: TypeAlias = str
 InternalSnippetKey: TypeAlias = str
 
@@ -70,16 +89,12 @@ InternalSnippetKey: TypeAlias = str
 HashTup: TypeAlias = tuple[str, int]
 
 
-DocStatus: TypeAlias = Literal["public", "preview"]
-DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
-
-
 MetaObject = TypedDict('MetaObject', {
-    "date": NotRequired[str],
+    "date": NotRequired[str | None],
     "status": DocStatus,
     "doc_type": str,
-    "language": dict[str, float],
-    "iso3": dict[str, float],
+    "language": NotRequired[dict[str, float]],
+    "iso3": NotRequired[dict[str, float]],
 })
 MetaObjectOpt = TypedDict('MetaObjectOpt', {
     "date": NotRequired[str],
@@ -119,6 +134,7 @@ StatEmbed = TypedDict('StatEmbed', {
 
 
 VecDBStat = TypedDict('VecDBStat', {
+    "ext_name": str | None,
     "name": str,
     "db_name": str,
     "status": str,
@@ -219,8 +235,10 @@ def ensure_valid_name(name: str) -> str:
     return name
 
 
-def get_vec_client(config: Config) -> QdrantClient:
+def get_vec_client(config: Config) -> QdrantClient | None:
     vec_db = config["vector"]
+    if vec_db is None:
+        return None
     host = vec_db["host"]
     if host.startswith(FILE_PROTOCOL):
         print(f"loading db file: {host.removeprefix(FILE_PROTOCOL)}")
@@ -277,6 +295,7 @@ def get_vec_stats(
             lambda: db.get_collection(db_name))
         count = retry_err(lambda: db.count(db_name))
         return {
+            "ext_name": None,
             "name": name,
             "db_name": db_name,
             "status": status.status,
@@ -286,7 +305,7 @@ def get_vec_stats(
         return None
 
 
-def get_db_name(name: str, *, is_vec: bool) -> DBName:
+def get_db_name(name: str, *, is_vec: bool) -> DBQName:
     return f"{name}_vec" if is_vec else f"{name}_data"
 
 
@@ -387,7 +406,7 @@ def build_db_name(
 
 def create_index(
         db: QdrantClient,
-        db_name: DBName,
+        db_name: DBQName,
         field_name: str,
         field_schema: PayloadSchemaType,
         *,

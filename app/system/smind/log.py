@@ -1,4 +1,23 @@
+# NLP-API provides useful Natural Language Processing capabilities as API.
+# Copyright (C) 2024 UNDP Accelerator Labs, Josua Krause
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import random
 from datetime import datetime
+
+import sqlalchemy as sa
+from scattermind.system.util import get_day_str
 
 from app.misc.util import json_compact_str
 from app.system.db.base import QueryLog
@@ -43,3 +62,33 @@ def log_query(
 
 def create_query_log(db: DBConnector) -> None:
     db.create_tables([QueryLog])
+
+
+QUERY_LOG_CACHE: list[str] | None = None
+QUERY_LOG_DATE: str | None = None
+
+
+def sample_query_log(
+        db: DBConnector,
+        *,
+        db_name: str) -> str:
+    global QUERY_LOG_CACHE  # pylint: disable=global-statement
+    global QUERY_LOG_DATE  # pylint: disable=global-statement
+
+    date_str = get_day_str()
+    if QUERY_LOG_CACHE is None or QUERY_LOG_DATE != date_str:
+        with db.get_session() as session:
+            qus = sa.select(QueryLog.query).where(QueryLog.vecdb == db_name)
+            qus = qus.distinct()
+            stmt = sa.select(qus.c.query)
+            stmt = stmt.order_by(
+                sa.func.random()).limit(1000)  # pylint: disable=not-callable
+            log_cache = [
+                row[0]
+                for row in session.execute(stmt)
+            ]
+        QUERY_LOG_CACHE = log_cache
+        QUERY_LOG_DATE = date_str
+    if not QUERY_LOG_CACHE:
+        return "test"
+    return QUERY_LOG_CACHE[random.randrange(len(QUERY_LOG_CACHE))]
