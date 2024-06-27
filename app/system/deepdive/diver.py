@@ -151,7 +151,7 @@ def process_pending(
             log_diver(f"processing {main_id}: skip invalid")
             set_deep_dive(db, doc_id, {
                 "reason": (
-                    "Document is not about circular economy! "
+                    "Document did not pass filter! "
                     "No interpretation performed!"),
                 "cultural": 0,
                 "economic": 0,
