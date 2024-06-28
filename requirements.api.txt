@@ -25,14 +25,14 @@ pytz>=2023.3
 qdrant-client~=1.9.0
 quick-server~=0.10.0
 redipy~=0.7.0
-requests==2.31.0
+requests==2.32.0
 scattermind~=0.5.0
 spacy==3.5.3
 SQLAlchemy==2.0.9
 SQLAlchemy[mypy]==2.0.9
 thinc==8.1.12
 tokenizers<0.19
-tqdm==4.65.0
+tqdm==4.66.3
 transformers~=4.38.0
 translators~=5.9.0
 types-Pillow==9.2.1
