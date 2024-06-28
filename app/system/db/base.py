@@ -188,6 +188,35 @@ class DeepDiveElement(Base):  # pylint: disable=too-few-public-methods
     tag_reason = sa.Column(sa.Text(), nullable=True)
 
 
+class TagGroupTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tag_group"
+
+    id = sa.Column(
+        sa.Integer, unique=True, primary_key=True, autoincrement=True)
+    name = sa.Column(sa.Text(), nullable=False)
+    snaptime = sa.Column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now())  # pylint: disable=not-callable
+
+
+class TagsTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tags"
+
+    tag_group = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            TagGroupTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True)
+    main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
+    keyword = sa.Column(sa.Text(), primary_key=True)
+    score = sa.Column(sa.Double, nullable=False)
+    cluster = sa.Column(sa.Integer, nullable=True)
+
+
 # platform tables
 
 class SessionTable(Base):  # pylint: disable=too-few-public-methods

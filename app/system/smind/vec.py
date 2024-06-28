@@ -185,6 +185,15 @@ ResultChunk = TypedDict('ResultChunk', {
     "snippets": list[str],
     "meta": dict[MetaKey, list[str] | str | int],
 })
+QueryEmbed = TypedDict('QueryEmbed', {
+    "hits": list[ResultChunk],
+    "status": Literal["ok", "error"],
+})
+AddEmbed = TypedDict('AddEmbed', {
+    "previous": int,
+    "snippets": int,
+    "failed": int,
+})
 
 
 FILE_PROTOCOL = "file://"

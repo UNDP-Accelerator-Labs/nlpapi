@@ -17,8 +17,8 @@ from typing import TypedDict
 
 from app.system.deepdive.collection import DeepDiveName, DocumentObj
 from app.system.smind.api import QueueStat
-from app.system.smind.search import EmbedQueueStats, ProcessError
 from app.system.smind.vec import DBName, VecDBStat
+from app.system.workqueues.queue import EmbedQueueStats, ProcessError
 
 
 SourceResponse = TypedDict('SourceResponse', {

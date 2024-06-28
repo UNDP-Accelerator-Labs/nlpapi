@@ -109,22 +109,16 @@ from app.system.smind.api import (
     load_graph,
     load_smind,
 )
+from app.system.smind.keepalive import set_main_articles
 from app.system.smind.search import (
-    AddEmbed,
-    adder_enqueue,
-    adder_info,
     ClearResponse,
-    get_embed_errors,
-    ProcessEntry,
-    QueryEmbed,
-    requeue_errors,
-    set_main_articles,
     vec_add,
     vec_clear,
     vec_filter,
     vec_search,
 )
 from app.system.smind.vec import (
+    AddEmbed,
     build_db_name,
     build_scalar_index,
     DBName,
@@ -133,11 +127,19 @@ from app.system.smind.vec import (
     get_vec_stats,
     MetaKey,
     MetaObject,
+    QueryEmbed,
     StatEmbed,
     VecDBStat,
 )
 from app.system.stats import create_length_counter
 from app.system.urlinspect.inspect import inspect_url
+from app.system.workqueues.queue import (
+    adder_enqueue,
+    adder_info,
+    get_embed_errors,
+    ProcessEntry,
+    requeue_errors,
+)
 
 
 MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
@@ -242,7 +244,11 @@ def add_vec_features(
             articles_dict["rave_ce"] = articles_rave_ce
 
             set_main_articles(
-                db, vec_db, articles=articles_main, articles_graph=graph_embed)
+                db,
+                vec_db,
+                articles=articles_main,
+                articles_graph=graph_embed,
+                vec_search_fn=vec_search)
 
             with cond:
                 cond.notify_all()
@@ -253,6 +259,8 @@ def add_vec_features(
             print(
                 "ERROR! loading vector database "
                 f"failed:\n{traceback.format_exc()}")
+            # NOTE: RecursionError will also be caught here
+            init_vec_db()
 
     th = threading.Thread(target=init_vec_db, daemon=True)
     th.start()
