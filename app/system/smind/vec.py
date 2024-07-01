@@ -855,21 +855,6 @@ def get_filter(
             conds.append(FieldCondition(
                 key=ikey, range=DatetimeRange(gte=min(dates), lte=max(dates))))
             continue
-        if key == "doc_type":
-            # NOTE: utilizing base vec index for known doc_types
-            # each doc_type can only be in one base
-            bases: set[str] = set()
-            for doc_type in values:
-                fixed_base = DOC_TYPE_TO_BASE.get(doc_type)
-                if fixed_base is None:
-                    bases = set()
-                    break
-                bases.add(fixed_base)
-            if bases:
-                conds.append(FieldCondition(
-                    key="base",
-                    match=MatchAny(any=sorted(bases))))
-                continue
         ikey = convert_meta_key(key)
         conds.append(FieldCondition(key=ikey, match=MatchAny(any=values)))
     if not conds:

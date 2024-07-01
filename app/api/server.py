@@ -215,7 +215,7 @@ def add_vec_features(
     articles_dict: dict[DBName, str] = {}
 
     def init_vec_db() -> None:
-        time.sleep(360.0)  # NOTE: give qdrant plenty of time...
+        time.sleep(60.0)  # NOTE: give qdrant plenty of time...
         try:
             tstart = time.monotonic()
             print("start loading vector database...")
