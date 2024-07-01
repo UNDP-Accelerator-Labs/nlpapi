@@ -21,7 +21,7 @@ import time
 from typing import TypedDict
 
 import pandas as pd
-from scattermind.api.api import ScattermindAPI
+from scattermind.api.api import InputTypes, ScattermindAPI
 from scattermind.api.loader import load_api
 from scattermind.system.base import TaskId
 from scattermind.system.names import GNamespace
@@ -85,18 +85,15 @@ def load_config(config_fname: str) -> ScattermindAPI:
 
 def load_graph(
         smind: ScattermindAPI,
-        graph_fname: str) -> tuple[GNamespace, str, str]:
+        graph_fname: str) -> tuple[GNamespace, str, list[str]]:
     with open(graph_fname, "rb") as fin:
         graph_def_obj = json.load(fin)
     ns = smind.load_graph(graph_def_obj)
-    # inputs = list(smind.main_inputs(ns))
-    # outputs = list(smind.main_outputs(ns))
-    # if len(inputs) != 1:
-    #     raise ValueError(f"invalid graph inputs: {inputs}")
-    # if len(outputs) != 1:
-    #     raise ValueError(f"invalid graph outputs: {outputs}")
-    # return ns, inputs[0], outputs[0]
-    return ns, "prompt", "response"
+    inputs = list(smind.main_inputs(ns))
+    outputs = list(smind.main_outputs(ns))
+    if len(inputs) == 1:
+        return ns, inputs[0], outputs
+    return ns, "prompt", ["response"]
 
 
 # GEMMA_FOLDER = "study/mdata/gemma2b/"
@@ -145,7 +142,7 @@ def run() -> None:
     is_stdout = output_fname == "-"
     config_fname = args.config
     smind = load_config(config_fname)
-    ns, input_field, output_field = load_graph(smind, graph_fname)
+    ns, input_field, output_fields = load_graph(smind, graph_fname)
 
     def from_str(ix: int, text: str) -> JSONPad:
         content = normalize_text(text)
@@ -198,12 +195,12 @@ def run() -> None:
     def add_snippet(pad_id: int, pad_public: bool, text: str) -> None:
         if not text.strip():
             return
-        task_id = smind.enqueue_task(
-            ns,
-            {
-                input_field: text,
-                "system_prompt_key": system_prompt_key,
-            })
+        obj: dict[str, InputTypes] = {
+            input_field: text,
+        }
+        if system_prompt_key is not None:
+            obj["system_prompt_key"] = system_prompt_key
+        task_id = smind.enqueue_task(ns, obj)
         pad_lookup[task_id] = {
             "id": pad_id,
             "is_public": pad_public,
@@ -236,7 +233,7 @@ def run() -> None:
             else:
                 pos += len(cur)
 
-    columns = ["id", "is_public", input_field, output_field]
+    columns = ["id", "is_public", input_field, *output_fields]
     if not is_stdout and not os.path.exists(output_fname):
         pd.DataFrame([], columns=columns).to_csv(
             output_fname, index=False, header=True)
@@ -273,10 +270,6 @@ def run() -> None:
             print("\n".join(error["traceback"]))
         result = resp["result"]
         if result is not None:
-            if output_field in ("text", "tags", "response"):
-                output = tensor_to_str(result[output_field])
-            else:
-                output = f"{list(result[output_field].cpu().tolist())}"
             curpad = pad_lookup[tid]
             res = {
                 "id": [curpad["id"]],
@@ -287,8 +280,13 @@ def run() -> None:
                         chunk_size=100,
                         chunk_padding=10))[0],
                 ],
-                output_field: [output],
             }
+            for output_field in output_fields:
+                if output_field in ("text", "tags", "response"):
+                    output = tensor_to_str(result[output_field])
+                else:
+                    output = f"{list(result[output_field].cpu().tolist())}"
+                res[output_field] = output
             if is_stdout:
                 print(json.dumps(res, indent=2, sort_keys=True))
                 out_strs.append(output)

@@ -25,7 +25,11 @@ from scattermind.system.info import DataFormatJSON
 from scattermind.system.payload.values import ComputeState
 from scattermind.system.queue.queue import QueuePool
 from scattermind.system.readonly.access import ReadonlyAccess
-from scattermind.system.torch_util import str_to_tensor, tensor_to_str
+from scattermind.system.torch_util import (
+    create_tensor,
+    str_to_tensor,
+    tensor_to_str,
+)
 
 from nlpapi.util import get_sentence_transformer
 
@@ -54,6 +58,7 @@ class TagModelNode(Node):
         return {
             "out": {
                 "tags": ("uint8", [None]),
+                "scores": ("float", [None]),
             },
         }
 
@@ -94,13 +99,26 @@ class TagModelNode(Node):
             tensor_to_str(val)
             for val in inputs.get_data("text").iter_values()
         ]
-        task_keywords = model.extract_keywords(
+        task_keyword_scores = model.extract_keywords(
             texts, keyphrase_ngram_range=(1, 2), threshold=th)
-        for task, keywords in zip(inputs.get_current_tasks(), task_keywords):
+        if len(texts) == 1:
+            # NOTE: fixing the extract_keywords "autocorrect"
+            task_keyword_scores = [task_keyword_scores]
+        for task, keyword_scores in zip(
+                inputs.get_current_tasks(), task_keyword_scores):
+            keywords: list[str] = []
+            scores: list[float] = []
+            print(keyword_scores)
+            for keyword, score in keyword_scores:
+                keywords.append(keyword.replace(",", " "))
+                scores.append(score)
             state.push_results(
                 "out",
                 [task],
                 {
-                    "tags": state.create_single(str_to_tensor(f"{keywords}")),
+                    "tags": state.create_single(
+                        str_to_tensor(",".join(keywords))),
+                    "scores": state.create_single(
+                        create_tensor(scores, dtype="float")),
                 })
         print("execute model done")
