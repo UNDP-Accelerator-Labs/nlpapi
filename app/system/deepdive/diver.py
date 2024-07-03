@@ -132,6 +132,9 @@ def process_pending(
             continue
         if doc["error"] is not None:
             continue
+        if combine_segments(db, doc):
+            log_diver(f"processing {main_id}: done")
+            continue
         log_diver(f"processing {main_id}: getting full text")
         full_text, error_msg = get_full_text(main_id)
         full_text = normalize_text(full_text)
@@ -142,11 +145,8 @@ def process_pending(
                 doc_id,
                 f"could not retrieve document for {main_id}: {error_msg}")
             continue
-        if combine_segments(db, doc):
-            log_diver(f"processing {main_id}: done")
-        else:
-            pages = add_segments(db, doc, full_text)
-            log_diver(f"processing {main_id}: adding {pages} segments")
+        pages = add_segments(db, doc, full_text)
+        log_diver(f"processing {main_id}: adding {pages} segments")
     log_diver("done processing")
 
 
