@@ -185,7 +185,8 @@ def process_segments(
             sp_key = None
         if sp_key is None:
             continue
-        log_diver(f"processing segment {main_id}@{page}: llm ({sp_key})")
+        log_diver(
+            f"processing segment {main_id}@{page} ({seg_id}): llm ({sp_key})")
         task_id = smind.enqueue_task(
             ns,
             {

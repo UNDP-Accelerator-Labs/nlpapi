@@ -534,8 +534,8 @@ def set_deep_dive_segment(
 
 def set_error_segment(db: DBConnector, seg_id: int, error: str) -> None:
     with db.get_session() as session:
-        stmt = sa.update(DeepDiveElement)
-        stmt = stmt.where(DeepDiveElement.id == seg_id)
+        stmt = sa.update(DeepDiveSegment)
+        stmt = stmt.where(DeepDiveSegment.id == seg_id)
         stmt = stmt.values(error=error)
         session.execute(stmt)
 
