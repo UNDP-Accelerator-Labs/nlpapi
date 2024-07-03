@@ -35,7 +35,7 @@ DEEP_DIVE_NAMES: tuple[DeepDiveName] = get_args(DeepDiveName)
 
 
 LLM_CHUNK_SIZE = 9000
-LLM_CHUNK_PADDING = 1000
+LLM_CHUNK_PADDING = 4000
 
 
 def get_deep_dive_name(name: str) -> DeepDiveName:
