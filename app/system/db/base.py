@@ -188,6 +188,36 @@ class DeepDiveElement(Base):  # pylint: disable=too-few-public-methods
     tag_reason = sa.Column(sa.Text(), nullable=True)
 
 
+DEEP_DIVE_SEGMENT_ID_SEQ: sa.Sequence = sa.Sequence(
+    "deep_dive_segment_id_seq", start=1, increment=1)
+
+
+class DeepDiveSegment(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "deep_dive_segment"
+
+    id = sa.Column(
+        sa.Integer,
+        DEEP_DIVE_SEGMENT_ID_SEQ,
+        nullable=False,
+        unique=True,
+        server_default=DEEP_DIVE_SEGMENT_ID_SEQ.next_value())
+    main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
+    page = sa.Column(sa.Integer, nullable=False, primary_key=True)
+    deep_dive_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            DeepDiveCollection.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True)
+    content = sa.Column(sa.Text(), nullable=False)
+    verify_reason = sa.Column(sa.Text(), nullable=True)
+    is_valid = sa.Column(sa.Boolean, nullable=True)
+    deep_dive_result = sa.Column(sa.JSON, nullable=True)
+    error = sa.Column(sa.Text(), nullable=True)
+
+
 class TagGroupTable(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "tag_group"
 

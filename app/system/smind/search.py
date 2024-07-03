@@ -24,7 +24,7 @@ from typing import Literal, Protocol, TypedDict
 import numpy as np
 from qdrant_client import QdrantClient
 from redipy import Redis
-from scattermind.system.util import first
+from scattermind.system.util import maybe_first
 
 from app.misc.util import (
     CHUNK_PADDING,
@@ -245,7 +245,7 @@ def vec_add(
     # validate title
     title = normalize_text(sanity_check(title))
     if not title:
-        title_loc = first(snippify_text(
+        title_loc = maybe_first(snippify_text(
             input_str,
             chunk_size=TITLE_CHUNK_SIZE,
             chunk_padding=CHUNK_PADDING))

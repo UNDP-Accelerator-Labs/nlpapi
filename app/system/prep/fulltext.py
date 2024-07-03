@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import TypeAlias
 
 import sqlalchemy as sa
-from scattermind.system.util import first
+from scattermind.system.util import maybe_first
 
 from app.misc.lru import LRU
 from app.misc.util import CHUNK_PADDING, DocStatus, fmt_time, TITLE_CHUNK_SIZE
@@ -247,7 +247,7 @@ def create_url_title(
                         "could not retrieve full text to "
                         f"infer title: {input_error}",
                     )
-                title_loc = first(snippify_text(
+                title_loc = maybe_first(snippify_text(
                     input_str,
                     chunk_size=TITLE_CHUNK_SIZE,
                     chunk_padding=CHUNK_PADDING))
