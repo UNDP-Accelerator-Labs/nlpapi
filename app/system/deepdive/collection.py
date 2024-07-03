@@ -578,21 +578,25 @@ def combine_segments(db: DBConnector, doc: DocumentObj) -> bool:
             deep_dive_result = segment["deep_dive_result"]
             if error is not None:
                 is_error = True
-                error_msg = f"{error_msg}\n[{page=}]:\n{error}"
+                error_msg = f"{error_msg}\n[{page=}]:\n{error}\n"
                 continue
             if is_valid is None or verify_reason is None:
                 is_incomplete = True
                 break
             if not is_valid:
-                verify_msg = f"{verify_msg}\n[{page=} miss]:\n{verify_reason}"
+                verify_msg = (
+                    f"{verify_msg}\n\n[{page=} miss]:\n{verify_reason}"
+                    ).lstrip()
                 continue
             is_hit = True
-            verify_msg = f"{verify_msg}\n[{page=} hit]:\n{verify_reason}"
+            verify_msg = (
+                f"{verify_msg}\n\n[{page=} hit]:\n{verify_reason}").lstrip()
             if deep_dive_result is None:
                 is_incomplete = True
                 break
             p_reason = results["reason"]
-            results["reason"] = f"{p_reason}\n[{page=}]:\n{verify_reason}"
+            results["reason"] = (
+                f"{p_reason}\n\n[{page=}]:\n{verify_reason}".lstrip())
             for key, prev in results.items():
                 if key == "reason":
                     continue
@@ -604,11 +608,11 @@ def combine_segments(db: DBConnector, doc: DocumentObj) -> bool:
             # NOTE: we cannot proceed!
             return False
         if is_error:
-            error_msg = f"{error_msg}\n\nVERIFY:\n{verify_msg}"
-            error_msg = f"{error_msg}\n\nRESULT:\n{results['reason']}"
+            error_msg = f"{error_msg}\nVERIFY:\n{verify_msg}\n"
+            error_msg = f"{error_msg}\nRESULT:\n{results['reason']}"
             set_doc_error(session, doc_id, error_msg)
         else:
-            set_verify(session, doc_id, not is_hit, verify_msg)
+            set_verify(session, doc_id, is_hit, verify_msg)
             if not is_hit:
                 results = {
                     "reason": (
