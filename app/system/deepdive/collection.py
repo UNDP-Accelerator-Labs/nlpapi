@@ -397,6 +397,8 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
                 DeepDiveElement.deep_dive_result.is_(None),
                 DeepDiveElement.tag_reason.is_(None)),
             DeepDiveElement.error.is_(None)))
+        stmt = stmt.order_by(
+            DeepDiveElement.deep_dive_id, DeepDiveElement.main_id)
         for row in session.execute(stmt):
             yield {
                 "id": row.id,
@@ -455,6 +457,11 @@ def get_segments_in_queue(db: DBConnector) -> Iterable[SegmentObj]:
                 DeepDiveSegment.is_valid.is_(None),
                 DeepDiveSegment.deep_dive_result.is_(None)),
             DeepDiveSegment.error.is_(None)))
+        stmt = stmt.order_by(
+            DeepDiveSegment.deep_dive_id,
+            DeepDiveSegment.main_id,
+            DeepDiveSegment.page)
+        stmt = stmt.limit(20)
         for row in session.execute(stmt):
             yield {
                 "id": row.id,
@@ -491,6 +498,7 @@ def get_segments(
         DeepDiveSegment.deep_dive_id == DeepDiveCollection.id,
         DeepDiveSegment.deep_dive_id == collection_id,
         DeepDiveSegment.main_id == main_id))
+    stmt = stmt.order_by(DeepDiveSegment.page)
     for row in session.execute(stmt):
         yield {
             "id": row.id,

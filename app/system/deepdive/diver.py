@@ -155,10 +155,9 @@ def process_segments(
         smind: ScattermindAPI,
         graph_llama: GraphProfile,
         ) -> int:
-    process_count = 0
+    segments = list(get_segments_in_queue(db))
     ns = graph_llama.get_ns()
-    for segment in get_segments_in_queue(db):
-        process_count += 1
+    for segment in segments:
         seg_id = segment["id"]
         main_id = segment["main_id"]
         page = segment["page"]
@@ -233,7 +232,7 @@ def process_segments(
                     set_error_segment(db, seg_id, f"{error_msg}{derror}")
                 else:
                     set_deep_dive_segment(db, seg_id, ddres)
-    return process_count
+    return len(segments)
 
 
 LP = r"{"
