@@ -19,6 +19,7 @@ from typing import cast
 import llama_cpp
 from llama_cpp import CreateChatCompletionStreamResponse, Llama
 from scattermind.system.base import GraphId, NodeId
+from scattermind.system.client.client import ComputeTask
 from scattermind.system.graph.graph import Graph
 from scattermind.system.graph.node import Node
 from scattermind.system.info import DataFormatJSON, STRING_INFO
@@ -107,7 +108,8 @@ class LlamaNode(Node):
             prompt: str,
             *,
             system_prompt_key: str,
-            cache_dir: str) -> str:
+            cache_dir: str,
+            task: ComputeTask) -> str:
         # FIXME: maybe use state
         # if not load_state(model, cache_dir):
         set_seed = True
@@ -128,6 +130,8 @@ class LlamaNode(Node):
         try:
             for out in model.create_chat_completion(
                     messages, max_tokens=None, stream=True):
+                if not task.is_valid():
+                    break
                 resp = cast(CreateChatCompletionStreamResponse, out)
                 delta = resp["choices"][0]["delta"]
                 content: str | None = cast(str, delta.get("content", ""))
@@ -169,7 +173,8 @@ class LlamaNode(Node):
                 model,
                 prompt_str.strip(),
                 system_prompt_key=system_prompt_key_str.strip(),
-                cache_dir=cache_dir)
+                cache_dir=cache_dir,
+                task=task)
             response = str_to_tensor(response_str)
             state.push_results(
                 "out",
