@@ -110,6 +110,8 @@ class LlamaNode(Node):
             system_prompt_key: str,
             cache_dir: str,
             task: ComputeTask) -> str:
+        if not task.is_valid():
+            return ""
         # FIXME: maybe use state
         # if not load_state(model, cache_dir):
         set_seed = True
