@@ -15,12 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import collections
 import hashlib
-import time
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from datetime import datetime
 from typing import (
-    Any,
     cast,
     get_args,
     Literal,
@@ -61,7 +59,7 @@ from qdrant_client.models import (
     WithLookup,
 )
 
-from app.misc.util import DocStatus, get_time_str, parse_time_str
+from app.misc.util import DocStatus, get_time_str, parse_time_str, retry_err
 from app.system.config import Config
 
 
@@ -268,23 +266,6 @@ def get_vec_client(config: Config) -> QdrantClient | None:
             api_key=token,
             timeout=600)
     return db
-
-
-def retry_err(
-        call: Callable[..., T],
-        *args: Any,
-        max_retry: int = 3,
-        sleep: float = 3.0) -> T:
-    error = 0
-    while True:
-        try:
-            return call(*args)
-        except ResponseHandlingException:
-            error += 1
-            if error > max_retry:
-                raise
-            if sleep > 0.0:
-                time.sleep(sleep)
 
 
 def vec_flushall(db: QdrantClient) -> None:

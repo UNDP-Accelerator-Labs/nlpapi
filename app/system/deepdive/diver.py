@@ -22,7 +22,7 @@ from scattermind.api.api import ScattermindAPI
 from scattermind.system.response import TASK_COMPLETE
 from scattermind.system.torch_util import tensor_to_str
 
-from app.misc.util import get_json_error_str, get_time_str, to_bool
+from app.misc.util import get_json_error_str, get_time_str, retry_err, to_bool
 from app.system.db.db import DBConnector
 from app.system.deepdive.collection import (
     add_segments,
@@ -63,7 +63,7 @@ def maybe_diver_thread(
     global DIVER_THREAD  # pylint: disable=global-statement
 
     def get_docs() -> list[DocumentObj]:
-        return list(get_documents_in_queue(db))
+        return list(retry_err(get_documents_in_queue, db))
 
     def run() -> None:
         global DIVER_THREAD  # pylint: disable=global-statement
@@ -123,16 +123,16 @@ def process_pending(
                 title = f"ERROR: {error}"
             if url_title is not None:
                 url, title = url_title
-            set_url_title(db, doc_id, url, title)
+            retry_err(set_url_title, db, doc_id, url, title)
         if doc["tag_reason"] is None:
             log_diver(f"processing {main_id}: tag")
             tag, tag_reason = get_tag(main_id)
-            set_tag(db, doc_id, tag, tag_reason)
+            retry_err(set_tag, db, doc_id, tag, tag_reason)
         if doc["is_valid"] is not None and doc["deep_dive_result"] is not None:
             continue
         if doc["error"] is not None:
             continue
-        if combine_segments(db, doc):
+        if retry_err(combine_segments, db, doc):
             log_diver(f"processing {main_id}: done")
             continue
         log_diver(f"processing {main_id}: getting full text")
@@ -140,12 +140,13 @@ def process_pending(
         full_text = normalize_text(full_text)
         if full_text is None:
             log_diver(f"processing {main_id}: error retrieving full text")
-            set_error(
+            retry_err(
+                set_error,
                 db,
                 doc_id,
                 f"could not retrieve document for {main_id}: {error_msg}")
             continue
-        pages = add_segments(db, doc, full_text)
+        pages = retry_err(add_segments, db, doc, full_text)
         log_diver(f"processing {main_id}: adding {pages} segments")
     log_diver("done processing")
 
@@ -155,7 +156,7 @@ def process_segments(
         smind: ScattermindAPI,
         graph_llama: GraphProfile,
         ) -> int:
-    segments = list(get_segments_in_queue(db))
+    segments = list(retry_err(get_segments_in_queue, db))
     ns = graph_llama.get_ns()
     for segment in segments:
         seg_id = segment["id"]
@@ -169,18 +170,22 @@ def process_segments(
             sp_key = segment["deep_dive_key"]
         else:
             log_diver(f"processing segment {main_id}@{page}: skip invalid")
-            set_deep_dive_segment(db, seg_id, {
-                "reason": (
-                    "Segment did not pass filter! "
-                    "No interpretation performed!"),
-                "cultural": 0,
-                "economic": 0,
-                "educational": 0,
-                "institutional": 0,
-                "legal": 0,
-                "political": 0,
-                "technological": 0,
-            })
+            retry_err(
+                set_deep_dive_segment,
+                db,
+                seg_id,
+                {
+                    "reason": (
+                        "Segment did not pass filter! "
+                        "No interpretation performed!"),
+                    "cultural": 0,
+                    "economic": 0,
+                    "educational": 0,
+                    "institutional": 0,
+                    "legal": 0,
+                    "political": 0,
+                    "technological": 0,
+                })
             sp_key = None
         if sp_key is None:
             continue
@@ -197,8 +202,11 @@ def process_segments(
                 log_diver(
                     f"processing segment {main_id}@{page}: "
                     f"llm timed out ({sp_key})")
-                set_error_segment(
-                    db, seg_id, f"llm timed out for {main_id}@{page}")
+                retry_err(
+                    set_error_segment,
+                    db,
+                    seg_id,
+                    f"llm timed out for {main_id}@{page}")
                 smind.clear_task(task_id)
                 continue
             res = result["result"]
@@ -206,7 +214,11 @@ def process_segments(
                 log_diver(
                     f"processing segment {main_id}@{page}: "
                     f"llm error ({sp_key})")
-                set_error_segment(db, seg_id, f"error in task: {result}")
+                retry_err(
+                    set_error_segment,
+                    db,
+                    seg_id,
+                    f"error in task: {result}")
                 continue
             text = tensor_to_str(res["response"])
             error_msg = (
@@ -218,10 +230,15 @@ def process_segments(
                         verror = f"\nSTACKTRACE: {verror}"
                     else:
                         verror = ""
-                    set_error_segment(db, seg_id, f"{error_msg}{verror}")
+                    retry_err(
+                        set_error_segment, db, seg_id, f"{error_msg}{verror}")
                 else:
-                    set_verify_segment(
-                        db, seg_id, vres["is_hit"], vres["reason"])
+                    retry_err(
+                        set_verify_segment,
+                        db,
+                        seg_id,
+                        vres["is_hit"],
+                        vres["reason"])
             else:
                 ddres, derror = interpret_deep_dive(text)
                 if ddres is None:
@@ -229,9 +246,13 @@ def process_segments(
                         derror = f"\nSTACKTRACE: {derror}"
                     else:
                         derror = ""
-                    set_error_segment(db, seg_id, f"{error_msg}{derror}")
+                    retry_err(
+                        set_error_segment,
+                        db,
+                        seg_id,
+                        f"{error_msg}{derror}")
                 else:
-                    set_deep_dive_segment(db, seg_id, ddres)
+                    retry_err(set_deep_dive_segment, db, seg_id, ddres)
     return len(segments)
 
 
