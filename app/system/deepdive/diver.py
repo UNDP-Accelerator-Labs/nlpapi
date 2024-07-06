@@ -105,8 +105,10 @@ def process_pending(
         get_tag: TagFn) -> None:
     if not docs:
         return
-    count = process_segments(db, smind, graph_llama)
-    if count > 0:
+    for _ in range(6):
+        count = process_segments(db, smind, graph_llama)
+        if count <= 0:
+            break
         log_diver(f"processed {count} segments")
     log_diver(f"found {len(docs)} for processing!")
     for doc in docs:
