@@ -105,10 +105,8 @@ def process_pending(
         get_tag: TagFn) -> None:
     if not docs:
         return
-    while True:
-        count = process_segments(db, smind, graph_llama)
-        if count <= 0:
-            break
+    count = process_segments(db, smind, graph_llama)
+    if count > 0:
         log_diver(f"processed {count} segments")
     log_diver(f"found {len(docs)} for processing!")
     for doc in docs:
@@ -132,22 +130,25 @@ def process_pending(
             continue
         if doc["error"] is not None:
             continue
-        if retry_err(combine_segments, db, doc):
-            log_diver(f"processing {main_id}: done")
+        combined = retry_err(combine_segments, db, doc)
+        if combined == "empty":
+            log_diver(f"processing {main_id}: getting full text")
+            full_text, error_msg = get_full_text(main_id)
+            full_text = normalize_text(full_text)
+            if full_text is None:
+                log_diver(f"processing {main_id}: error retrieving full text")
+                retry_err(
+                    set_error,
+                    db,
+                    doc_id,
+                    f"could not retrieve document for {main_id}: {error_msg}")
+                continue
+            pages = retry_err(add_segments, db, doc, full_text)
+            log_diver(f"processing {main_id}: adding {pages} segments")
             continue
-        log_diver(f"processing {main_id}: getting full text")
-        full_text, error_msg = get_full_text(main_id)
-        full_text = normalize_text(full_text)
-        if full_text is None:
-            log_diver(f"processing {main_id}: error retrieving full text")
-            retry_err(
-                set_error,
-                db,
-                doc_id,
-                f"could not retrieve document for {main_id}: {error_msg}")
+        if combined == "incomplete":
             continue
-        pages = retry_err(add_segments, db, doc, full_text)
-        log_diver(f"processing {main_id}: adding {pages} segments")
+        log_diver(f"processing {main_id}: done")
     log_diver("done processing")
 
 

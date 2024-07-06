@@ -556,7 +556,9 @@ def remove_segments(
     session.execute(stmt)
 
 
-def combine_segments(db: DBConnector, doc: DocumentObj) -> bool:
+def combine_segments(
+        db: DBConnector,
+        doc: DocumentObj) -> Literal["empty", "incomplete", "done"]:
     with db.get_session() as session:
         collection_id = doc["deep_dive"]
         main_id = doc["main_id"]
@@ -612,9 +614,11 @@ def combine_segments(db: DBConnector, doc: DocumentObj) -> bool:
                 incoming_val: int = int(deep_dive_result[key])  # type: ignore
                 next_val = max(prev_val, incoming_val)
                 results[key] = next_val  # type: ignore
-        if is_incomplete or no_segments:
+        if no_segments:
+            return "empty"
+        if is_incomplete:
             # NOTE: we cannot proceed!
-            return False
+            return "incomplete"
         if is_error:
             error_msg = f"{error_msg}\nVERIFY:\n{verify_msg}\n"
             error_msg = f"{error_msg}\nRESULT:\n{results['reason']}"
@@ -636,7 +640,7 @@ def combine_segments(db: DBConnector, doc: DocumentObj) -> bool:
                 }
             set_deep_dive(session, doc_id, results)
         remove_segments(session, collection_id, [main_id])
-        return True
+        return "done"
 
 
 def create_deep_dive_tables(db: DBConnector) -> None:
