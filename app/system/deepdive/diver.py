@@ -105,7 +105,7 @@ def process_pending(
         get_tag: TagFn) -> None:
     if not docs:
         return
-    for _ in range(10):
+    for _ in range(20):
         count = process_segments(db, smind, graph_llama)
         if count <= 0:
             break
