@@ -242,10 +242,10 @@ def process_segments(
                 if is_verify:
                     vres, verror = interpret_verify(text)
                     if vres is None:
-                        if verror is not None:
-                            verror = f"\nSTACKTRACE: {verror}"
-                        else:
-                            verror = ""
+                        verror = (
+                            ""
+                            if verror is None
+                            else f"\nSTACKTRACE: {verror}")
                         retry_err(
                             set_error_segment,
                             db,
@@ -261,10 +261,10 @@ def process_segments(
                 else:
                     ddres, derror = interpret_deep_dive(text)
                     if ddres is None:
-                        if derror is not None:
-                            derror = f"\nSTACKTRACE: {derror}"
-                        else:
-                            derror = ""
+                        derror = (
+                            ""
+                            if derror is None
+                            else f"\nSTACKTRACE: {derror}")
                         retry_err(
                             set_error_segment,
                             db,
