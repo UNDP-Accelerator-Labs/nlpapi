@@ -40,12 +40,7 @@ from app.misc.util import (
 )
 from app.system.db.db import DBConnector
 from app.system.language.pipeline import extract_language
-from app.system.location.pipeline import extract_locations
-from app.system.location.response import (
-    DEFAULT_MAX_REQUESTS,
-    GeoQuery,
-    LanguageStr,
-)
+from app.system.location.response import LanguageStr
 from app.system.prep.clean import normalize_text, sanity_check
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
@@ -293,32 +288,33 @@ def vec_add(
     # fill iso3 if missing
     country_start = time.monotonic()
     if meta_obj.get("iso3") is None:
-        geo_obj: GeoQuery = {
-            "input": input_str,
-            "return_input": False,
-            "return_context": False,
-            "strategy": "top",
-            "language": "xx",
-            "max_requests": DEFAULT_MAX_REQUESTS,
-        }
-        geo_out = extract_locations(db, ner_graphs, geo_obj, user)
-        if geo_out["status"] != "invalid":
-            total: int = 0
-            countries: dict[str, int] = {}
-            for geo_entity in geo_out["entities"]:
-                if geo_entity["location"] is None:
-                    continue
-                cur_country = geo_entity["location"]["country"]
-                prev_ccount = countries.get(cur_country, 0)
-                geo_count = geo_entity["count"]
-                total += geo_count
-                countries[cur_country] = prev_ccount + geo_count
-            meta_obj["iso3"] = {
-                country: count / total
-                for country, count in countries.items()
-            }
-        else:
-            meta_obj["iso3"] = {}
+        assert ner_graphs  # NOTE: avoiding unused argument note
+        # geo_obj: GeoQuery = {
+        #     "input": input_str,
+        #     "return_input": False,
+        #     "return_context": False,
+        #     "strategy": "top",
+        #     "language": "xx",
+        #     "max_requests": DEFAULT_MAX_REQUESTS,
+        # }
+        # geo_out = extract_locations(db, ner_graphs, geo_obj, user)
+        # if geo_out["status"] != "invalid":
+        #     total: int = 0
+        #     countries: dict[str, int] = {}
+        #     for geo_entity in geo_out["entities"]:
+        #         if geo_entity["location"] is None:
+        #             continue
+        #         cur_country = geo_entity["location"]["country"]
+        #         prev_ccount = countries.get(cur_country, 0)
+        #         geo_count = geo_entity["count"]
+        #         total += geo_count
+        #         countries[cur_country] = prev_ccount + geo_count
+        #     meta_obj["iso3"] = {
+        #         country: count / total
+        #         for country, count in countries.items()
+        #     }
+        # else:
+        meta_obj["iso3"] = {}
     else:
         meta_obj["iso3"] = dict(meta_obj["iso3"].items())
     # inspect URL and amend iso3 if country found
