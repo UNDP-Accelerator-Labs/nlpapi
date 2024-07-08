@@ -16,6 +16,7 @@
 import json
 import re
 import threading
+import time
 import traceback
 
 from scattermind.api.api import ScattermindAPI
@@ -161,6 +162,16 @@ def process_segments(
         ) -> int:
     segments = list(retry_err(get_segments_in_queue, db))
     ns = graph_llama.get_ns()
+    for queue_counts in smind.get_queue_stats():
+        if queue_counts["name"] != ns.get():
+            continue
+        queue_length = queue_counts['queue_length']
+        sleep_time = 600 * queue_length
+        if queue_length > 0 and sleep_time > 0:
+            log_diver(
+                "current queue: "
+                f"{queue_counts['name']}={queue_length} sleep={sleep_time}s")
+            time.sleep(sleep_time)
     for segment in segments:
         seg_id = segment["id"]
         main_id = segment["main_id"]
