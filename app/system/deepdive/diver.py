@@ -162,10 +162,7 @@ def process_segments(
         ) -> int:
     segments = list(retry_err(get_segments_in_queue, db))
     ns = graph_llama.get_ns()
-    for queue_counts in smind.get_queue_stats():
-        print(queue_counts["name"], ns.get())
-        if queue_counts["name"] != ns.get():
-            continue
+    for queue_counts in smind.get_queue_stats(ns):
         queue_length = queue_counts['queue_length']
         sleep_time = 600 * queue_length
         if queue_length > 0 and sleep_time > 0:
