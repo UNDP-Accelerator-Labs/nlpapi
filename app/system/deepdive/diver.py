@@ -155,6 +155,9 @@ def process_pending(
     log_diver("done processing")
 
 
+LLM_TIMEOUT = 300
+
+
 def process_segments(
         db: DBConnector,
         smind: ScattermindAPI,
@@ -164,7 +167,7 @@ def process_segments(
     ns = graph_llama.get_ns()
     for queue_counts in smind.get_queue_stats(ns):
         queue_length = queue_counts['queue_length']
-        sleep_time = 600 * queue_length
+        sleep_time = LLM_TIMEOUT // 2 * queue_length
         if queue_length > 0 and sleep_time > 0:
             log_diver(
                 "current queue: "
@@ -211,7 +214,7 @@ def process_segments(
                 "system_prompt_key": sp_key,
             })
         try:
-            for _, result in smind.wait_for([task_id], timeout=1200):
+            for _, result in smind.wait_for([task_id], timeout=LLM_TIMEOUT):
                 if result["status"] not in TASK_COMPLETE:
                     log_diver(
                         f"processing segment {main_id}@{page}: "
