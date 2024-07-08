@@ -55,6 +55,7 @@ start_smind() {
         --device "${DEVICE}" \
         worker \
         --graph local/graphs/ \
+        --max-task-retries 2 \
         >> "userdata/smind-${DATE}.log" 2>&1 &
 }
 
