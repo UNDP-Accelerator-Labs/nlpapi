@@ -70,6 +70,7 @@ export type ApiProvider = {
     collectionId: number,
     mainIds: string[],
     metaOnly: boolean,
+    errorOnly: boolean,
   ) => Promise<void>;
 };
 
@@ -294,7 +295,7 @@ export const DEFAULT_API: ApiProvider = {
     const { content, error }: FulltextResponse = await res.json();
     return { content: content ?? undefined, error: error ?? undefined };
   },
-  requeue: async (collectionId, mainIds, metaOnly) => {
+  requeue: async (collectionId, mainIds, metaOnly, errorOnly) => {
     const url = await getCollectionApiUrl();
     const res = await fetch(`${url}/api/documents/requeue`, {
       method: 'POST',
@@ -306,6 +307,7 @@ export const DEFAULT_API: ApiProvider = {
         collection_id: collectionId,
         main_ids: mainIds,
         meta_only: metaOnly,
+        error_only: errorOnly,
       }),
     });
     await res.json();

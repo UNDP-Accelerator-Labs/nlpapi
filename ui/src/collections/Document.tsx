@@ -286,16 +286,22 @@ export default class Document extends PureComponent<
     e.preventDefault();
     const {
       apiActions,
-      doc: { mainId },
+      doc: { mainId, error },
       collectionId,
       requestUpdate,
     } = this.props;
     if (collectionId < 0) {
       return;
     }
-    apiActions.requeue(collectionId, [mainId], false, () => {
-      requestUpdate();
-    });
+    apiActions.requeue(
+      collectionId,
+      [mainId],
+      false,
+      error !== undefined,
+      () => {
+        requestUpdate();
+      },
+    );
   };
 
   clickRefreshMeta: MouseEventHandler<HTMLSpanElement> = (e) => {
@@ -312,7 +318,7 @@ export default class Document extends PureComponent<
     if (collectionId < 0) {
       return;
     }
-    apiActions.requeue(collectionId, [mainId], true, () => {
+    apiActions.requeue(collectionId, [mainId], true, false, () => {
       requestUpdate();
     });
   };

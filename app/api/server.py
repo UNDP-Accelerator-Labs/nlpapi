@@ -76,6 +76,7 @@ from app.system.deepdive.collection import (
     get_deep_dive_name,
     get_documents,
     requeue,
+    requeue_error,
     requeue_meta,
     set_options,
 )
@@ -1095,9 +1096,12 @@ def setup(
             collection_id = int(args["collection_id"])
             main_ids: list[str] = args["main_ids"]
             meta_only = to_bool(args.get("meta_only", False))
+            error_only = to_bool(args.get("error_only", False))
             session: SessionInfo = rargs["meta"]["session"]
             if meta_only:
                 requeue_meta(db, collection_id, session["uuid"], main_ids)
+            elif error_only:
+                requeue_error(db, collection_id, session["uuid"], main_ids)
             else:
                 requeue(db, collection_id, session["uuid"], main_ids)
             maybe_start_dive()

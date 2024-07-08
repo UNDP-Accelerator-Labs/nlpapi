@@ -187,9 +187,10 @@ export default class ApiActions {
     collectionId: number,
     mainIds: string[],
     metaOnly: boolean,
+    errorOnly: boolean,
     cb: AddCallback,
   ) {
-    await this.api.requeue(collectionId, mainIds, metaOnly);
+    await this.api.requeue(collectionId, mainIds, metaOnly, errorOnly);
     cb();
   }
 } // ApiActions

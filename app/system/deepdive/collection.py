@@ -354,6 +354,37 @@ def requeue(
         remove_segments(session, collection_id, main_ids)
 
 
+def requeue_error(
+        db: DBConnector,
+        collection_id: int,
+        user: UUID | None,
+        main_ids: list[str],
+        *,
+        allow_none: bool = False) -> None:
+    with db.get_session() as session:
+        verify_user(
+            session, collection_id, user, write=True, allow_none=allow_none)
+        stmt = sa.update(DeepDiveElement)
+        stmt = stmt.where(sa.and_(
+            DeepDiveElement.deep_dive_id == collection_id,
+            DeepDiveElement.main_id.in_(main_ids)))
+        stmt = stmt.values(
+            url=None,
+            title=None,
+            is_valid=None,
+            verify_reason=None,
+            deep_dive_result=sa.null(),
+            error=None)
+        session.execute(stmt)
+
+        seg_stmt = sa.update(DeepDiveSegment)
+        seg_stmt = seg_stmt.where(sa.and_(
+            DeepDiveSegment.deep_dive_id == collection_id,
+            DeepDiveSegment.main_id.in_(main_ids)))
+        seg_stmt = seg_stmt.values(error=None)
+        session.execute(seg_stmt)
+
+
 def requeue_meta(
         db: DBConnector,
         collection_id: int,
@@ -639,7 +670,8 @@ def combine_segments(
                     "technological": 0,
                 }
             set_deep_dive(session, doc_id, results)
-        remove_segments(session, collection_id, [main_id])
+        if not is_error:
+            remove_segments(session, collection_id, [main_id])
         return "done"
 
 

@@ -392,11 +392,17 @@ class CollectionView extends PureComponent<
     if (!window.confirm(`${ma} ${mb}`)) {
       return;
     }
-    apiActions.requeue(collectionId, mainIds, false, () => {
-      this.setState({
-        needsUpdate: true,
-      });
-    });
+    apiActions.requeue(
+      collectionId,
+      mainIds,
+      false,
+      collectionFilter === 'errors',
+      () => {
+        this.setState({
+          needsUpdate: true,
+        });
+      },
+    );
   };
 
   clickRefresh: MouseEventHandler<HTMLSpanElement> = (e) => {
