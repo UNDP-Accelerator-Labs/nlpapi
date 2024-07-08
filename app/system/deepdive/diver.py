@@ -163,6 +163,7 @@ def process_segments(
     segments = list(retry_err(get_segments_in_queue, db))
     ns = graph_llama.get_ns()
     for queue_counts in smind.get_queue_stats():
+        print(queue_counts["name"], ns.get())
         if queue_counts["name"] != ns.get():
             continue
         queue_length = queue_counts['queue_length']
@@ -212,62 +213,67 @@ def process_segments(
                 "prompt": full_text,
                 "system_prompt_key": sp_key,
             })
-        for _, result in smind.wait_for([task_id], timeout=1200):
-            if result["status"] not in TASK_COMPLETE:
-                log_diver(
-                    f"processing segment {main_id}@{page}: "
-                    f"llm timed out ({sp_key})")
-                retry_err(
-                    set_error_segment,
-                    db,
-                    seg_id,
-                    f"llm timed out for {main_id}@{page}")
-                smind.clear_task(task_id)
-                continue
-            res = result["result"]
-            if res is None:
-                log_diver(
-                    f"processing segment {main_id}@{page}: "
-                    f"llm error ({sp_key})")
-                retry_err(
-                    set_error_segment,
-                    db,
-                    seg_id,
-                    f"error in task: {result}")
-                continue
-            text = tensor_to_str(res["response"])
-            error_msg = (
-                f"ERROR: could not interpret model output:\n{text}")
-            if is_verify:
-                vres, verror = interpret_verify(text)
-                if vres is None:
-                    if verror is not None:
-                        verror = f"\nSTACKTRACE: {verror}"
-                    else:
-                        verror = ""
-                    retry_err(
-                        set_error_segment, db, seg_id, f"{error_msg}{verror}")
-                else:
-                    retry_err(
-                        set_verify_segment,
-                        db,
-                        seg_id,
-                        vres["is_hit"],
-                        vres["reason"])
-            else:
-                ddres, derror = interpret_deep_dive(text)
-                if ddres is None:
-                    if derror is not None:
-                        derror = f"\nSTACKTRACE: {derror}"
-                    else:
-                        derror = ""
+        try:
+            for _, result in smind.wait_for([task_id], timeout=1200):
+                if result["status"] not in TASK_COMPLETE:
+                    log_diver(
+                        f"processing segment {main_id}@{page}: "
+                        f"llm timed out ({sp_key})")
                     retry_err(
                         set_error_segment,
                         db,
                         seg_id,
-                        f"{error_msg}{derror}")
+                        f"llm timed out for {main_id}@{page}")
+                    continue
+                res = result["result"]
+                if res is None:
+                    log_diver(
+                        f"processing segment {main_id}@{page}: "
+                        f"llm error ({sp_key})")
+                    retry_err(
+                        set_error_segment,
+                        db,
+                        seg_id,
+                        f"error in task: {result}")
+                    continue
+                text = tensor_to_str(res["response"])
+                error_msg = (
+                    f"ERROR: could not interpret model output:\n{text}")
+                if is_verify:
+                    vres, verror = interpret_verify(text)
+                    if vres is None:
+                        if verror is not None:
+                            verror = f"\nSTACKTRACE: {verror}"
+                        else:
+                            verror = ""
+                        retry_err(
+                            set_error_segment,
+                            db,
+                            seg_id,
+                            f"{error_msg}{verror}")
+                    else:
+                        retry_err(
+                            set_verify_segment,
+                            db,
+                            seg_id,
+                            vres["is_hit"],
+                            vres["reason"])
                 else:
-                    retry_err(set_deep_dive_segment, db, seg_id, ddres)
+                    ddres, derror = interpret_deep_dive(text)
+                    if ddres is None:
+                        if derror is not None:
+                            derror = f"\nSTACKTRACE: {derror}"
+                        else:
+                            derror = ""
+                        retry_err(
+                            set_error_segment,
+                            db,
+                            seg_id,
+                            f"{error_msg}{derror}")
+                    else:
+                        retry_err(set_deep_dive_segment, db, seg_id, ddres)
+        finally:
+            smind.clear_task(task_id)
     return len(segments)
 
 
