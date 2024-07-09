@@ -271,6 +271,16 @@ export const DEFAULT_API: ApiProvider = {
             isValid: is_valid ?? undefined,
             verifyReason: verify_reason ?? undefined,
             scores,
+            scoresFull: Object.fromEntries(
+              Object.entries(scores).map(([key, score]) => [
+                key,
+                {
+                  mean: score,
+                  stddev: 0,
+                  count: 1,
+                },
+              ]),
+            ),
             deepDiveReason: reason,
             error: error ?? undefined,
             tag: tag ?? undefined,

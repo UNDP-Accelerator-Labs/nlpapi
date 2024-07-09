@@ -18,7 +18,7 @@
 import React, { MouseEventHandler, PureComponent } from 'react';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
-import { DocumentObj, StatNumbers } from '../api/types';
+import { DocumentObj, StatFull } from '../api/types';
 import SpiderGraph from '../misc/SpiderGraph';
 
 type Tab = 'tag' | 'verify' | 'scores' | 'error' | 'fulltext';
@@ -186,7 +186,7 @@ type DocumentProps = {
   isReadonly: boolean;
   doc: DocumentObj;
   collectionId: number;
-  allScores: StatNumbers;
+  allScores: StatFull;
   visIsRelative: boolean;
   requestUpdate: () => void;
 };
@@ -332,6 +332,7 @@ export default class Document extends PureComponent<
       isValid,
       verifyReason,
       deepDiveReason,
+      scoresFull,
       scores,
       error,
       tag,
@@ -435,7 +436,7 @@ export default class Document extends PureComponent<
             {deepDiveReason ? (
               <OutputDiv>
                 <SpiderGraph
-                  stats={scores}
+                  stats={scoresFull}
                   cmpStats={allScores}
                   isRelative={visIsRelative}
                 />

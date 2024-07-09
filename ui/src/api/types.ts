@@ -148,6 +148,12 @@ type ApiDocumentObj = {
 };
 
 export type StatNumbers = { [key: string]: number };
+export type StatFull = {
+  [key: string]: { mean: number; stddev: number; count: number };
+};
+export type StatFinal = {
+  [key: string]: { mean: number; ciMax: number; ciMin: number };
+};
 
 export type DocumentObj = {
   id: number;
@@ -160,6 +166,7 @@ export type DocumentObj = {
   isValid: boolean | undefined;
   verifyReason: string | undefined;
   scores: StatNumbers;
+  scoresFull: StatFull;
   deepDiveReason: string | undefined;
   error: string | undefined;
   tag: string | undefined;
