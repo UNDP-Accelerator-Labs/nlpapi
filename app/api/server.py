@@ -42,7 +42,7 @@ from app.api.response_types import (
     DateResponse,
     DocumentListResponse,
     DocumentResponse,
-    ErrorEmbedQueue,
+    ErrorProcessQueue,
     FulltextResponse,
     RequeueResponse,
     Snippy,
@@ -135,12 +135,19 @@ from app.system.smind.vec import (
 from app.system.stats import create_length_counter
 from app.system.urlinspect.inspect import inspect_url
 from app.system.workqueues.queue import (
-    adder_enqueue,
-    adder_info,
-    get_embed_errors,
-    ProcessEntry,
+    get_process_queue_errors,
+    process_enqueue,
+    process_queue_info,
+    register_process_queue,
     requeue_errors,
 )
+
+
+AdderPayload = TypedDict('AdderPayload', {
+    "db": str,
+    "main_id": str,
+    "user": uuid.UUID,
+})
 
 
 MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
@@ -198,7 +205,7 @@ def add_vec_features(
         vec_db: QdrantClient,
         *,
         prefix: str,
-        add_queue_redis: Redis,
+        process_queue_redis: Redis,
         qdrant_cache: Redis,
         smind_config: str,
         graph_embed: GraphProfile,
@@ -352,10 +359,10 @@ def add_vec_features(
 
     # *** system ***
 
-    @server.json_get(f"{prefix}/embed/error")
-    def _get_embed_error(_req: QSRH, _rargs: ReqArgs) -> ErrorEmbedQueue:
+    @server.json_get(f"{prefix}/queue/error")
+    def _get_queue_error(_req: QSRH, _rargs: ReqArgs) -> ErrorProcessQueue:
         return {
-            "errors": get_embed_errors(add_queue_redis),
+            "errors": get_process_queue_errors(process_queue_redis),
         }
 
     with server.middlewares(verify_token):
@@ -369,7 +376,7 @@ def add_vec_features(
             clear_rcache = bool(args.get("clear_rcache", False))
             clear_rbody = bool(args.get("clear_rbody", False))
             clear_rworker = bool(args.get("clear_rworker", False))
-            clear_adder = bool(args.get("clear_adder", False))
+            clear_process_queue = bool(args.get("clear_process_queue", False))
             clear_veccache = bool(args.get("clear_veccache", False))
             clear_vecdb_main = bool(args.get("clear_vecdb_main", False))
             clear_vecdb_test = bool(args.get("clear_vecdb_test", False))
@@ -379,7 +386,7 @@ def add_vec_features(
             return vec_clear(
                 vec_db,
                 smind_config,
-                add_queue_redis=add_queue_redis,
+                process_queue_redis=process_queue_redis,
                 qdrant_cache=qdrant_cache,
                 get_vec_db=get_ctx_vec_db,
                 clear_rmain=clear_rmain,
@@ -387,7 +394,7 @@ def add_vec_features(
                 clear_rcache=clear_rcache,
                 clear_rbody=clear_rbody,
                 clear_rworker=clear_rworker,
-                clear_adder=clear_adder,
+                clear_process_queue=clear_process_queue,
                 clear_veccache=clear_veccache,
                 clear_vecdb_main=clear_vecdb_main,
                 clear_vecdb_test=clear_vecdb_test,
@@ -397,7 +404,21 @@ def add_vec_features(
 
         # *** embeddings ***
 
-        def add_embed_fn(entry: ProcessEntry) -> AddEmbed:
+        def adder_payload_from_json(payload: dict[str, str]) -> AdderPayload:
+            return {
+                "db": payload["db"],
+                "main_id": payload["main_id"],
+                "user": uuid.UUID(payload["user"]),
+            }
+
+        def adder_payload_to_json(entry: AdderPayload) -> dict[str, str]:
+            return {
+                "db": entry["db"],
+                "main_id": entry["main_id"],
+                "user": entry["user"].hex,
+            }
+
+        def adder_compute(entry: AdderPayload) -> AddEmbed:
             vdb_str = entry["db"]
             main_id = entry["main_id"]
             user = entry["user"]
@@ -434,11 +455,17 @@ def add_vec_features(
                 title=title,
                 meta_obj=meta_obj)
 
-        @server.json_post(f"{prefix}/embed/requeue")
+        adder_hnd = register_process_queue(
+            "adder",
+            adder_payload_to_json,
+            adder_payload_from_json,
+            adder_compute)
+
+        @server.json_post(f"{prefix}/queue/requeue")
         @server.middleware(verify_write)
-        def _post_embed_requeue(
+        def _post_queue_requeue(
                 _req: QSRH, _rargs: ReqArgs) -> AddEmbedQueue:
-            res = requeue_errors(add_queue_redis, add_embed_fn)
+            res = requeue_errors(process_queue_redis)
             return {
                 "enqueued": res,
             }
@@ -454,9 +481,9 @@ def add_vec_features(
             info, error_info = get_url_title(main_id)
             if info is None:
                 raise ValueError(error_info)
-            adder_enqueue(
-                add_queue_redis,
-                add_embed_fn,
+            process_enqueue(
+                process_queue_redis,
+                adder_hnd,
                 {
                     "db": vdb_str,
                     "main_id": main_id,
@@ -677,7 +704,7 @@ def setup(
 
     qdrant_cache = get_redis(
         smind_config, redis_name="rcache", overwrite_prefix="qdrant")
-    add_queue_redis = get_redis(
+    process_queue_redis = get_redis(
         smind_config, redis_name="rmain", overwrite_prefix="embed_add")
 
     write_token = config["write_token"]
@@ -808,7 +835,7 @@ def setup(
             db,
             vec_db,
             prefix=prefix,
-            add_queue_redis=add_queue_redis,
+            process_queue_redis=process_queue_redis,
             qdrant_cache=qdrant_cache,
             smind_config=smind_config,
             graph_embed=graph_embed,
@@ -873,7 +900,7 @@ def setup(
         return {
             "vecdbs": vecdbs,
             "queues": get_queue_stats(smind),
-            "vec_queue": adder_info(add_queue_redis),
+            "process_queue": process_queue_info(process_queue_redis),
         }
 
     # # # SECURE # # #

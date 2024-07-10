@@ -17,51 +17,63 @@ import threading
 import traceback
 import uuid
 from collections.abc import Callable
-from typing import TypedDict
+from typing import Any, Generic, TypeAlias, TypedDict, TypeVar
 
 from redipy import Redis
 
-from app.misc.util import json_compact_str, json_read_str
-from app.system.smind.vec import AddEmbed
+from app.misc.util import get_time_str, json_compact_str, json_read_str
 
 
-ProcessError = TypedDict('ProcessError', {
-    "db": str,
-    "main_id": str,
-    "user": str,
-    "error": str,
-})
-ProcessEntry = TypedDict('ProcessEntry', {
-    "db": str,
-    "main_id": str,
-    "user": uuid.UUID,
-})
+PL = TypeVar('PL')
+
+
+ProcessHandlerId: TypeAlias = str
+
+
+class ProcessEntry(TypedDict, Generic[PL]):
+    payload: PL
+    process: ProcessHandlerId
+
+
 ProcessEntryJSON = TypedDict('ProcessEntryJSON', {
-    "main_id": str,
-    "db": str,
-    "user": str,
+    "payload": dict[str, str],
+    "process": ProcessHandlerId,
 })
-EmbedQueueStats = TypedDict('EmbedQueueStats', {
+
+
+class ProcessError(ProcessEntryJSON):  # pylint: disable=inherit-non-class
+    error: str
+
+
+ProcessQueueStats = TypedDict('ProcessQueueStats', {
     "queue": int,
     "error": int,
 })
-AddEmbedFn = Callable[[ProcessEntry], AddEmbed]
 
 
-ADDER_LOCK = threading.RLock()
-ADDER_COND = threading.Condition(ADDER_LOCK)
-ADDER_THREAD: threading.Thread | None = None
-ADDER_QUEUE_KEY = "main_ids"
-ADDER_ERROR_KEY = "errors"
+class ProcessHandler(TypedDict, Generic[PL]):
+    compute: Callable[[PL], Any]
+    convert_to_json: Callable[[PL], dict[str, str]]
+    convert_from_json: Callable[[dict[str, str]], PL]
 
 
-def adder_info(add_queue_redis: Redis) -> EmbedQueueStats:
-    adder_queue_key = ADDER_QUEUE_KEY
-    adder_error_key = ADDER_ERROR_KEY
+PROCESS_LOCK = threading.RLock()
+PROCESS_COND = threading.Condition(PROCESS_LOCK)
+PROCESS_THREAD: threading.Thread | None = None
+PROCESS_QUEUE_KEY = "process"
+PROCESS_ERROR_KEY = "errors"
 
-    with add_queue_redis.pipeline() as pipe:
-        pipe.llen(adder_queue_key)
-        pipe.llen(adder_error_key)
+
+PROCESS_HND_LOOKUP: dict[ProcessHandlerId, ProcessHandler] = {}
+
+
+def process_queue_info(process_queue_redis: Redis) -> ProcessQueueStats:
+    process_queue_key = PROCESS_QUEUE_KEY
+    process_error_key = PROCESS_ERROR_KEY
+
+    with process_queue_redis.pipeline() as pipe:
+        pipe.llen(process_queue_key)
+        pipe.llen(process_error_key)
         queue_len, error_len = pipe.execute()
     return {
         "queue": queue_len,
@@ -69,124 +81,163 @@ def adder_info(add_queue_redis: Redis) -> EmbedQueueStats:
     }
 
 
+NS_HND = uuid.UUID("9e7a13e0b1bd4366be1ac97c5f99943f")
+
+
+def register_process_queue(
+        name: str,
+        convert_to_json: Callable[[PL], dict[str, str]],
+        convert_from_json: Callable[[dict[str, str]], PL],
+        compute: Callable[[PL], Any]) -> ProcessHandlerId:
+    hnd_name = f"{name}-{uuid.uuid5(NS_HND, name).hex}"
+    PROCESS_HND_LOOKUP[hnd_name] = {
+        "compute": compute,
+        "convert_to_json": convert_to_json,
+        "convert_from_json": convert_from_json,
+    }
+    return hnd_name
+
+
+def process_entry_to_json(
+        process_hnd: ProcessHandler[PL],
+        entry: ProcessEntry[PL]) -> ProcessEntryJSON:
+    convert_to_json = process_hnd["convert_to_json"]
+    return {
+        "payload": convert_to_json(entry["payload"]),
+        "process": entry["process"],
+    }
+
+
+def process_entry_from_json(
+        process_hnd: ProcessHandler[PL],
+        entry: ProcessEntryJSON) -> ProcessEntry[PL]:
+    convert_from_json = process_hnd["convert_from_json"]
+    return {
+        "payload": convert_from_json(entry["payload"]),
+        "process": entry["process"],
+    }
+
+
+def process_entry_to_redis(entry: ProcessEntryJSON) -> str:
+    return json_compact_str(entry)
+
+
+def process_error_to_redis(error: ProcessError) -> str:
+    return json_compact_str(error)
+
+
 def get_process_error(obj_str: str) -> ProcessError:
     return json_read_str(obj_str)
 
 
-def get_process_entry(obj_str: str) -> ProcessEntry:
-    obj: ProcessEntryJSON = json_read_str(obj_str)
-    return {
-        "db": obj["db"],
-        "main_id": obj["main_id"],
-        "user": uuid.UUID(obj["user"]),
-    }
+def get_process_entry_json(obj_str: str) -> ProcessEntryJSON:
+    return json_read_str(obj_str)
 
 
-def process_entry_to_json(entry: ProcessEntry) -> str:
-    obj: ProcessEntryJSON = {
-        "db": entry["db"],
-        "main_id": entry["main_id"],
-        "user": entry["user"].hex,
-    }
-    return process_entry_json_to_str(obj)
-
-
-def process_entry_json_to_str(obj: ProcessEntryJSON) -> str:
-    return json_compact_str(obj)
-
-
-def get_embed_errors(add_queue_redis: Redis) -> list[ProcessError]:
-    adder_error_key = ADDER_ERROR_KEY
+def get_process_queue_errors(process_queue_redis: Redis) -> list[ProcessError]:
+    process_error_key = PROCESS_ERROR_KEY
 
     return [
         get_process_error(obj_str)
-        for obj_str in add_queue_redis.lrange(adder_error_key, 0, -1)
+        for obj_str in process_queue_redis.lrange(process_error_key, 0, -1)
     ]
 
 
-def adder_enqueue(
-        add_queue_redis: Redis,
-        add_embed_fn: AddEmbedFn,
-        entry: ProcessEntry) -> None:
-    adder_queue_key = ADDER_QUEUE_KEY
+def process_enqueue(
+        process_queue_redis: Redis,
+        hnd_name: ProcessHandlerId,
+        payload: dict) -> None:
+    process_queue_key = PROCESS_QUEUE_KEY
+    process_hnd = PROCESS_HND_LOOKUP[hnd_name]
 
-    add_queue_redis.rpush(adder_queue_key, process_entry_to_json(entry))
-    maybe_adder_thread(add_queue_redis, add_embed_fn)
+    entry = process_entry_to_json(process_hnd, {
+        "payload": payload,
+        "process": hnd_name,
+    })
+    process_queue_redis.rpush(
+        process_queue_key,
+        process_entry_to_redis(entry))
+    maybe_adder_thread(process_queue_redis)
 
 
-def requeue_errors(
-        add_queue_redis: Redis,
-        add_embed_fn: AddEmbedFn) -> bool:
-    adder_queue_key = ADDER_QUEUE_KEY
-    adder_error_key = ADDER_ERROR_KEY
+def requeue_errors(process_queue_redis: Redis) -> bool:
+    process_queue_key = PROCESS_QUEUE_KEY
+    process_error_key = PROCESS_ERROR_KEY
 
     any_enqueued = False
     while True:
-        obj_str = add_queue_redis.lpop(adder_error_key)
+        obj_str = process_queue_redis.lpop(process_error_key)
         if obj_str is None:
             break
         error = get_process_error(obj_str)
-        add_queue_redis.rpush(
-            adder_queue_key,
-            process_entry_json_to_str({
-                "db": error["db"],
-                "main_id": error["main_id"],
-                "user": error["user"],
+        process_queue_redis.rpush(
+            process_queue_key,
+            process_entry_to_redis({
+                "payload": error["payload"],
+                "process": error["process"],
             }))
         any_enqueued = True
     if any_enqueued:
-        maybe_adder_thread(add_queue_redis, add_embed_fn)
+        maybe_adder_thread(process_queue_redis)
     return any_enqueued
 
 
-def maybe_adder_thread(
-        add_queue_redis: Redis,
-        add_embed_fn: AddEmbedFn) -> None:
-    global ADDER_THREAD  # pylint: disable=global-statement
+def log_diver(msg: str) -> None:
+    print(f"{get_time_str()} QUEUE: {msg}")
 
-    adder_queue_key = ADDER_QUEUE_KEY
-    adder_error_key = ADDER_ERROR_KEY
 
-    def get_item() -> ProcessEntry | None:
-        res = add_queue_redis.lpop(adder_queue_key)
+def maybe_adder_thread(process_queue_redis: Redis) -> None:
+    global PROCESS_THREAD  # pylint: disable=global-statement
+
+    process_queue_key = PROCESS_QUEUE_KEY
+    process_error_key = PROCESS_ERROR_KEY
+    process_hnd_lookup = PROCESS_HND_LOOKUP
+
+    def get_item() -> ProcessEntryJSON | None:
+        res = process_queue_redis.lpop(process_queue_key)
         if res is None:
             return None
-        return get_process_entry(res)
+        return get_process_entry_json(res)
+
+    def process(
+            process_hnd: ProcessHandler[PL], entry: ProcessEntryJSON) -> None:
+        log_diver(f"processing {entry['process']}: {entry['payload']}")
+        entry_full = process_entry_from_json(process_hnd, entry)
+        compute = process_hnd["compute"]
+        info = compute(entry_full["payload"])
+        log_diver(f"done {entry['payload']}: {info}")
 
     def run() -> None:
-        global ADDER_THREAD  # pylint: disable=global-statement
+        global PROCESS_THREAD  # pylint: disable=global-statement
 
         try:
-            while th is ADDER_THREAD:
-                with ADDER_LOCK:
-                    entry = ADDER_COND.wait_for(get_item, 600.0)
+            while th is PROCESS_THREAD:
+                with PROCESS_LOCK:
+                    entry = PROCESS_COND.wait_for(get_item, 600.0)
                 if entry is None:
                     continue
-                print(f"ADDER: processing {entry['main_id']} to {entry['db']}")
                 try:
-                    info = add_embed_fn(entry)
-                    print(f"ADDER: done {entry['main_id']}: {info}")
+                    process(process_hnd_lookup[entry["process"]], entry)
                 except BaseException:  # pylint: disable=broad-except
                     error_str = traceback.format_exc()
                     error: ProcessError = {
-                        "db": entry["db"],
-                        "main_id": entry["main_id"],
-                        "user": entry["user"].hex,
+                        "payload": entry["payload"],
+                        "process": entry["process"],
                         "error": error_str,
                     }
-                    add_queue_redis.rpush(
-                        adder_error_key,
-                        json_compact_str(error))
-                    print(f"ADDER: error {entry['main_id']}")
+                    process_queue_redis.rpush(
+                        process_error_key,
+                        process_error_to_redis(error))
+                    log_diver(f"error {entry['payload']}")
         finally:
-            with ADDER_LOCK:
-                if th is ADDER_THREAD:
-                    ADDER_THREAD = None
+            with PROCESS_LOCK:
+                if th is PROCESS_THREAD:
+                    PROCESS_THREAD = None
 
-    with ADDER_LOCK:
-        if ADDER_THREAD is not None and ADDER_THREAD.is_alive():
-            ADDER_COND.notify_all()
+    with PROCESS_LOCK:
+        if PROCESS_THREAD is not None and PROCESS_THREAD.is_alive():
+            PROCESS_COND.notify_all()
             return
         th = threading.Thread(target=run, daemon=True)
-        ADDER_THREAD = th
+        PROCESS_THREAD = th
         th.start()

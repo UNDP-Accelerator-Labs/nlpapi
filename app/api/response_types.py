@@ -18,7 +18,7 @@ from typing import TypedDict
 from app.system.deepdive.collection import DeepDiveName, DocumentObj
 from app.system.smind.api import QueueStat
 from app.system.smind.vec import DBName, VecDBStat
-from app.system.workqueues.queue import EmbedQueueStats, ProcessError
+from app.system.workqueues.queue import ProcessError, ProcessQueueStats
 
 
 SourceResponse = TypedDict('SourceResponse', {
@@ -47,7 +47,7 @@ VersionResponse = TypedDict('VersionResponse', {
 StatsResponse = TypedDict('StatsResponse', {
     "vecdbs": list[VecDBStat],
     "queues": list[QueueStat],
-    "vec_queue": EmbedQueueStats,
+    "process_queue": ProcessQueueStats,
 })
 URLInspectResponse = TypedDict('URLInspectResponse', {
     "url": str,
@@ -100,6 +100,6 @@ RequeueResponse = TypedDict('RequeueResponse', {
 AddEmbedQueue = TypedDict('AddEmbedQueue', {
     "enqueued": bool,
 })
-ErrorEmbedQueue = TypedDict('ErrorEmbedQueue', {
+ErrorProcessQueue = TypedDict('ErrorProcessQueue', {
     "errors": list[ProcessError],
 })

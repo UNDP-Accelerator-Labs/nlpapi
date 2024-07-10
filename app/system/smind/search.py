@@ -86,7 +86,7 @@ ClearResponse = TypedDict('ClearResponse', {
     "clear_rcache": bool,
     "clear_rbody": bool,
     "clear_rworker": bool,
-    "clear_adder": bool,
+    "clear_process_queue": bool,
     "clear_veccache": bool,
     "clear_vecdb_all": bool,
     "clear_vecdb_main": bool,
@@ -100,7 +100,7 @@ def vec_clear(
         vec_db: QdrantClient,
         smind_config: str,
         *,
-        add_queue_redis: Redis,
+        process_queue_redis: Redis,
         qdrant_cache: Redis,
         get_vec_db: GetVecDB,
         clear_rmain: bool,
@@ -108,7 +108,7 @@ def vec_clear(
         clear_rcache: bool,
         clear_rbody: bool,
         clear_rworker: bool,
-        clear_adder: bool,
+        clear_process_queue: bool,
         clear_veccache: bool,
         clear_vecdb_main: bool,
         clear_vecdb_test: bool,
@@ -149,12 +149,12 @@ def vec_clear(
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_rworker = False
-    if clear_adder:
+    if clear_process_queue:
         try:
-            add_queue_redis.flushall()
+            process_queue_redis.flushall()
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
-            clear_adder = False
+            clear_process_queue = False
     if clear_veccache:
         try:
             clear_cache(qdrant_cache, db_name=None)
@@ -201,7 +201,7 @@ def vec_clear(
         "clear_rcache": clear_rcache,
         "clear_rbody": clear_rbody,
         "clear_rworker": clear_rworker,
-        "clear_adder": clear_adder,
+        "clear_process_queue": clear_process_queue,
         "clear_veccache": clear_veccache,
         "clear_vecdb_all": clear_vecdb_all,
         "clear_vecdb_main": clear_vecdb_main,
