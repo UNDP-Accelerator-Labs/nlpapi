@@ -88,7 +88,7 @@ export default class SpiderGraph extends PureComponent<
   ) {
     const { stats: prevStats, cmpStats: prevCmpStats } = prevProps;
     const { stats, cmpStats } = this.props;
-    if (prevStats !== stats) {
+    if (prevStats !== stats && stats) {
       this.setState({
         finalStats: this.convertStats(stats),
       });
