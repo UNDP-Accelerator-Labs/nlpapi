@@ -52,6 +52,9 @@ class Base(
     __init__ = mapper_registry.constructor
 
 
+# locations
+
+
 LOCATION_CACHE_ID_SEQ: sa.Sequence = sa.Sequence(
     "location_cache_id_seq", start=1, increment=1)
 
@@ -118,6 +121,9 @@ class LocationUsers(Base):  # pylint: disable=too-few-public-methods
     language_length = sa.Column(sa.Integer, nullable=False, default=0)
 
 
+# queries
+
+
 class QueryLog(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "query_log"
 
@@ -141,6 +147,9 @@ class QueryLog(Base):  # pylint: disable=too-few-public-methods
         sa.Integer,
         nullable=False,
         server_default=sa.text("1"))
+
+
+# deep dives
 
 
 class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
@@ -218,6 +227,9 @@ class DeepDiveSegment(Base):  # pylint: disable=too-few-public-methods
     error = sa.Column(sa.Text(), nullable=True)
 
 
+# auto tags
+
+
 class TagGroupTable(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "tag_group"
 
@@ -230,8 +242,8 @@ class TagGroupTable(Base):  # pylint: disable=too-few-public-methods
         server_default=sa.func.now())  # pylint: disable=not-callable
 
 
-class TagsTable(Base):  # pylint: disable=too-few-public-methods
-    __tablename__ = "tags"
+class TagGroupMembers(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tag_group_members"
 
     tag_group = sa.Column(
         sa.Integer,
@@ -242,12 +254,69 @@ class TagsTable(Base):  # pylint: disable=too-few-public-methods
         nullable=False,
         primary_key=True)
     main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
+
+
+class TagsTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tags"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
+    rank = sa.Column(sa.Integer, nullable=False)
+    tag_group_from = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            TagGroupTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=True)
+    tag_group_to = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            TagGroupTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=True)
     keyword = sa.Column(sa.Text(), primary_key=True)
-    score = sa.Column(sa.Double, nullable=False)
-    cluster = sa.Column(sa.Integer, nullable=True)
+
+
+class TagCluster(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tag_cluster"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    tag_group = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            TagGroupTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True)
+    name = sa.Column(sa.Text(), nullable=True)
+
+
+class TagClusterMember(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tag_cluster_member"
+
+    tag_cluster = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            TagCluster.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True)
+    tag_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            TagsTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True)
 
 
 # platform tables
+
 
 class SessionTable(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "session"
@@ -314,6 +383,7 @@ class PadTable(Base):  # pylint: disable=too-few-public-methods
 
 
 # blogs
+
 
 class ArticlesTable(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "articles"
