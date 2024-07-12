@@ -318,6 +318,7 @@ def vec_add(
     else:
         meta_obj["iso3"] = dict(meta_obj["iso3"].items())
     # inspect URL and amend iso3 if country found
+    # FIXME: use meta info to get iso3. otherwise pads don't work
     url_iso3 = inspect_url(url)
     if url_iso3 is not None:
         print(

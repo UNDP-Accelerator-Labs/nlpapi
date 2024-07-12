@@ -254,6 +254,7 @@ class TagGroupMembers(Base):  # pylint: disable=too-few-public-methods
         nullable=False,
         primary_key=True)
     main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
+    complete = sa.Column(sa.Boolean, nullable=False, default=False)
 
 
 class TagsTable(Base):  # pylint: disable=too-few-public-methods
@@ -261,15 +262,14 @@ class TagsTable(Base):  # pylint: disable=too-few-public-methods
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
     main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
-    rank = sa.Column(sa.Integer, nullable=False)
-    tag_group_from = sa.Column(
+    tag_group_from = sa.Column(  # inclusive
         sa.Integer,
         sa.ForeignKey(
             TagGroupTable.id,
             onupdate="CASCADE",
             ondelete="CASCADE"),
-        nullable=True)
-    tag_group_to = sa.Column(
+        nullable=False)
+    tag_group_to = sa.Column(  # exclusive
         sa.Integer,
         sa.ForeignKey(
             TagGroupTable.id,
