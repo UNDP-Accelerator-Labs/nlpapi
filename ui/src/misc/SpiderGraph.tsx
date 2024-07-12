@@ -88,7 +88,7 @@ export default class SpiderGraph extends PureComponent<
   ) {
     const { stats: prevStats, cmpStats: prevCmpStats } = prevProps;
     const { stats, cmpStats } = this.props;
-    if (prevStats !== stats && stats) {
+    if (prevStats !== stats) {
       this.setState({
         finalStats: this.convertStats(stats),
       });
@@ -104,17 +104,23 @@ export default class SpiderGraph extends PureComponent<
     const ci = 0.95;
     const c = (1.0 - ci) * 0.5 + ci;
     return Object.fromEntries(
-      Object.entries(stats).map(([key, { mean, stddev, count }]) => [
-        key,
-        {
-          mean,
-          ciMax: Math.min(
-            MAX_STAT_VALUE,
-            mean + (c * stddev) / Math.sqrt(count),
-          ),
-          ciMin: Math.max(0, mean - (c * stddev) / Math.sqrt(count)),
-        },
-      ]),
+      Object.entries(stats).map(([key, value]) => {
+        if (!value) {
+          return [key, undefined];
+        }
+        const { mean, stddev, count } = value;
+        return [
+          key,
+          {
+            mean,
+            ciMax: Math.min(
+              MAX_STAT_VALUE,
+              mean + (c * stddev) / Math.sqrt(count),
+            ),
+            ciMin: Math.max(0, mean - (c * stddev) / Math.sqrt(count)),
+          },
+        ];
+      }),
     );
   }
 
@@ -127,7 +133,7 @@ export default class SpiderGraph extends PureComponent<
 
     const getMax = (vals: StatFinal): number =>
       Object.keys(vals).reduce(
-        (p, key) => Math.max(p, +(vals[key].ciMax ?? 0)),
+        (p, key) => Math.max(p, +(vals[key]?.ciMax ?? 0)),
         0,
       );
 
@@ -142,7 +148,7 @@ export default class SpiderGraph extends PureComponent<
     if (allMax === 0) {
       return order.map(() => 0);
     }
-    return order.map((key) => (+(stats[key].mean ?? 0) / allMax) * radius);
+    return order.map((key) => (+(stats[key]?.mean ?? 0) / allMax) * radius);
   }
 
   getRange(
@@ -157,7 +163,7 @@ export default class SpiderGraph extends PureComponent<
     }
     return order.map(
       (key) =>
-        (+((isMax ? stats[key].ciMax : stats[key].ciMin) ?? 0) / allMax) *
+        (+((isMax ? stats[key]?.ciMax : stats[key]?.ciMin) ?? 0) / allMax) *
         radius,
     );
   }

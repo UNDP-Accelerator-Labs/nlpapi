@@ -275,7 +275,7 @@ export const DEFAULT_API: ApiProvider = {
               Object.entries(scores).map(([key, score]) => [
                 key,
                 {
-                  mean: score,
+                  mean: score ?? 0,
                   stddev: 0,
                   count: 1,
                 },

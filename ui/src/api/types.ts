@@ -147,12 +147,12 @@ type ApiDocumentObj = {
   tag_reason: string | undefined;
 };
 
-export type StatNumbers = { [key: string]: number };
+export type StatNumbers = { [key: string]: number | undefined };
 export type StatFull = {
-  [key: string]: { mean: number; stddev: number; count: number };
+  [key: string]: { mean: number; stddev: number; count: number } | undefined;
 };
 export type StatFinal = {
-  [key: string]: { mean: number; ciMax: number; ciMin: number };
+  [key: string]: { mean: number; ciMax: number; ciMin: number } | undefined;
 };
 
 export type DocumentObj = {

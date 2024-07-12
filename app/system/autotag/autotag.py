@@ -13,6 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import sqlalchemy as sa
+
 from app.system.db.base import (
     TagCluster,
     TagClusterMember,
@@ -21,6 +23,20 @@ from app.system.db.base import (
     TagsTable,
 )
 from app.system.db.db import DBConnector
+
+
+def create_tag_group(db: DBConnector, main_ids: list[str]) -> int:
+    with db.get_session() as session:
+        stmt = sa.insert(TagGroupTable).values(
+            name=name,
+            user=user,
+            verify_key=verify_key,
+            deep_dive_key=deep_dive_key)
+        stmt = stmt.returning(DeepDiveCollection.id)
+        row_id = session.execute(stmt).scalar()
+        if row_id is None:
+            raise ValueError(f"error adding collection {name}")
+    return int(row_id)
 
 
 def create_tag_tables(db: DBConnector) -> None:
