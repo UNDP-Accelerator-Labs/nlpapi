@@ -107,11 +107,13 @@ def write_tag(
     def add_new_keywords(
             session: Session,
             new_keywords: list[str],
+            *,
+            include: bool,
             end_group: int | None) -> None:
         for keyword in new_keywords:
             stmt = db.upsert(TagsTable).values(
                 main_id=main_id,
-                tag_group_from=tag_group,
+                tag_group_from=tag_group if include else tag_group + 1,
                 tag_group_to=end_group,
                 keyword=keyword)
             stmt = stmt.on_conflict_do_nothing()
@@ -120,7 +122,11 @@ def write_tag(
     def do_punch_hole(session: Session, punch_hole: list[TagKeyword]) -> None:
         for tag in punch_hole:
             finish_keywords(session, [tag["id"]])
-            add_new_keywords(session, [tag["keyword"]], tag["tag_group_to"])
+            add_new_keywords(
+                session,
+                [tag["keyword"]],
+                include=False,
+                end_group=tag["tag_group_to"])
 
     def update_main_id(session: Session) -> None:
         stmt = sa.update(TagGroupMembers)
@@ -143,7 +149,7 @@ def write_tag(
             old_keywords.add(kw)
         new_keywords: list[str] = sorted(kset.difference(old_keywords))
         finish_keywords(session, finished_ids)
-        add_new_keywords(session, new_keywords, None)
+        add_new_keywords(session, new_keywords, include=True, end_group=None)
         do_punch_hole(session, punch_hole)
         update_main_id(session)
 
