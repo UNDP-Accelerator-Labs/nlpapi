@@ -42,6 +42,7 @@ from app.system.db.db import DBConnector
 from app.system.language.pipeline import extract_language
 from app.system.location.response import LanguageStr
 from app.system.prep.clean import normalize_text, sanity_check
+from app.system.prep.fulltext import TagFn
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     clear_redis,
@@ -223,6 +224,7 @@ def vec_add(
         articles: str,
         articles_graph: GraphProfile,
         ner_graphs: dict[LanguageStr, GraphProfile],
+        get_tag: TagFn,
         user: uuid.UUID,
         base: str,
         doc_id: int,
@@ -318,13 +320,14 @@ def vec_add(
     else:
         meta_obj["iso3"] = dict(meta_obj["iso3"].items())
     # inspect URL and amend iso3 if country found
-    # FIXME: use meta info to get iso3. otherwise pads don't work
     url_iso3 = inspect_url(url)
-    if url_iso3 is not None:
-        print(
-            f"overwriting iso3 score of {url_iso3} "
-            f"was {meta_obj['iso3'].get(url_iso3)}")
-        meta_obj["iso3"][url_iso3] = 2.0
+    if url_iso3 is None:
+        tag_iso3, tag_reason = get_tag(url)
+        print(f"tag retrieved: {tag_iso3} {tag_reason}")
+        if tag_iso3 is not None:
+            meta_obj["iso3"][tag_iso3] = 1.0
+    else:
+        meta_obj["iso3"][url_iso3] = 1.0
     country_time = time.monotonic() - country_start
     preprocess_time = time.monotonic() - preprocess_start
     # compute embedding
@@ -363,6 +366,7 @@ def vec_add(
         vec_db,
         name=articles,
         data=embed_main,
+        embed_size=articles_graph.get_output_size(),
         chunks=embed_chunks)
     failed = sum(1 if embed is None else 0 for embed in embeds)
     vec_time = time.monotonic() - vec_start

@@ -100,6 +100,7 @@ from app.system.prep.fulltext import (
     FullTextFn,
     get_base_doc,
     StatusDateTypeFn,
+    TagFn,
     UrlTitleFn,
 )
 from app.system.prep.snippify import snippify_text
@@ -212,6 +213,7 @@ def add_vec_features(
         ner_graphs: dict[LanguageStr, GraphProfile],
         get_full_text: FullTextFn,
         get_url_title: UrlTitleFn,
+        get_tag: TagFn,
         get_status_date_type: StatusDateTypeFn,
         maybe_session: MiddlewareF,
         verify_readonly: MiddlewareF,
@@ -448,6 +450,7 @@ def add_vec_features(
                 articles=articles,
                 articles_graph=graph_embed,
                 ner_graphs=ner_graphs,
+                get_tag=get_tag,
                 user=user,
                 base=base,
                 doc_id=doc_id,
@@ -520,6 +523,7 @@ def add_vec_features(
                 articles=articles,
                 articles_graph=graph_embed,
                 ner_graphs=ner_graphs,
+                get_tag=get_tag,
                 user=user,
                 base=base,
                 doc_id=doc_id,
@@ -553,6 +557,8 @@ def add_vec_features(
                 articles=articles,
                 fields=fields,
                 filters=filters)
+
+        # FIXME add endpoint to search for document
 
         @server.json_post(f"{prefix}/query_embed")
         @server.middleware(verify_readonly)
@@ -842,6 +848,7 @@ def setup(
             ner_graphs=ner_graphs,
             get_full_text=get_full_text,
             get_url_title=get_url_title,
+            get_tag=get_tag,
             get_status_date_type=get_status_date_type,
             maybe_session=maybe_session,
             verify_readonly=verify_readonly,
