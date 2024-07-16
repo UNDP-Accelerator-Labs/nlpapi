@@ -878,8 +878,8 @@ def get_filter(
         conds.append(
             FieldCondition(
                 key="main_id",
-                match=MatchExcept(**{  # type: ignore
-                    "except": exclude_main_id,
+                match=MatchExcept(**{
+                    "except": [exclude_main_id],
                 })))
     if not conds:
         return None
