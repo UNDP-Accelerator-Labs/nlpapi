@@ -235,6 +235,7 @@ def vec_add(
         title: str | None,
         meta_obj: MetaObject) -> AddEmbed:
     update_last_query(long_time=True)
+    main_id = f"{base}:{doc_id}"
     # FIXME: make "smart" features optional
     full_start = time.monotonic()
     # clear caches
@@ -325,7 +326,7 @@ def vec_add(
     # inspect URL and amend iso3 if country found
     url_iso3 = inspect_url(url)
     if url_iso3 is None:
-        tag_iso3, tag_reason = get_tag(f"{base}:{doc_id}")
+        tag_iso3, tag_reason = get_tag(main_id)
         print(f"tag retrieved: {tag_iso3} {tag_reason}")
         if tag_iso3 is not None:
             meta_obj["iso3"][tag_iso3] = 1.0
@@ -375,7 +376,7 @@ def vec_add(
     vec_time = time.monotonic() - vec_start
     full_time = time.monotonic() - full_start
     print(
-        f"adding {base}:{doc_id} took "
+        f"adding {main_id} took "
         f"{full_time=}s {preprocess_time=}s {embed_time=}s {vec_time=}s "
         f"{language_time=}s {country_time=}s {cache_time=}s "
         f"{prev_count=} {new_count=} {failed=}")
