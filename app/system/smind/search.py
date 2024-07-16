@@ -57,15 +57,18 @@ from app.system.smind.vec import (
     AddEmbed,
     EmbedChunk,
     EmbedMain,
+    get_doc,
     MetaKey,
     MetaObject,
     query_docs,
     query_embed,
     QueryEmbed,
     ResultChunk,
+    search_docs,
     stat_embed,
     stat_total,
     StatEmbed,
+    to_result,
     vec_flushall,
 )
 from app.system.urlinspect.inspect import inspect_url
@@ -579,7 +582,7 @@ def vec_search(
     if offset == 0:
         offset = None
     if not input_str:
-        res = query_docs(
+        res: list[ResultChunk] = query_docs(
             vec_db,
             articles,
             offset=offset,
@@ -591,18 +594,43 @@ def vec_search(
             "status": "ok",
         }
     full_start = time.monotonic()
+    log_start = time.monotonic()
+    if not no_log:
+        log_query(db, db_name=articles, text=input_str, filters=filters)
+    log_time = time.monotonic() - log_start
 
+    if input_str[0] == "=":
+        q_main_id = input_str.strip().removeprefix("=")
+        doc_start = time.monotonic()
+        doc_embed = get_doc(vec_db, articles, q_main_id)
+        doc_time = time.monotonic() - doc_start
+        if doc_embed is not None:
+            dq_start = time.monotonic()
+            res_docs = search_docs(
+                vec_db,
+                articles,
+                doc_embed["embed"],
+                offset=offset,
+                limit=limit,
+                score_threshold=score_threshold,
+                filters=filters,
+                with_vectors=False)
+            res = [to_result(doc_result) for doc_result in res_docs]
+            dq_time = time.monotonic() - dq_start
+            full_time = time.monotonic() - full_start
+            print(
+                f"query for '{input_str}' took "
+                f"{full_time=}s {log_time=}s {doc_time=}s {dq_time=}s ")
+            return {
+                "hits": res,
+                "status": "ok",
+            }
     embed_start = time.monotonic()
     embed = get_text_results_immediate(
         [input_str],
         graph_profile=articles_graph,
         output_sample=[1.0])[0]
     embed_time = time.monotonic() - embed_start
-
-    log_start = time.monotonic()
-    if not no_log:
-        log_query(db, db_name=articles, text=input_str, filters=filters)
-    log_time = time.monotonic() - log_start
 
     if embed is None:
         return {
@@ -634,7 +662,7 @@ def vec_search(
     full_time = time.monotonic() - full_start
     print(
         f"query for '{input_str}' took "
-        f"{full_time=}s {embed_time=}s {log_time=}s {query_time=}s "
+        f"{full_time=}s {log_time=}s {embed_time=}s {query_time=}s "
         f"{snippy_time=}s {snippy_embeds=}")
     return {
         "hits": final_hits,

@@ -949,6 +949,20 @@ def get_doc(db: QdrantClient, name: str, main_id: str) -> DocResult | None:
     }
 
 
+def to_result(doc_result: DocResult) -> ResultChunk:
+    return {
+        "main_id": doc_result["main_id"],
+        "base": doc_result["base"],
+        "doc_id": doc_result["doc_id"],
+        "snippets": [],
+        "meta": doc_result["meta"],
+        "score": doc_result["score"],
+        "title": doc_result["title"],
+        "updated": doc_result["updated"],
+        "url": doc_result["url"],
+    }
+
+
 def search_docs(
         db: QdrantClient,
         name: str,
