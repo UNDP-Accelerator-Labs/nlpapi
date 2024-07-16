@@ -568,23 +568,29 @@ class Search extends PureComponent<SearchProps, SearchState> {
     const {
       results: { hits },
     } = this.state;
+    const currentUrl = window.location.href;
     return (
       <React.Fragment>
         {hits.map(
           ({
             url,
             title,
-            base,
-            docId,
+            mainId,
             score,
             meta: { date, iso3, language },
             snippets,
           }) => {
+            const params = new URLSearchParams(
+              new URL(currentUrl).searchParams,
+            );
+            params.set('q', `=${mainId}`);
+            const link = new URL(window.location.href);
+            link.search = params.toString();
             return (
-              <Hit key={docId}>
+              <Hit key={mainId}>
                 <a href={url}>{title}</a>
                 <HitInfo>
-                  {base}-{docId} score: {score} date: {date}
+                  <a href={`${link}`}>{mainId}</a> score: {score} date: {date}
                 </HitInfo>
                 <div>
                   countries: {(iso3 ?? []).join(', ')} languages:{' '}
