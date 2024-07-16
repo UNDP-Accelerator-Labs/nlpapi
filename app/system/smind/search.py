@@ -325,7 +325,7 @@ def vec_add(
     # inspect URL and amend iso3 if country found
     url_iso3 = inspect_url(url)
     if url_iso3 is None:
-        tag_iso3, tag_reason = get_tag(url)
+        tag_iso3, tag_reason = get_tag(f"{base}:{doc_id}")
         print(f"tag retrieved: {tag_iso3} {tag_reason}")
         if tag_iso3 is not None:
             meta_obj["iso3"][tag_iso3] = 1.0
