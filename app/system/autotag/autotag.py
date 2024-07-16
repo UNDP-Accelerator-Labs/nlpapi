@@ -20,7 +20,13 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from app.misc.util import get_time_str
-from app.system.db.base import TagGroupMembers, TagGroupTable, TagsTable
+from app.system.db.base import (
+    TagCluster,
+    TagClusterMember,
+    TagGroupMembers,
+    TagGroupTable,
+    TagsTable,
+)
 from app.system.db.db import DBConnector
 
 
@@ -154,12 +160,76 @@ def write_tag(
         update_main_id(session)
 
 
+def is_ready(session: Session, tag_group: int) -> bool:
+    stmt = sa.select(TagGroupMembers.complete).where(sa.and_(
+        TagGroupMembers.complete.is_(False),
+        TagGroupMembers.tag_group == tag_group))
+    return session.execute(stmt).first() is None
+
+
+def get_keywords(session: Session, tag_group: int) -> set[str]:
+    main_ids = sa.select(TagGroupMembers.main_id)
+    main_ids = main_ids.where(TagGroupMembers.tag_group == tag_group)
+    stmt = sa.select(TagsTable.keyword)
+    stmt = stmt.where(sa.and_(
+        TagsTable.main_id.in_(main_ids),
+        TagsTable.tag_group_from <= tag_group,
+        sa.or_(
+            TagsTable.tag_group_to.is_(None),
+            TagsTable.tag_group_to > tag_group)))
+    stmt = stmt.distinct()
+    return {
+        row.keyword
+        for row in session.execute(stmt)
+    }
+
+
+def clear_clusters(session: Session, tag_group: int) -> None:
+    stmt = sa.delete(TagCluster).where(TagCluster.tag_group == tag_group)
+    session.execute(stmt)
+
+
+def create_cluster(
+        db: DBConnector,
+        session: Session,
+        tag_group: int,
+        representative: str,
+        keywords: set[str]) -> None:
+    stmt = sa.insert(TagCluster).values(
+        tag_group=tag_group,
+        name=representative)
+    stmt = stmt.returning(TagCluster.id)
+    tag_cluster = session.execute(stmt).scalar()
+    if tag_cluster is None:
+        raise ValueError(f"error adding tag cluster for {representative}")
+    for keyword in keywords:
+        cstmt = db.upsert(TagClusterMember).values(
+            tag_cluster=tag_cluster,
+            keyword=keyword)
+        cstmt = cstmt.on_conflict_do_nothing()
+        session.execute(cstmt)
+
+
+def get_tags_for_main_id(
+        db: DBConnector, tag_group: int, main_id: str) -> set[str]:
+    with db.get_session() as session:
+        stmt = sa.select(TagCluster.name).where(sa.and_(
+            TagsTable.main_id == main_id,
+            TagsTable.tag_group_from <= tag_group,
+            sa.or_(
+                TagsTable.tag_group_to.is_(None),
+                TagsTable.tag_group_to > tag_group),
+            TagsTable.keyword == TagClusterMember.keyword,
+            TagClusterMember.tag_cluster == TagCluster.id))
+        return {row.name for row in session.execute(stmt)}
+
+
 def create_tag_tables(db: DBConnector) -> None:
     db.create_tables(
         [
             TagGroupTable,
             TagGroupMembers,
             TagsTable,
-            # TagCluster,
-            # TagClusterMember,
+            TagCluster,
+            TagClusterMember,
         ])

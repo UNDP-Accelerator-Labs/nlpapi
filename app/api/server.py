@@ -98,12 +98,12 @@ from app.system.prep.fulltext import (
     create_tag_fn,
     create_url_title,
     FullTextFn,
-    get_base_doc,
     StatusDateTypeFn,
     TagFn,
     UrlTitleFn,
 )
 from app.system.prep.snippify import snippify_text
+from app.system.smind.adder import register_adder
 from app.system.smind.api import (
     get_queue_stats,
     get_redis,
@@ -128,7 +128,6 @@ from app.system.smind.vec import (
     get_vec_client,
     get_vec_stats,
     MetaKey,
-    MetaObject,
     QueryEmbed,
     StatEmbed,
     VecDBStat,
@@ -137,9 +136,7 @@ from app.system.stats import create_length_counter
 from app.system.urlinspect.inspect import inspect_url
 from app.system.workqueues.queue import (
     get_process_queue_errors,
-    process_enqueue,
     process_queue_info,
-    register_process_queue,
     requeue_errors,
 )
 
@@ -406,63 +403,18 @@ def add_vec_features(
 
         # *** embeddings ***
 
-        def adder_payload_from_json(payload: dict[str, str]) -> AdderPayload:
-            return {
-                "db": payload["db"],
-                "main_id": payload["main_id"],
-                "user": uuid.UUID(payload["user"]),
-            }
-
-        def adder_payload_to_json(entry: AdderPayload) -> dict[str, str]:
-            return {
-                "db": entry["db"],
-                "main_id": entry["main_id"],
-                "user": entry["user"].hex,
-            }
-
-        def adder_compute(entry: AdderPayload) -> AddEmbed:
-            vdb_str = entry["db"]
-            main_id = entry["main_id"]
-            user = entry["user"]
-            base, doc_id = get_base_doc(main_id)
-            articles = get_articles(vdb_str)
-            input_str, error_input = get_full_text(main_id)
-            if input_str is None:
-                raise ValueError(error_input)
-            info, error_info = get_url_title(main_id)
-            if info is None:
-                raise ValueError(error_info)
-            url, title = info
-            sdt, error_sdt = get_status_date_type(main_id)
-            if sdt is None:
-                raise ValueError(error_sdt)
-            status, date_str, doc_type = sdt
-            meta_obj: MetaObject = {
-                "status": status,
-                "date": date_str,
-                "doc_type": doc_type,
-            }
-            return vec_add(
-                db,
-                vec_db,
-                input_str,
-                qdrant_cache=qdrant_cache,
-                articles=articles,
-                articles_graph=graph_embed,
-                ner_graphs=ner_graphs,
-                get_tag=get_tag,
-                user=user,
-                base=base,
-                doc_id=doc_id,
-                url=url,
-                title=title,
-                meta_obj=meta_obj)
-
-        adder_hnd = register_process_queue(
-            "adder",
-            adder_payload_to_json,
-            adder_payload_from_json,
-            adder_compute)
+        adder_processor = register_adder(
+            db,
+            vec_db,
+            process_queue_redis=process_queue_redis,
+            qdrant_cache=qdrant_cache,
+            graph_embed=graph_embed,
+            ner_graphs=ner_graphs,
+            get_articles=get_articles,
+            get_full_text=get_full_text,
+            get_url_title=get_url_title,
+            get_tag=get_tag,
+            get_status_date_type=get_status_date_type)
 
         @server.json_post(f"{prefix}/queue/requeue")
         @server.middleware(verify_write)
@@ -484,14 +436,10 @@ def add_vec_features(
             info, error_info = get_url_title(main_id)
             if info is None:
                 raise ValueError(error_info)
-            process_enqueue(
-                process_queue_redis,
-                adder_hnd,
-                {
-                    "db": vdb_str,
-                    "main_id": main_id,
-                    "user": user,
-                })
+            adder_processor(
+                vdb_str=vdb_str,
+                main_id=main_id,
+                user=user)
             return {
                 "enqueued": True,
             }
