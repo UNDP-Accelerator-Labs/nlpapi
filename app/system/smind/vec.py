@@ -45,6 +45,7 @@ from qdrant_client.models import (
     FilterSelector,
     HnswConfigDiff,
     MatchAny,
+    MatchExcept,
     MatchValue,
     OptimizersConfig,
     OrderBy,
@@ -761,7 +762,8 @@ def stat_total(
         name: str,
         *,
         filters: dict[MetaKey, list[str]] | None) -> int:
-    query_filter = get_filter(filters, for_vec=False, skip_fields=None)
+    query_filter = get_filter(
+        filters, for_vec=False, skip_fields=None, exclude_main_id=None)
     data_name = get_db_name(name, is_vec=False)
     if query_filter is None:
         res = db.get_collection(data_name).points_count
@@ -779,7 +781,8 @@ def stat_embed(
         field: MetaKey,
         filters: dict[MetaKey, list[str]] | None,
         ) -> dict[str, int]:
-    query_filter = get_filter(filters, for_vec=False, skip_fields={field})
+    query_filter = get_filter(
+        filters, for_vec=False, skip_fields={field}, exclude_main_id=None)
     data_name = get_db_name(name, is_vec=False)
 
     field_key = convert_meta_key_data(field, None)
@@ -841,7 +844,8 @@ def get_filter(
         filters: dict[MetaKey, list[str]] | None,
         *,
         for_vec: bool,
-        skip_fields: set[MetaKey] | None) -> Filter | None:
+        skip_fields: set[MetaKey] | None,
+        exclude_main_id: str | None) -> Filter | None:
     if filters is None:
         return None
 
@@ -870,6 +874,13 @@ def get_filter(
             continue
         ikey = convert_meta_key(key)
         conds.append(FieldCondition(key=ikey, match=MatchAny(any=values)))
+    if exclude_main_id is not None:
+        conds.append(
+            FieldCondition(
+                key="main_id",
+                match=MatchExcept(**{  # type: ignore
+                    "except": exclude_main_id,
+                })))
     if not conds:
         return None
     return Filter(must=conds)
@@ -972,11 +983,16 @@ def search_docs(
         limit: int,
         score_threshold: float | None,
         filters: dict[MetaKey, list[str]] | None,
+        exclude_main_id: str | None,
         with_vectors: bool,
         ) -> list[DocResult]:
     data_name = get_db_name(name, is_vec=False)
     real_offset = 0 if offset is None else offset
-    query_filter = get_filter(filters, for_vec=False, skip_fields=None)
+    query_filter = get_filter(
+        filters,
+        for_vec=False,
+        skip_fields=None,
+        exclude_main_id=exclude_main_id)
     docs = retry_err(
         lambda: db.search(
             data_name,
@@ -1035,7 +1051,8 @@ def query_embed(
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     print(f"query {name} offset={real_offset} limit={total_limit}")
-    vec_filter = get_filter(filters, for_vec=True, skip_fields=None)
+    vec_filter = get_filter(
+        filters, for_vec=True, skip_fields=None, exclude_main_id=None)
     vec_name = get_db_name(name, is_vec=True)
     data_name = get_db_name(name, is_vec=False)
     hits = retry_err(
@@ -1107,7 +1124,8 @@ def query_docs(
     total_limit = real_offset + limit
     print(f"scroll {name} offset={real_offset} limit={total_limit}")
     data_name = get_db_name(name, is_vec=False)
-    query_filter = get_filter(filters, for_vec=False, skip_fields=None)
+    query_filter = get_filter(
+        filters, for_vec=False, skip_fields=None, exclude_main_id=None)
     if order_by is None:
         order_by = "date"
     if isinstance(order_by, tuple):

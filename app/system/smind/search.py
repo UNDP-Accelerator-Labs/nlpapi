@@ -614,6 +614,7 @@ def vec_search(
                 limit=limit,
                 score_threshold=score_threshold,
                 filters=filters,
+                exclude_main_id=q_main_id,
                 with_vectors=False)
             res = [to_result(doc_result) for doc_result in res_docs]
             dq_time = time.monotonic() - dq_start
