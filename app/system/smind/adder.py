@@ -15,12 +15,11 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import uuid
 from collections.abc import Callable
-from typing import Protocol
+from typing import Protocol, TypedDict
 
 from qdrant_client import QdrantClient
 from redipy import Redis
 
-from app.api.server import AdderPayload
 from app.system.db.db import DBConnector
 from app.system.location.response import LanguageStr
 from app.system.prep.fulltext import (
@@ -39,6 +38,13 @@ from app.system.workqueues.queue import process_enqueue, register_process_queue
 class AdderProcessor(Protocol):  # pylint: disable=too-few-public-methods
     def __call__(self, *, vdb_str: str, main_id: str, user: uuid.UUID) -> None:
         ...
+
+
+AdderPayload = TypedDict('AdderPayload', {
+    "db": str,
+    "main_id": str,
+    "user": uuid.UUID,
+})
 
 
 def register_adder(

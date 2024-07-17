@@ -141,13 +141,6 @@ from app.system.workqueues.queue import (
 )
 
 
-AdderPayload = TypedDict('AdderPayload', {
-    "db": str,
-    "main_id": str,
-    "user": uuid.UUID,
-})
-
-
 MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
 MAX_LINKS = 20
 
