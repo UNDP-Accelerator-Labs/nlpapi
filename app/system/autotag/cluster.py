@@ -169,7 +169,7 @@ def register_tagger(
                 if errors:
                     raise ValueError(
                         f"errors while processing:\n{NL.join(errors)}")
-            return f"finished {main_id}"
+            return f"finished {processing_count}"
         if entry["stage"] == "cluster":
             # FIXME
             return "TODO"

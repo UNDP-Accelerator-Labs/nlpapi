@@ -82,12 +82,11 @@ def create_all_docs(
         pdb = platforms.get(base)
         bdb = blogs.get(base)
         if pdb is not None:
-            res = all_pad(pdb, base)
+            yield from all_pad(pdb, base)
         elif bdb is not None:
-            res = all_blog(bdb, base)
+            yield from all_blog(bdb, base)
         else:
             raise ValueError(f"unknown base: {base}")
-        yield from res
 
     return get_all_docs
 
@@ -155,6 +154,7 @@ def create_is_remove(
                 res = (False, f"unknown {base=}")
         except Exception:  # pylint: disable=broad-exception-caught
             res = (False, traceback.format_exc())
+        print(f"{res} for {main_id}")
         return res
 
     return get_is_remove
