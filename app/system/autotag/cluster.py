@@ -14,31 +14,47 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import collections
-from typing import Protocol, TypedDict
+from typing import Literal, Protocol, TypedDict
 
 from redipy import Redis
 from scattermind.system.torch_util import tensor_to_str
 
 from app.misc.util import CHUNK_PADDING, CHUNK_SIZE, NL, only
-from app.system.autotag.autotag import write_tag
+from app.system.autotag.autotag import (
+    add_tag_members,
+    create_tag_group,
+    get_incomplete,
+    is_ready,
+    write_tag,
+)
 from app.system.db.db import DBConnector
-from app.system.prep.fulltext import FullTextFn
+from app.system.prep.fulltext import AllDocsFn, FullTextFn, IsRemoveFn
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import GraphProfile
 from app.system.workqueues.queue import register_process_queue
 
 
 class TaggerProcessor(Protocol):  # pylint: disable=too-few-public-methods
-    def __call__(self, *, tag_group: int, main_id: str) -> None:
+    def __call__(self, *, name: str | None, bases: list[str]) -> None:
         ...
 
 
-TaggerPayload = TypedDict('TaggerPayload', {
-    "tag_group": int,
-    "main_id": str,
+InitTaggerPayload = TypedDict('InitTaggerPayload', {
+    "stage": Literal["init"],
+    "name": str | None,
+    "bases": list[str],
 })
+TagTaggerPayload = TypedDict('TagTaggerPayload', {
+    "stage": Literal["tag"],
+})
+CluterTaggerPayload = TypedDict('CluterTaggerPayload', {
+    "stage": Literal["cluster"],
+    "tag_group": int,
+})
+TaggerPayload = InitTaggerPayload | TagTaggerPayload | CluterTaggerPayload
 
 
+BATCH_SIZE = 20
 TOP_K = 10
 
 
@@ -47,32 +63,117 @@ def register_tagger(
         *,
         process_queue_redis: Redis,
         graph_tags: GraphProfile,
+        get_all_docs: AllDocsFn,
+        is_remove_doc: IsRemoveFn,
         get_full_text: FullTextFn) -> TaggerProcessor:
 
     def tagger_payload_to_json(entry: TaggerPayload) -> dict[str, str]:
-        return {
-            "tag_group": f"{entry['tag_group']}",
-            "main_id": entry["main_id"],
-        }
+        if entry["stage"] == "init":
+            return {
+                "stage": "init",
+                "name": "" if entry["name"] is None else entry["name"],
+                "bases": ",".join(entry["bases"]),
+            }
+        if entry["stage"] == "tag":
+            return {
+                "stage": "tag",
+            }
+        if entry["stage"] == "cluster":
+            return {
+                "stage": "cluster",
+                "tag_group": f"{entry['tag_group']}",
+            }
+        raise ValueError(f"invalid stage {entry['stage']}")
 
     def tagger_payload_from_json(payload: dict[str, str]) -> TaggerPayload:
-        return {
-            "tag_group": int(payload["tag_group"]),
-            "main_id": payload["main_id"],
-        }
+        if payload["stage"] == "init":
+            return {
+                "stage": "init",
+                "name": payload["name"] if payload["name"] else None,
+                "bases": payload["bases"].split(","),
+            }
+        if payload["stage"] == "tag":
+            return {
+                "stage": "tag",
+            }
+        if payload["stage"] == "cluster":
+            return {
+                "stage": "cluster",
+                "tag_group": int(payload['tag_group']),
+            }
+        raise ValueError(f"invalid stage {payload['stage']}")
 
     def tagger_compute(entry: TaggerPayload) -> str:
-        tag_group = entry["tag_group"]
-        main_id = entry["main_id"]
-        keywords, error = tag_doc(
-            main_id,
-            graph_tags=graph_tags,
-            get_full_text=get_full_text,
-            top_k=TOP_K)
-        if keywords is None:
-            raise ValueError(f"error while processing {main_id}:\n{error}")
-        write_tag(db, tag_group, main_id, list(keywords))
-        return f"finished {main_id}"
+        if entry["stage"] == "init":
+            total = 0
+            with db.get_session() as session:
+                cur_tag_group = create_tag_group(session, entry["name"])
+                for base in entry["bases"]:
+                    cur_main_ids: list[str] = []
+                    for cur_main_id in get_all_docs(base):
+                        if is_remove_doc(cur_main_id):
+                            continue
+                        cur_main_ids.append(cur_main_id)
+                    add_tag_members(
+                        db, session, cur_tag_group, cur_main_ids)
+                    total += len(cur_main_ids)
+                process_enqueue(
+                    process_queue_redis,
+                    {
+                        "stage": "tag",
+                    })
+            return f"created tag group {cur_tag_group} with {total} entries"
+        if entry["stage"] == "tag":
+            batch_size = BATCH_SIZE
+            with db.get_session() as session:
+                processing_count = 0
+                tag_groups: set[int] = set()
+                errors: list[str] = []
+                for elem in get_incomplete(session):
+                    main_id = elem["main_id"]
+                    tag_group = elem["tag_group"]
+                    keywords, error = tag_doc(
+                        main_id,
+                        graph_tags=graph_tags,
+                        get_full_text=get_full_text,
+                        top_k=TOP_K)
+                    if keywords is None:
+                        errors.append(
+                            "error while processing "
+                            f"{main_id} for {tag_group}:\n{error}")
+                    else:
+                        write_tag(
+                            db,
+                            session,
+                            tag_group,
+                            main_id,
+                            list(keywords))
+                    tag_groups.add(tag_group)
+                    processing_count += 1
+                    if processing_count >= batch_size:
+                        break
+                if processing_count > 0:
+                    process_enqueue(
+                        process_queue_redis,
+                        {
+                            "stage": "tag",
+                        })
+                for tag_group in tag_groups:
+                    if is_ready(session, tag_group):
+                        process_enqueue(
+                            process_queue_redis,
+                            {
+                                "stage": "cluster",
+                                "tag_group": tag_group,
+                            })
+                if errors:
+                    raise ValueError(
+                        f"errors while processing:\n{NL.join(errors)}")
+            return f"finished {main_id}"
+        if entry["stage"] == "cluster":
+            # FIXME
+            return "TODO"
+        raise ValueError(f"invalid stage {entry['stage']}")
 
     process_enqueue = register_process_queue(
         "tagger",
@@ -80,12 +181,13 @@ def register_tagger(
         tagger_payload_from_json,
         tagger_compute)
 
-    def tagger_processor(*, tag_group: int, main_id: str) -> None:
+    def tagger_processor(*, name: str | None, bases: list[str]) -> None:
         process_enqueue(
             process_queue_redis,
             {
-                "tag_group": tag_group,
-                "main_id": main_id,
+                "stage": "init",
+                "name": name,
+                "bases": bases,
             })
 
     return tagger_processor
