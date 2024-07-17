@@ -30,7 +30,7 @@
         "tags": "node_0:tags",
         "scores": "node_0:scores"
       },
-      "cache": true
+      "cache": false
     }
   ],
   "entry": "auto_tag"

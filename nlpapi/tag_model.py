@@ -91,7 +91,7 @@ class TagModelNode(Node):
 
     def execute_tasks(self, state: ComputeState) -> None:
         assert self._model is not None
-        print("execute model")
+        print("execute tag model")
         th = self.get_arg("threshold").get("float")
         inputs = state.get_values()
         model = self._model
@@ -121,4 +121,4 @@ class TagModelNode(Node):
                     "scores": state.create_single(
                         create_tensor(scores, dtype="float")),
                 })
-        print("execute model done")
+        print("execute tag model done")
