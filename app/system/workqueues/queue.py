@@ -17,7 +17,7 @@ import threading
 import traceback
 import uuid
 from collections.abc import Callable
-from typing import Any, Generic, TypeAlias, TypedDict, TypeVar
+from typing import Any, Generic, Protocol, TypeAlias, TypedDict, TypeVar
 
 from redipy import Redis
 
@@ -25,6 +25,13 @@ from app.misc.util import get_time_str, json_compact_str, json_read_str
 
 
 PL = TypeVar('PL')
+PL_contra = TypeVar('PL_contra', contravariant=True)
+
+
+class ProcessEnqueue(  # pylint: disable=too-few-public-methods
+        Protocol[PL_contra]):
+    def __call__(self, process_queue_redis: Redis, payload: PL_contra) -> None:
+        ...
 
 
 ProcessHandlerId: TypeAlias = str
@@ -88,14 +95,32 @@ def register_process_queue(
         name: str,
         convert_to_json: Callable[[PL], dict[str, str]],
         convert_from_json: Callable[[dict[str, str]], PL],
-        compute: Callable[[PL], Any]) -> ProcessHandlerId:
+        compute: Callable[[PL], Any]) -> ProcessEnqueue[PL]:
     hnd_name = f"{name}-{uuid.uuid5(NS_HND, name).hex}"
+    if hnd_name in PROCESS_HND_LOOKUP:
+        raise ValueError(f"cannot register {name} twice!")
     PROCESS_HND_LOOKUP[hnd_name] = {
         "compute": compute,
         "convert_to_json": convert_to_json,
         "convert_from_json": convert_from_json,
     }
-    return hnd_name
+
+    def process_enqueue(
+            process_queue_redis: Redis,
+            payload: PL) -> None:
+        process_queue_key = PROCESS_QUEUE_KEY
+        process_hnd = PROCESS_HND_LOOKUP[hnd_name]
+
+        entry = process_entry_to_json(process_hnd, {
+            "payload": payload,
+            "process": hnd_name,
+        })
+        process_queue_redis.rpush(
+            process_queue_key,
+            process_entry_to_redis(entry))
+        maybe_adder_thread(process_queue_redis)
+
+    return process_enqueue
 
 
 def process_entry_to_json(
@@ -141,23 +166,6 @@ def get_process_queue_errors(process_queue_redis: Redis) -> list[ProcessError]:
         get_process_error(obj_str)
         for obj_str in process_queue_redis.lrange(process_error_key, 0, -1)
     ]
-
-
-def process_enqueue(
-        process_queue_redis: Redis,
-        hnd_name: ProcessHandlerId,
-        payload: dict) -> None:
-    process_queue_key = PROCESS_QUEUE_KEY
-    process_hnd = PROCESS_HND_LOOKUP[hnd_name]
-
-    entry = process_entry_to_json(process_hnd, {
-        "payload": payload,
-        "process": hnd_name,
-    })
-    process_queue_redis.rpush(
-        process_queue_key,
-        process_entry_to_redis(entry))
-    maybe_adder_thread(process_queue_redis)
 
 
 def requeue_errors(process_queue_redis: Redis) -> bool:

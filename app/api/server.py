@@ -93,11 +93,15 @@ from app.system.location.response import (
 )
 from app.system.prep.clean import normalize_text, sanity_check
 from app.system.prep.fulltext import (
+    AllDocsFn,
+    create_all_docs,
     create_full_text,
+    create_is_remove,
     create_status_date_type,
     create_tag_fn,
     create_url_title,
     FullTextFn,
+    IsRemoveFn,
     StatusDateTypeFn,
     TagFn,
     UrlTitleFn,
@@ -113,6 +117,7 @@ from app.system.smind.api import (
 )
 from app.system.smind.keepalive import set_main_articles
 from app.system.smind.search import (
+    AddEmbed,
     ClearResponse,
     vec_add,
     vec_clear,
@@ -120,7 +125,6 @@ from app.system.smind.search import (
     vec_search,
 )
 from app.system.smind.vec import (
-    AddEmbed,
     build_db_name,
     build_scalar_index,
     DBName,
@@ -201,6 +205,8 @@ def add_vec_features(
         smind_config: str,
         graph_embed: GraphProfile,
         ner_graphs: dict[LanguageStr, GraphProfile],
+        get_all_docs: AllDocsFn,
+        doc_is_remove: IsRemoveFn,
         get_full_text: FullTextFn,
         get_url_title: UrlTitleFn,
         get_tag: TagFn,
@@ -396,7 +402,7 @@ def add_vec_features(
 
         # *** embeddings ***
 
-        adder_processor = register_adder(
+        base_processor, adder_processor = register_adder(
             db,
             vec_db,
             process_queue_redis=process_queue_redis,
@@ -404,6 +410,8 @@ def add_vec_features(
             graph_embed=graph_embed,
             ner_graphs=ner_graphs,
             get_articles=get_articles,
+            get_all_docs=get_all_docs,
+            doc_is_remove=doc_is_remove,
             get_full_text=get_full_text,
             get_url_title=get_url_title,
             get_tag=get_tag,
@@ -423,16 +431,16 @@ def add_vec_features(
         def _post_embed_add(_req: QSRH, rargs: ReqArgs) -> AddEmbedQueue:
             args = rargs["post"]
             meta = rargs["meta"]
-            main_id = args["main_id"]
+            main_id = args.get("main_id")
+            base = args.get("base")
+            if (main_id is None) == (base is None):
+                raise ValueError("must use either main_id or base")
             vdb_str: str = args["db"]
             user: uuid.UUID = meta["user"]
-            info, error_info = get_url_title(main_id)
-            if info is None:
-                raise ValueError(error_info)
-            adder_processor(
-                vdb_str=vdb_str,
-                main_id=main_id,
-                user=user)
+            if main_id is not None:
+                adder_processor(vdb_str=vdb_str, main_id=main_id, user=user)
+            if base is not None:
+                base_processor(vdb_str=vdb_str, base=base, user=user)
             return {
                 "enqueued": True,
             }
@@ -610,6 +618,8 @@ def setup(
     else:
         graph_llama = None
 
+    get_all_docs = create_all_docs(platforms, blogs)
+    doc_is_remove = create_is_remove(platforms, blogs)
     get_full_text = create_full_text(
         platforms,
         blogs,
@@ -787,6 +797,8 @@ def setup(
             smind_config=smind_config,
             graph_embed=graph_embed,
             ner_graphs=ner_graphs,
+            get_all_docs=get_all_docs,
+            doc_is_remove=doc_is_remove,
             get_full_text=get_full_text,
             get_url_title=get_url_title,
             get_tag=get_tag,

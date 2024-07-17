@@ -54,7 +54,6 @@ from app.system.smind.keepalive import update_last_query
 from app.system.smind.log import log_query
 from app.system.smind.vec import (
     add_embed,
-    AddEmbed,
     EmbedChunk,
     EmbedMain,
     get_doc,
@@ -72,6 +71,13 @@ from app.system.smind.vec import (
     vec_flushall,
 )
 from app.system.urlinspect.inspect import inspect_url
+
+
+AddEmbed = TypedDict('AddEmbed', {
+    "previous": int,
+    "snippets": int,
+    "failed": int,
+})
 
 
 class GetVecDB(Protocol):  # pylint: disable=too-few-public-methods

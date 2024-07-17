@@ -189,12 +189,6 @@ QueryEmbed = TypedDict('QueryEmbed', {
     "hits": list[ResultChunk],
     "status": Literal["ok", "error"],
 })
-AddEmbed = TypedDict('AddEmbed', {
-    "previous": int,
-    "snippets": int,
-    "failed": int,
-})
-
 
 DocResult = TypedDict('DocResult', {
     "main_id": str,

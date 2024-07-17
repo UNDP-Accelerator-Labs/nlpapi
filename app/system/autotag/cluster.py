@@ -25,7 +25,7 @@ from app.system.db.db import DBConnector
 from app.system.prep.fulltext import FullTextFn
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import GraphProfile
-from app.system.workqueues.queue import process_enqueue, register_process_queue
+from app.system.workqueues.queue import register_process_queue
 
 
 class TaggerProcessor(Protocol):  # pylint: disable=too-few-public-methods
@@ -74,7 +74,7 @@ def register_tagger(
         write_tag(db, tag_group, main_id, list(keywords))
         return f"finished {main_id}"
 
-    tagger_hnd = register_process_queue(
+    process_enqueue = register_process_queue(
         "tagger",
         tagger_payload_to_json,
         tagger_payload_from_json,
@@ -83,7 +83,6 @@ def register_tagger(
     def tagger_processor(*, tag_group: int, main_id: str) -> None:
         process_enqueue(
             process_queue_redis,
-            tagger_hnd,
             {
                 "tag_group": tag_group,
                 "main_id": main_id,
