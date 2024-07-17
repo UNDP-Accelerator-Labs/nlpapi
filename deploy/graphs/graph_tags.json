@@ -5,10 +5,11 @@
       "description": "tag input text",
       "input": "node_0",
       "input_format": {
-        "text": "string"
+        "text": ["uint8", [null]]
       },
       "output_format": {
-        "tags": "string"
+        "tags": ["uint8", [null]],
+        "scores": ["float", [null]]
       },
       "nodes": [
         {
@@ -26,7 +27,8 @@
         }
       ],
       "vmap": {
-        "tags": "node_0:tags"
+        "tags": "node_0:tags",
+        "scores": "node_0:scores"
       },
       "cache": true
     }
