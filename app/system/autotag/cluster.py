@@ -64,7 +64,7 @@ def register_tagger(
         process_queue_redis: Redis,
         graph_tags: GraphProfile,
         get_all_docs: AllDocsFn,
-        is_remove_doc: IsRemoveFn,
+        doc_is_remove: IsRemoveFn,
         get_full_text: FullTextFn) -> TaggerProcessor:
 
     def tagger_payload_to_json(entry: TaggerPayload) -> dict[str, str]:
@@ -111,7 +111,7 @@ def register_tagger(
                 for base in entry["bases"]:
                     cur_main_ids: list[str] = []
                     for cur_main_id in get_all_docs(base):
-                        if is_remove_doc(cur_main_id):
+                        if doc_is_remove(cur_main_id):
                             continue
                         cur_main_ids.append(cur_main_id)
                     add_tag_members(

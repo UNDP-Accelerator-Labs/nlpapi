@@ -97,7 +97,7 @@ FulltextResponse = TypedDict('FulltextResponse', {
 RequeueResponse = TypedDict('RequeueResponse', {
     "done": bool,
 })
-AddEmbedQueue = TypedDict('AddEmbedQueue', {
+AddQueue = TypedDict('AddQueue', {
     "enqueued": bool,
 })
 ErrorProcessQueue = TypedDict('ErrorProcessQueue', {

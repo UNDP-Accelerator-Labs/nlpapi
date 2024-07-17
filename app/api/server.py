@@ -34,7 +34,7 @@ from app.api.mod import Module
 from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
 from app.api.response_types import (
-    AddEmbedQueue,
+    AddQueue,
     BuildIndexResponse,
     CollectionListResponse,
     CollectionOptionsResponse,
@@ -64,6 +64,7 @@ from app.misc.util import (
 )
 from app.misc.version import get_version
 from app.system.auth import get_session, is_valid_token, SessionInfo
+from app.system.autotag.cluster import register_tagger
 from app.system.config import get_config
 from app.system.dates.datetranslate import extract_date
 from app.system.db.db import DBConnector
@@ -420,7 +421,7 @@ def add_vec_features(
         @server.json_post(f"{prefix}/queue/requeue")
         @server.middleware(verify_write)
         def _post_queue_requeue(
-                _req: QSRH, _rargs: ReqArgs) -> AddEmbedQueue:
+                _req: QSRH, _rargs: ReqArgs) -> AddQueue:
             res = requeue_errors(process_queue_redis)
             return {
                 "enqueued": res,
@@ -428,7 +429,7 @@ def add_vec_features(
 
         @server.json_post(f"{prefix}/embed/add")
         @server.middleware(verify_write)
-        def _post_embed_add(_req: QSRH, rargs: ReqArgs) -> AddEmbedQueue:
+        def _post_embed_add(_req: QSRH, rargs: ReqArgs) -> AddQueue:
             args = rargs["post"]
             meta = rargs["meta"]
             main_id = args.get("main_id")
@@ -506,8 +507,6 @@ def add_vec_features(
                 articles=articles,
                 fields=fields,
                 filters=filters)
-
-        # FIXME add endpoint to search for document
 
         @server.json_post(f"{prefix}/query_embed")
         @server.middleware(verify_readonly)
@@ -612,6 +611,7 @@ def setup(
     smind_config = config["smind"]
     smind = load_smind(smind_config)
     graph_embed = load_graph(config, smind, "graph_embed.json")
+    graph_tags = load_graph(config, smind, "graph_tags.json")
 
     if envload_bool("HAS_LLAMA", default=False):
         graph_llama = load_graph(config, smind, "graph_llama.json")
@@ -865,6 +865,26 @@ def setup(
 
     # # # SECURE # # #
     with server.middlewares(verify_token):
+        # *** auto tag ***
+        tag_processor = register_tagger(
+            db,
+            process_queue_redis=process_queue_redis,
+            graph_tags=graph_tags,
+            get_all_docs=get_all_docs,
+            doc_is_remove=doc_is_remove,
+            get_full_text=get_full_text)
+
+        @server.json_post(f"{prefix}/tags/create")
+        @server.middleware(verify_readonly)
+        def _post_tags_create(_req: QSRH, rargs: ReqArgs) -> AddQueue:
+            args = rargs["post"]
+            name: str | None = args.get("name")
+            bases: list[str] = list(args["bases"])
+            tag_processor(name=name, bases=bases)
+            return {
+                "enqueued": True,
+            }
+
         # *** location ***
 
         @server.json_get(f"{prefix}/geoforward")
