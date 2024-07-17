@@ -432,15 +432,15 @@ def add_vec_features(
             args = rargs["post"]
             meta = rargs["meta"]
             main_id = args.get("main_id")
-            base = args.get("base")
-            if (main_id is None) == (base is None):
+            bases = args.get("bases")
+            if (main_id is None) == (bases is None):
                 raise ValueError("must use either main_id or base")
             vdb_str: str = args["db"]
             user: uuid.UUID = meta["user"]
             if main_id is not None:
                 adder_processor(vdb_str=vdb_str, main_id=main_id, user=user)
-            if base is not None:
-                base_processor(vdb_str=vdb_str, base=base, user=user)
+            if bases is not None:
+                base_processor(vdb_str=vdb_str, bases=list(bases), user=user)
             return {
                 "enqueued": True,
             }

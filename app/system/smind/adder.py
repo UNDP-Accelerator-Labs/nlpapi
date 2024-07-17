@@ -49,7 +49,8 @@ class AdderProcessor(Protocol):  # pylint: disable=too-few-public-methods
 
 
 class BaseProcessor(Protocol):  # pylint: disable=too-few-public-methods
-    def __call__(self, *, vdb_str: str, base: str, user: uuid.UUID) -> None:
+    def __call__(
+            self, *, vdb_str: str, bases: list[str], user: uuid.UUID) -> None:
         ...
 
 
@@ -186,15 +187,16 @@ def register_adder(
         adder_compute)
 
     def base_processor(
-            *, vdb_str: str, base: str, user: uuid.UUID) -> None:
-        process_enqueue(
-            process_queue_redis,
-            {
-                "stage": "base",
-                "db": vdb_str,
-                "base": base,
-                "user": user,
-            })
+            *, vdb_str: str, bases: list[str], user: uuid.UUID) -> None:
+        for base in bases:
+            process_enqueue(
+                process_queue_redis,
+                {
+                    "stage": "base",
+                    "db": vdb_str,
+                    "base": base,
+                    "user": user,
+                })
 
     def adder_processor(
             *, vdb_str: str, main_id: str, user: uuid.UUID) -> None:
