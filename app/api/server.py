@@ -875,7 +875,7 @@ def setup(
             get_full_text=get_full_text)
 
         @server.json_post(f"{prefix}/tags/create")
-        @server.middleware(verify_readonly)
+        @server.middleware(verify_write)
         def _post_tags_create(_req: QSRH, rargs: ReqArgs) -> AddQueue:
             args = rargs["post"]
             name: str | None = args.get("name")
