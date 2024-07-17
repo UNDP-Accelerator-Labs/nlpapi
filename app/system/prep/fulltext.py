@@ -154,7 +154,6 @@ def create_is_remove(
                 res = (False, f"unknown {base=}")
         except Exception:  # pylint: disable=broad-exception-caught
             res = (False, traceback.format_exc())
-        print(f"{res} for {main_id}")
         return res
 
     return get_is_remove

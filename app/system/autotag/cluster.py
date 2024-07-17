@@ -104,6 +104,7 @@ def register_tagger(
         raise ValueError(f"invalid stage {payload['stage']}")
 
     def tagger_compute(entry: TaggerPayload) -> str:
+        errors: list[str] = []
         if entry["stage"] == "init":
             total = 0
             with db.get_session() as session:
@@ -111,7 +112,11 @@ def register_tagger(
                 for base in entry["bases"]:
                     cur_main_ids: list[str] = []
                     for cur_main_id in get_all_docs(base):
-                        if doc_is_remove(cur_main_id):
+                        is_remove, error_remove = doc_is_remove(cur_main_id)
+                        if error_remove is not None:
+                            errors.append(error_remove)
+                            continue
+                        if is_remove:
                             continue
                         cur_main_ids.append(cur_main_id)
                     add_tag_members(
@@ -122,13 +127,15 @@ def register_tagger(
                     {
                         "stage": "tag",
                     })
+            if errors:
+                raise ValueError(
+                    f"errors while processing:\n{NL.join(errors)}")
             return f"created tag group {cur_tag_group} with {total} entries"
         if entry["stage"] == "tag":
             batch_size = BATCH_SIZE
             with db.get_session() as session:
                 processing_count = 0
                 tag_groups: set[int] = set()
-                errors: list[str] = []
                 for elem in get_incomplete(session):
                     main_id = elem["main_id"]
                     tag_group = elem["tag_group"]

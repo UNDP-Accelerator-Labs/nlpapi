@@ -133,7 +133,9 @@ def register_adder(
                 "total": total,
             }
         main_id = entry["main_id"]
-        is_remove = doc_is_remove(main_id)
+        is_remove, error_remove = doc_is_remove(main_id)
+        if error_remove is not None:
+            raise ValueError(error_remove)
         base, doc_id = get_base_doc(main_id)
         articles = get_articles(vdb_str)
         if not is_remove:
@@ -150,8 +152,8 @@ def register_adder(
         else:
             url = "-"
             title = "-"
-        sdt: tuple[DocStatus, str, str] | None
-        error_sdt = "unknown error"
+        sdt: tuple[DocStatus, str | None, str] | None
+        error_sdt: str | None = "unknown error"
         if not is_remove:
             sdt, error_sdt = get_status_date_type(main_id)
         else:
