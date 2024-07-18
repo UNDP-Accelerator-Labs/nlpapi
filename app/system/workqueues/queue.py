@@ -54,6 +54,7 @@ class ProcessError(ProcessEntryJSON):  # pylint: disable=inherit-non-class
 
 ProcessQueueStats = TypedDict('ProcessQueueStats', {
     "queue": int,
+    "active": int,
     "error": int,
 })
 
@@ -68,6 +69,7 @@ PROCESS_LOCK = threading.RLock()
 PROCESS_COND = threading.Condition(PROCESS_LOCK)
 PROCESS_THREAD: threading.Thread | None = None
 PROCESS_QUEUE_KEY = "process"
+PROCESS_ACTIVE_KEY = "active"
 PROCESS_ERROR_KEY = "errors"
 
 
@@ -76,14 +78,17 @@ PROCESS_HND_LOOKUP: dict[ProcessHandlerId, ProcessHandler] = {}
 
 def process_queue_info(process_queue_redis: Redis) -> ProcessQueueStats:
     process_queue_key = PROCESS_QUEUE_KEY
+    process_active_key = PROCESS_ACTIVE_KEY
     process_error_key = PROCESS_ERROR_KEY
 
     with process_queue_redis.pipeline() as pipe:
         pipe.llen(process_queue_key)
+        pipe.llen(process_active_key)
         pipe.llen(process_error_key)
-        queue_len, error_len = pipe.execute()
+        queue_len, active_len, error_len = pipe.execute()
     return {
         "queue": queue_len,
+        "active": active_len,
         "error": error_len,
     }
 
@@ -118,7 +123,7 @@ def register_process_queue(
         process_queue_redis.rpush(
             process_queue_key,
             process_entry_to_redis(entry))
-        maybe_adder_thread(process_queue_redis)
+        maybe_process_thread(process_queue_redis)
 
     return process_enqueue
 
@@ -186,34 +191,42 @@ def requeue_errors(process_queue_redis: Redis) -> bool:
             }))
         any_enqueued = True
     if any_enqueued:
-        maybe_adder_thread(process_queue_redis)
+        maybe_process_thread(process_queue_redis)
     return any_enqueued
 
 
-def log_diver(msg: str) -> None:
+def log_process(msg: str) -> None:
     print(f"{get_time_str()} QUEUE: {msg}")
 
 
-def maybe_adder_thread(process_queue_redis: Redis) -> None:
+def maybe_process_thread(process_queue_redis: Redis) -> None:
     global PROCESS_THREAD  # pylint: disable=global-statement
 
     process_queue_key = PROCESS_QUEUE_KEY
+    process_active_key = PROCESS_ACTIVE_KEY
     process_error_key = PROCESS_ERROR_KEY
     process_hnd_lookup = PROCESS_HND_LOOKUP
 
     def get_item() -> ProcessEntryJSON | None:
-        res = process_queue_redis.lpop(process_queue_key)
-        if res is None:
-            return None
-        return get_process_entry_json(res)
+        while True:
+            actives = process_queue_redis.lrange(process_active_key, 0, 0)
+            if actives:
+                return get_process_entry_json(actives[0])
+            res = process_queue_redis.lpop(process_queue_key)
+            if res is None:
+                return None
+            process_queue_redis.rpush(process_active_key, res)
+
+    def complete_item() -> None:
+        process_queue_redis.lpop(process_active_key)
 
     def process(
             process_hnd: ProcessHandler[PL], entry: ProcessEntryJSON) -> None:
-        log_diver(f"processing {entry['process']}: {entry['payload']}")
+        log_process(f"processing {entry['process']}: {entry['payload']}")
         entry_full = process_entry_from_json(process_hnd, entry)
         compute = process_hnd["compute"]
         info = compute(entry_full["payload"])
-        log_diver(f"done {entry['payload']}: {info}")
+        log_process(f"done {entry['payload']}: {info}")
 
     def run() -> None:
         global PROCESS_THREAD  # pylint: disable=global-statement
@@ -225,18 +238,21 @@ def maybe_adder_thread(process_queue_redis: Redis) -> None:
                 if entry is None:
                     continue
                 try:
-                    process(process_hnd_lookup[entry["process"]], entry)
-                except BaseException:  # pylint: disable=broad-except
-                    error_str = traceback.format_exc()
-                    error: ProcessError = {
-                        "payload": entry["payload"],
-                        "process": entry["process"],
-                        "error": error_str,
-                    }
-                    process_queue_redis.rpush(
-                        process_error_key,
-                        process_error_to_redis(error))
-                    log_diver(f"error {entry['payload']}")
+                    try:
+                        process(process_hnd_lookup[entry["process"]], entry)
+                    except BaseException:  # pylint: disable=broad-except
+                        error_str = traceback.format_exc()
+                        error: ProcessError = {
+                            "payload": entry["payload"],
+                            "process": entry["process"],
+                            "error": error_str,
+                        }
+                        process_queue_redis.rpush(
+                            process_error_key,
+                            process_error_to_redis(error))
+                        log_process(f"error {entry['payload']}")
+                finally:
+                    complete_item()
         finally:
             with PROCESS_LOCK:
                 if th is PROCESS_THREAD:

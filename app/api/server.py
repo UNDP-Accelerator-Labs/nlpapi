@@ -141,6 +141,7 @@ from app.system.stats import create_length_counter
 from app.system.urlinspect.inspect import inspect_url
 from app.system.workqueues.queue import (
     get_process_queue_errors,
+    maybe_process_thread,
     process_queue_info,
     requeue_errors,
 )
@@ -259,6 +260,7 @@ def add_vec_features(
 
             with cond:
                 cond.notify_all()
+            maybe_process_thread(process_queue_redis)
             print(
                 "loading vector database complete "
                 f"in {time.monotonic() - tstart}s!")
