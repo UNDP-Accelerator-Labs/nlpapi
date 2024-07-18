@@ -100,7 +100,7 @@ class TagModelNode(Node):
             for val in inputs.get_data("text").iter_values()
         ]
         task_keyword_scores = model.extract_keywords(
-            texts, keyphrase_ngram_range=(1, 2), threshold=th)
+            texts, keyphrase_ngram_range=(1, 1), threshold=th)
         if len(texts) == 1:
             # NOTE: fixing the extract_keywords "autocorrect"
             task_keyword_scores = [task_keyword_scores]
