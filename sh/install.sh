@@ -94,10 +94,20 @@ else
     echo "for MacOS follow these instructions: https://developer.apple.com/metal/pytorch/"
 fi
 
+! read -r -d '' PY_NLTK_DOWNLOAD <<'EOF'
+import nltk
+nltk.download("punkt")
+nltk.download("averaged_perceptron_tagger")
+nltk.download("words")
+EOF
+
+
 if [ -z "${MODE}" ] || [ "${MODE}" = "worker" ]; then
     echo "initializing spacy"
     ${PYTHON} -m spacy download en_core_web_sm
     ${PYTHON} -m spacy download xx_ent_wiki_sm
+    echo "initializing nltk"
+    ${PYTHON} -c "${PY_NLTK_DOWNLOAD}"
 fi
 
 ! read -r -d '' PY_TORCH_VERIFY <<'EOF'

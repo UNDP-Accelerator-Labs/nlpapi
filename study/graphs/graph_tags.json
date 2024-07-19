@@ -16,7 +16,7 @@
           "name": "node_0",
           "kind": "nlpapi.tag_model",
           "args": {
-            "threshold": 0.25
+            "threshold": 0.1
           },
           "outs": {
             "out": null

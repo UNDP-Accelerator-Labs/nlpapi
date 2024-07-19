@@ -14,12 +14,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import threading
+import time
 import traceback
 import uuid
 from collections.abc import Callable
 from typing import Any, Generic, Protocol, TypeAlias, TypedDict, TypeVar
 
-from redipy import Redis
+from redipy import Redis, RSM_MISSING
 
 from app.misc.util import get_time_str, json_compact_str, json_read_str
 
@@ -71,6 +72,8 @@ PROCESS_THREAD: threading.Thread | None = None
 PROCESS_QUEUE_KEY = "process"
 PROCESS_ACTIVE_KEY = "active"
 PROCESS_ERROR_KEY = "errors"
+PROCESS_LOCK_KEY = "lock"
+HB_TIMEOUT = 60.0  # 1min
 
 
 PROCESS_HND_LOOKUP: dict[ProcessHandlerId, ProcessHandler] = {}
@@ -205,10 +208,15 @@ def maybe_process_thread(process_queue_redis: Redis) -> None:
     process_queue_key = PROCESS_QUEUE_KEY
     process_active_key = PROCESS_ACTIVE_KEY
     process_error_key = PROCESS_ERROR_KEY
+    process_lock_key = PROCESS_LOCK_KEY
     process_hnd_lookup = PROCESS_HND_LOOKUP
+    hb_timeout = HB_TIMEOUT
 
     def get_item() -> ProcessEntryJSON | None:
         while True:
+            lock_value = process_queue_redis.get_value(process_lock_key)
+            if lock_value != process_id:
+                return None
             actives = process_queue_redis.lrange(process_active_key, 0, 0)
             if actives:
                 return get_process_entry_json(actives[0])
@@ -234,7 +242,7 @@ def maybe_process_thread(process_queue_redis: Redis) -> None:
         try:
             while th is PROCESS_THREAD:
                 with PROCESS_LOCK:
-                    entry = PROCESS_COND.wait_for(get_item, 600.0)
+                    entry = PROCESS_COND.wait_for(get_item, hb_timeout)
                 if entry is None:
                     continue
                 try:
@@ -258,10 +266,22 @@ def maybe_process_thread(process_queue_redis: Redis) -> None:
                 if th is PROCESS_THREAD:
                     PROCESS_THREAD = None
 
+    def heartbeat() -> None:
+        while th is PROCESS_THREAD:
+            process_queue_redis.set_value(
+                process_lock_key,
+                process_id,
+                mode=RSM_MISSING,
+                expire_in=hb_timeout * 2)
+            time.sleep(hb_timeout)
+
     with PROCESS_LOCK:
         if PROCESS_THREAD is not None and PROCESS_THREAD.is_alive():
             PROCESS_COND.notify_all()
             return
+        process_id = uuid.uuid4().hex
+        hb = threading.Thread(target=heartbeat, daemon=True)
         th = threading.Thread(target=run, daemon=True)
         PROCESS_THREAD = th
+        hb.start()
         th.start()

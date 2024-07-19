@@ -13,10 +13,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import re
 import threading
 
 # FIXME: the types are there, though...
 from keybert import KeyBERT  # type: ignore
+from nltk import pos_tag, word_tokenize  # type: ignore
 from scattermind.system.base import GraphId, NodeId
 from scattermind.system.client.client import ComputeTask
 from scattermind.system.graph.graph import Graph
@@ -32,6 +34,28 @@ from scattermind.system.torch_util import (
 )
 
 from nlpapi.util import get_sentence_transformer
+
+
+REMOVE_NUMS = re.compile(r"\d+")
+EMAIL = re.compile(r"\S+@\S+")
+FULL_URL = re.compile(r"http[s]?\S+", flags=re.IGNORECASE)
+EXCLUDE_TAGS = {"NNP", "NNPS"}
+
+
+def remove_numbers(text: str) -> str:
+    return REMOVE_NUMS.sub("", text)
+
+
+def remove_proper_nouns(text: str) -> str:
+    pos_tags = pos_tag(word_tokenize(text))
+    return " ".join((
+        word
+        for word, pos in pos_tags
+        if pos not in EXCLUDE_TAGS))
+
+
+def remove_emails_and_hyperlinks(text: str) -> str:
+    return FULL_URL.sub("", EMAIL.sub("", text))
 
 
 LOCK = threading.RLock()
@@ -74,7 +98,8 @@ class TagModelNode(Node):
     def do_load(self, roa: ReadonlyAccess) -> None:
         with LOCK:
             model_name = self.get_arg("model").get(
-                "str", "all-distilroberta-v1")
+                "str", "distilbert-base-nli-mean-tokens")
+            #     "str", "all-distilroberta-v1")
             cache_dir = roa.get_scratchspace(self)
             model = get_sentence_transformer(model_name, cache_dir)
             self._model = KeyBERT(model)
@@ -93,14 +118,21 @@ class TagModelNode(Node):
         assert self._model is not None
         print("execute tag model")
         th = self.get_arg("threshold").get("float")
+        top_n = self.get_arg("top_n").get("int", 20)
         inputs = state.get_values()
         model = self._model
+
+        def prep(text: str) -> str:
+            text = remove_emails_and_hyperlinks(text)
+            text = remove_proper_nouns(text)
+            text = remove_numbers(text)
+            return text
+
         texts = [
-            tensor_to_str(val)
+            prep(tensor_to_str(val))
             for val in inputs.get_data("text").iter_values()
         ]
-        task_keyword_scores = model.extract_keywords(
-            texts, keyphrase_ngram_range=(1, 1), threshold=th)
+        task_keyword_scores = model.extract_keywords(texts, top_n=top_n)
         if len(texts) == 1:
             # NOTE: fixing the extract_keywords "autocorrect"
             task_keyword_scores = [task_keyword_scores]
@@ -110,6 +142,8 @@ class TagModelNode(Node):
             scores: list[float] = []
             print(keyword_scores)
             for keyword, score in keyword_scores:
+                if score < th:
+                    continue
                 keywords.append(keyword.replace(",", " "))
                 scores.append(score)
             state.push_results(

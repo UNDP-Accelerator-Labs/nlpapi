@@ -16,22 +16,26 @@
 import collections
 from typing import Literal, Protocol, TypedDict
 
+import numpy as np
 from redipy import Redis
 from scattermind.system.torch_util import tensor_to_str
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.preprocessing import normalize
 
 from app.misc.util import CHUNK_PADDING, CHUNK_SIZE, NL, only
 from app.system.autotag.autotag import (
     add_tag_members,
     create_tag_group,
     get_incomplete,
+    get_keywords,
     is_ready,
     write_tag,
 )
 from app.system.db.db import DBConnector
 from app.system.prep.fulltext import AllDocsFn, FullTextFn, IsRemoveFn
 from app.system.prep.snippify import snippify_text
-from app.system.smind.api import GraphProfile
-from app.system.workqueues.queue import register_process_queue
+from app.system.smind.api import get_text_results_immediate, GraphProfile
+from app.system.workqueues.queue import ProcessEnqueue, register_process_queue
 
 
 class TaggerProcessor(Protocol):  # pylint: disable=too-few-public-methods
@@ -62,6 +66,7 @@ def register_tagger(
         db: DBConnector,
         *,
         process_queue_redis: Redis,
+        articles_graph: GraphProfile,
         graph_tags: GraphProfile,
         get_all_docs: AllDocsFn,
         doc_is_remove: IsRemoveFn,
@@ -104,82 +109,28 @@ def register_tagger(
         raise ValueError(f"invalid stage {payload['stage']}")
 
     def tagger_compute(entry: TaggerPayload) -> str:
-        errors: list[str] = []
         if entry["stage"] == "init":
-            total = 0
-            with db.get_session() as session:
-                cur_tag_group = create_tag_group(session, entry["name"])
-                for base in entry["bases"]:
-                    cur_main_ids: list[str] = []
-                    for cur_main_id in get_all_docs(base):
-                        is_remove, error_remove = doc_is_remove(cur_main_id)
-                        if error_remove is not None:
-                            errors.append(error_remove)
-                            continue
-                        if is_remove:
-                            continue
-                        cur_main_ids.append(cur_main_id)
-                    add_tag_members(
-                        db, session, cur_tag_group, cur_main_ids)
-                    total += len(cur_main_ids)
-                process_enqueue(
-                    process_queue_redis,
-                    {
-                        "stage": "tag",
-                    })
-            if errors:
-                raise ValueError(
-                    f"errors while processing:\n{NL.join(errors)}")
-            return f"created tag group {cur_tag_group} with {total} entries"
+            return tagger_init(
+                db,
+                entry,
+                process_queue_redis=process_queue_redis,
+                get_all_docs=get_all_docs,
+                doc_is_remove=doc_is_remove,
+                process_enqueue=process_enqueue)
         if entry["stage"] == "tag":
-            batch_size = BATCH_SIZE
-            with db.get_session() as session:
-                processing_count = 0
-                tag_groups: set[int] = set()
-                for elem in get_incomplete(session):
-                    main_id = elem["main_id"]
-                    tag_group = elem["tag_group"]
-                    keywords, error = tag_doc(
-                        main_id,
-                        graph_tags=graph_tags,
-                        get_full_text=get_full_text,
-                        top_k=TOP_K)
-                    if keywords is None:
-                        errors.append(
-                            "error while processing "
-                            f"{main_id} for {tag_group}:\n{error}")
-                    else:
-                        write_tag(
-                            db,
-                            session,
-                            tag_group,
-                            main_id,
-                            list(keywords))
-                    tag_groups.add(tag_group)
-                    processing_count += 1
-                    if processing_count >= batch_size:
-                        break
-                if processing_count > 0:
-                    process_enqueue(
-                        process_queue_redis,
-                        {
-                            "stage": "tag",
-                        })
-                for tag_group in tag_groups:
-                    if is_ready(session, tag_group):
-                        process_enqueue(
-                            process_queue_redis,
-                            {
-                                "stage": "cluster",
-                                "tag_group": tag_group,
-                            })
-                if errors:
-                    raise ValueError(
-                        f"errors while processing:\n{NL.join(errors)}")
-            return f"finished {processing_count}"
+            return tagger_tag(
+                db,
+                process_queue_redis=process_queue_redis,
+                graph_tags=graph_tags,
+                get_full_text=get_full_text,
+                process_enqueue=process_enqueue)
         if entry["stage"] == "cluster":
-            # FIXME
-            return "TODO"
+            return tagger_cluster(
+                db,
+                entry["tag_group"],
+                process_queue_redis=process_queue_redis,
+                articles_graph=articles_graph,
+                process_enqueue=process_enqueue)
         raise ValueError(f"invalid stage {entry['stage']}")
 
     process_enqueue = register_process_queue(
@@ -261,3 +212,140 @@ def tag_doc(
         key=lambda wordscore: wordscore[1],
         reverse=True)[:top_k]
     return {kword for (kword, _) in top_kwords}, None
+
+
+def tagger_init(
+        db: DBConnector,
+        entry: InitTaggerPayload,
+        *,
+        process_queue_redis: Redis,
+        get_all_docs: AllDocsFn,
+        doc_is_remove: IsRemoveFn,
+        process_enqueue: ProcessEnqueue[TaggerPayload]) -> str:
+    errors: list[str] = []
+    total = 0
+    with db.get_session() as session:
+        cur_tag_group = create_tag_group(session, entry["name"])
+        for base in entry["bases"]:
+            cur_main_ids: list[str] = []
+            for cur_main_id in get_all_docs(base):
+                is_remove, error_remove = doc_is_remove(cur_main_id)
+                if error_remove is not None:
+                    errors.append(error_remove)
+                    continue
+                if is_remove:
+                    continue
+                cur_main_ids.append(cur_main_id)
+            add_tag_members(
+                db, session, cur_tag_group, cur_main_ids)
+            total += len(cur_main_ids)
+        process_enqueue(
+            process_queue_redis,
+            {
+                "stage": "tag",
+            })
+    if errors:
+        raise ValueError(
+            f"errors while processing:\n{NL.join(errors)}")
+    return f"created tag group {cur_tag_group} with {total} entries"
+
+
+def tagger_tag(
+        db: DBConnector,
+        *,
+        process_queue_redis: Redis,
+        graph_tags: GraphProfile,
+        get_full_text: FullTextFn,
+        process_enqueue: ProcessEnqueue[TaggerPayload]) -> str:
+    batch_size = BATCH_SIZE
+    errors: list[str] = []
+    with db.get_session() as session:
+        processing_count = 0
+        tag_groups: set[int] = set()
+        for elem in get_incomplete(session):
+            main_id = elem["main_id"]
+            tag_group = elem["tag_group"]
+            keywords, error = tag_doc(
+                main_id,
+                graph_tags=graph_tags,
+                get_full_text=get_full_text,
+                top_k=TOP_K)
+            if keywords is None:
+                errors.append(
+                    "error while processing "
+                    f"{main_id} for {tag_group}:\n{error}")
+            else:
+                write_tag(
+                    db,
+                    session,
+                    tag_group,
+                    main_id,
+                    list(keywords))
+            tag_groups.add(tag_group)
+            processing_count += 1
+            if processing_count >= batch_size:
+                break
+        if processing_count > 0:
+            process_enqueue(
+                process_queue_redis,
+                {
+                    "stage": "tag",
+                })
+        for tag_group in tag_groups:
+            if is_ready(session, tag_group):
+                process_enqueue(
+                    process_queue_redis,
+                    {
+                        "stage": "cluster",
+                        "tag_group": tag_group,
+                    })
+        if errors:
+            raise ValueError(
+                f"errors while processing:\n{NL.join(errors)}")
+    return f"finished {processing_count}"
+
+
+def tagger_cluster(
+        db: DBConnector,
+        tag_group: int,
+        *,
+        process_queue_redis: Redis,
+        articles_graph: GraphProfile,
+        process_enqueue: ProcessEnqueue[TaggerPayload]) -> str:
+
+    def get_embeds() -> tuple[list[str], np.ndarray]:
+        with db.get_session() as session:
+            keywords = sorted(get_keywords(session, tag_group))
+        all_embeds = get_text_results_immediate(
+            keywords,
+            graph_profile=articles_graph,
+            output_sample=[1.0])
+        final_kw: list[str] = []
+        embeds: list[list[float]] = []
+        for keyword, embed in zip(keywords, all_embeds):
+            if embed is None:
+                continue
+            final_kw.append(keyword)
+            embeds.append(embed)
+        final_embeds = normalize(embeds)
+        return final_kw, final_embeds
+
+    def do_cluster(embeds: np.ndarray) -> list[list[int]]:
+        cmodel = AgglomerativeClustering(
+            n_clusters=None,
+            distance_threshold=0.75,
+            metric="cosine",
+            linkage="average")
+        cmodel.fit(embeds)
+        labels = cmodel.labels_
+        ckwords: collections.defaultdict[str, list[int]] = \
+            collections.defaultdict(list)
+        for kw_ix, cluster_id in enumerate(labels):
+            ckwords[cluster_id].append(kw_ix)
+        return list(ckwords.values())
+
+    def centroid(embeds: np.ndarray, cluster: list[int]) -> int:
+        cembeds = embeds[cluster, :]  # n x dim
+        cvec = normalize(cembeds.sum(axis=0).reshape((1, -1)))  # 1 x dim
+
+    return "done"

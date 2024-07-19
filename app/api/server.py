@@ -871,6 +871,7 @@ def setup(
         tag_processor = register_tagger(
             db,
             process_queue_redis=process_queue_redis,
+            articles_graph=graph_embed,
             graph_tags=graph_tags,
             get_all_docs=get_all_docs,
             doc_is_remove=doc_is_remove,
