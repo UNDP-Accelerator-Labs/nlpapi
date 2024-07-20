@@ -21,11 +21,11 @@ import uuid
 from collections.abc import Callable
 from typing import Literal, Protocol, TypedDict
 
-import numpy as np
 from qdrant_client import QdrantClient
 from redipy import Redis
 from scattermind.system.util import maybe_first
 
+from app.misc.math import dot_order
 from app.misc.util import (
     CHUNK_PADDING,
     CHUNK_SIZE,
@@ -492,34 +492,6 @@ def apply_snippets(
         return res
 
     return [apply(ix, hit) for (ix, hit) in enumerate(hits)]
-
-
-def dot_order(
-        embed: list[float],
-        sembeds: list[tuple[tuple[int, str], list[float]]],
-        hit_limit: int) -> dict[int, list[str]]:
-    mat_ref = np.array([embed])  # 1 x len(embed)
-
-    def dot_hit(group: list[tuple[str, list[float]]]) -> list[str]:
-        mat_embed = np.array([
-            sembed
-            for (_, sembed) in group
-        ]).T  # len(embed) x len(group)
-        dots = np.matmul(mat_ref, mat_embed).ravel()
-        ixs = list(np.argsort(dots))[::-1]
-        return [group[ix][0] for ix in ixs[:hit_limit]]
-
-    lookup: dict[int, list[tuple[str, list[float]]]] = {}
-    for ((pos, txt), cur_embed) in sembeds:
-        cur: list[tuple[str, list[float]]] | None = lookup.get(pos)
-        if cur is None:
-            cur = []
-            lookup[pos] = cur
-        cur.append((txt, cur_embed))
-    return {
-        pos: dot_hit(cur_group)
-        for (pos, cur_group) in lookup.items()
-    }
 
 
 def snippet_post(

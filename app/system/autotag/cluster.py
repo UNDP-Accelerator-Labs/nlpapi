@@ -19,12 +19,15 @@ from typing import Literal, Protocol, TypedDict
 import numpy as np
 from redipy import Redis
 from scattermind.system.torch_util import tensor_to_str
-from sklearn.cluster import AgglomerativeClustering
-from sklearn.preprocessing import normalize
+from sklearn.cluster import AgglomerativeClustering  # type: ignore
+from sklearn.preprocessing import normalize  # type: ignore
 
+from app.misc.math import dot_order_np
 from app.misc.util import CHUNK_PADDING, CHUNK_SIZE, NL, only
 from app.system.autotag.autotag import (
     add_tag_members,
+    clear_clusters,
+    create_cluster,
     create_tag_group,
     get_incomplete,
     get_keywords,
@@ -55,7 +58,15 @@ CluterTaggerPayload = TypedDict('CluterTaggerPayload', {
     "stage": Literal["cluster"],
     "tag_group": int,
 })
-TaggerPayload = InitTaggerPayload | TagTaggerPayload | CluterTaggerPayload
+UpdatePlatformPayload = TypedDict('UpdatePlatformPayload', {
+    "stage": Literal["platform"],
+    "tag_group": int,
+})
+TaggerPayload = (
+    InitTaggerPayload
+    | TagTaggerPayload
+    | CluterTaggerPayload
+    | UpdatePlatformPayload)
 
 
 BATCH_SIZE = 20
@@ -88,6 +99,11 @@ def register_tagger(
                 "stage": "cluster",
                 "tag_group": f"{entry['tag_group']}",
             }
+        if entry["stage"] == "platform":
+            return {
+                "stage": "platform",
+                "tag_group": f"{entry['tag_group']}",
+            }
         raise ValueError(f"invalid stage {entry['stage']}")
 
     def tagger_payload_from_json(payload: dict[str, str]) -> TaggerPayload:
@@ -104,6 +120,11 @@ def register_tagger(
         if payload["stage"] == "cluster":
             return {
                 "stage": "cluster",
+                "tag_group": int(payload['tag_group']),
+            }
+        if payload["stage"] == "platform":
+            return {
+                "stage": "platform",
                 "tag_group": int(payload['tag_group']),
             }
         raise ValueError(f"invalid stage {payload['stage']}")
@@ -131,6 +152,8 @@ def register_tagger(
                 process_queue_redis=process_queue_redis,
                 articles_graph=articles_graph,
                 process_enqueue=process_enqueue)
+        if entry["stage"] == "platform":
+            return "TODO"
         raise ValueError(f"invalid stage {entry['stage']}")
 
     process_enqueue = register_process_queue(
@@ -344,8 +367,37 @@ def tagger_cluster(
             ckwords[cluster_id].append(kw_ix)
         return list(ckwords.values())
 
-    def centroid(embeds: np.ndarray, cluster: list[int]) -> int:
-        cembeds = embeds[cluster, :]  # n x dim
+    def centroid(all_embeds: np.ndarray, cluster: list[int]) -> int:
+        cembeds = all_embeds[cluster, :]  # len(cluster) x dim
         cvec = normalize(cembeds.sum(axis=0).reshape((1, -1)))  # 1 x dim
+        ixs = dot_order_np(cvec, cembeds)
+        return cluster[ixs[0]]
 
-    return "done"
+    kws, kwembeds = get_embeds()
+    clusters = do_cluster(kwembeds)
+    representatives: list[int] = [
+        centroid(kwembeds, cluster)
+        for cluster in clusters
+    ]
+    with db.get_session() as session:
+        clear_clusters(session, tag_group)
+        for cluster_ixs, representative_ix in zip(clusters, representatives):
+            representative = kws[representative_ix]
+            kw_cluster = {
+                kws[cix]
+                for cix in cluster_ixs
+            }
+            create_cluster(
+                db,
+                session,
+                tag_group,
+                representative,
+                kw_cluster)
+
+    process_enqueue(
+        process_queue_redis,
+        {
+            "stage": "platform",
+            "tag_group": tag_group,
+        })
+    return f"created {len(clusters)} clusters for {tag_group=}"
