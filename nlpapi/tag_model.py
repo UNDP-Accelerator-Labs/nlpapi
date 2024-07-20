@@ -24,8 +24,8 @@ try:
     from nltk import pos_tag, word_tokenize  # type: ignore
 except ModuleNotFoundError:
     # NOTE: need to make sure the symbols are there
-    pos_tag = None  # type: ignore  # pylint: disable=invalid-name
-    word_tokenize = None  # type: ignore  # pylint: disable=invalid-name
+    pos_tag = None  # pylint: disable=invalid-name
+    word_tokenize = None  # pylint: disable=invalid-name
 from scattermind.system.base import GraphId, NodeId
 from scattermind.system.client.client import ComputeTask
 from scattermind.system.graph.graph import Graph
