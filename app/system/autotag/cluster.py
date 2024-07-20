@@ -219,6 +219,8 @@ def tag_doc(
             success = False
             continue
         keywords = tensor_to_str(result["tags"]).split(",")
+        if not keywords or (len(keywords) == 1 and not keywords[0]):
+            continue
         scores = list(result["scores"].cpu().tolist())
         if len(keywords) != len(scores):
             error_msg = (
