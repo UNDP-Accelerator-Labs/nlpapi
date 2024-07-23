@@ -142,17 +142,18 @@ elif [ ! -z "${FORCE_CPU}" ]; then
     LLAMA_CMAKE_ARGS=
 fi
 
+LLAMA_CPP_PY_VERSION="0.2.83"
 if grep -q "METAL" <<< "${LLAMA_CMAKE_ARGS}"; then
-    ${PYTHON} -m pip install llama-cpp-python==0.2.68 --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/metal"
+    ${PYTHON} -m pip install "llama-cpp-python==${LLAMA_CPP_PY_VERSION}" --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/metal"
 elif grep -q "CUDA" <<< "${LLAMA_CMAKE_ARGS}"; then
     CUDA_VERSION_SHORT="${CUDA_VERSION_SHORT:-cu121}"
     if [ ! -z "${FORCE_BUILD_LLAMA}" ]; then
         CUDACXX=nvcc CMAKE_ARGS="-DLLAMA_CUDA=on -DCMAKE_CUDA_ARCHITECTURES=all-major" FORCE_CMAKE=1 \
-            ${PYTHON} -m pip install llama-cpp-python==0.2.68 --no-cache-dir --force-reinstall --upgrade
+            ${PYTHON} -m pip install "llama-cpp-python==${LLAMA_CPP_PY_VERSION}" --no-cache-dir --force-reinstall --upgrade
     else
         ${PYTHON} -m pip install llama-cpp-python --prefer-binary --no-cache-dir --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/${CUDA_VERSION_SHORT}"
         # ${PYTHON} -m pip install llama-cpp-python --prefer-binary --no-cache-dir --extra-index-url "https://jllllll.github.io/llama-cpp-python-cuBLAS-wheels/AVX2/${CUDA_VERSION_SHORT}"
     fi
 else
-    CMAKE_ARGS="${LLAMA_CMAKE_ARGS}" ${PYTHON} -m pip install --progress-bar off llama-cpp-python==0.2.68
+    CMAKE_ARGS="${LLAMA_CMAKE_ARGS}" ${PYTHON} -m pip install --progress-bar off "llama-cpp-python==${LLAMA_CPP_PY_VERSION}"
 fi

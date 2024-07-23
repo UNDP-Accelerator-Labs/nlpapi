@@ -488,9 +488,13 @@ def get_segments_in_queue(db: DBConnector) -> Iterable[SegmentObj]:
                 DeepDiveSegment.is_valid.is_(None),
                 DeepDiveSegment.deep_dive_result.is_(None)),
             DeepDiveSegment.error.is_(None)))
+        # stmt = stmt.order_by(
+        #     DeepDiveSegment.deep_dive_id,
+        #     DeepDiveSegment.main_id,
+        #     DeepDiveSegment.page)
         stmt = stmt.order_by(
-            DeepDiveSegment.deep_dive_id,
             DeepDiveSegment.main_id,
+            DeepDiveSegment.deep_dive_id,
             DeepDiveSegment.page)
         stmt = stmt.limit(20)
         for row in session.execute(stmt):
