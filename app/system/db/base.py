@@ -307,7 +307,7 @@ class TagClusterMember(Base):  # pylint: disable=too-few-public-methods
     keyword = sa.Column(sa.Text(), nullable=False, primary_key=True)
 
 
-# platform tables
+# global platform tables
 
 
 class SessionTable(Base):  # pylint: disable=too-few-public-methods
@@ -344,6 +344,31 @@ class UsersTable(Base):  # pylint: disable=too-few-public-methods
     created_from_sso = sa.Column(sa.Boolean, default=False)
 
 
+# CREATE TABLE IF NOT EXISTS public.tags
+# (
+#     id integer NOT NULL DEFAULT nextval('tags_id_seq'::regclass),
+#     name citext COLLATE pg_catalog."default",
+#     contributor uuid,
+#     language character varying(9) COLLATE pg_catalog."default" DEFAULT 'en'::character varying,
+#     label character varying(99) COLLATE pg_catalog."default",
+#     type character varying(19) COLLATE pg_catalog."default",
+#     key integer,
+#     description text COLLATE pg_catalog."default",
+#     CONSTRAINT tags_pkey PRIMARY KEY (id),
+#     CONSTRAINT name_type_key UNIQUE (name, type)
+# )
+# WITH (
+#     OIDS = FALSE
+# )
+# TABLESPACE pg_default;
+#
+# ALTER TABLE IF EXISTS public.tags
+#     OWNER to acclabshqadmin;
+
+
+# individual platform tables
+
+
 class PadTable(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "pads"
 
@@ -372,6 +397,28 @@ class PadTable(Base):  # pylint: disable=too-few-public-methods
     #     ON DELETE CASCADE,
     owner = sa.Column(sa.UUID)
     # version ltree,
+
+
+# CREATE TABLE IF NOT EXISTS public.tagging
+# (
+#     id integer NOT NULL DEFAULT nextval('tagging_id_seq'::regclass),
+#     pad integer,
+#     tag_id integer NOT NULL,
+#     type character varying(19) COLLATE pg_catalog."default",
+#     CONSTRAINT tagging_pkey PRIMARY KEY (id),
+#     CONSTRAINT unique_pad_tag_type UNIQUE (pad, tag_id, type),
+#     CONSTRAINT tagging_pad_fkey FOREIGN KEY (pad)
+#         REFERENCES public.pads (id) MATCH SIMPLE
+#         ON UPDATE CASCADE
+#         ON DELETE CASCADE
+# )
+# WITH (
+#     OIDS = FALSE
+# )
+# TABLESPACE pg_default;
+#
+# ALTER TABLE IF EXISTS public.tagging
+#     OWNER to acclabshqadmin;
 
 
 # blogs

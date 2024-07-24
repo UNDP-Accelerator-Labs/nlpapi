@@ -131,7 +131,13 @@ class LlamaNode(Node):
 
         try:
             for out in model.create_chat_completion(
-                    messages, max_tokens=None, stream=True):
+                    messages,
+                    max_tokens=None,
+                    stream=True,
+                    # response_format={
+                    #     "type": "json_object",
+                    # },
+                    ):
                 if not task.is_valid():
                     break
                 resp = cast(CreateChatCompletionStreamResponse, out)
