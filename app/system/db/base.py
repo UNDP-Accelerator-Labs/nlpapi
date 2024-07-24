@@ -345,21 +345,21 @@ class UsersTable(Base):  # pylint: disable=too-few-public-methods
     created_from_sso = sa.Column(sa.Boolean, default=False)
 
 
-class GlobalTagsTable(Base):  # pylint: disable=too-few-public-methods
-    __tablename__ = "tags"
+# class GlobalTagsTable(Base):  # pylint: disable=too-few-public-methods
+#     __tablename__ = "tags"
 
-    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    name: sa.Column[CIText] = sa.Column(CIText())
-    contributor = sa.Column(sa.UUID)
-    language = sa.Column(sa.String(9), default="en")
-    label = sa.Column(sa.String(99))
-    type = sa.Column(sa.String(19))
-    key = sa.Column(sa.Integer)
-    description = sa.Column(sa.Text())
+#     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+#     name: sa.Column[CIText] = sa.Column(CIText())
+#     contributor = sa.Column(sa.UUID)
+#     language = sa.Column(sa.String(9), default="en")
+#     label = sa.Column(sa.String(99))
+#     type = sa.Column(sa.String(19))
+#     key = sa.Column(sa.Integer)
+#     description = sa.Column(sa.Text())
 
-    __table_args__ = (
-        sa.UniqueConstraint('name', 'type', name='name_type_key'),
-    )
+#     __table_args__ = (
+#         sa.UniqueConstraint('name', 'type', name='name_type_key'),
+#     )
 
 
 # individual platform tables
