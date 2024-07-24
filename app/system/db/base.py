@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import numpy as np
 import sqlalchemy as sa
+from citext import CIText  # type: ignore
 from psycopg2.extensions import AsIs, register_adapter
 from sqlalchemy.orm import registry
 from sqlalchemy.orm.decl_api import DeclarativeMeta
@@ -344,26 +345,21 @@ class UsersTable(Base):  # pylint: disable=too-few-public-methods
     created_from_sso = sa.Column(sa.Boolean, default=False)
 
 
-# CREATE TABLE IF NOT EXISTS public.tags
-# (
-#     id integer NOT NULL DEFAULT nextval('tags_id_seq'::regclass),
-#     name citext COLLATE pg_catalog."default",
-#     contributor uuid,
-#     language character varying(9) COLLATE pg_catalog."default" DEFAULT 'en'::character varying,
-#     label character varying(99) COLLATE pg_catalog."default",
-#     type character varying(19) COLLATE pg_catalog."default",
-#     key integer,
-#     description text COLLATE pg_catalog."default",
-#     CONSTRAINT tags_pkey PRIMARY KEY (id),
-#     CONSTRAINT name_type_key UNIQUE (name, type)
-# )
-# WITH (
-#     OIDS = FALSE
-# )
-# TABLESPACE pg_default;
-#
-# ALTER TABLE IF EXISTS public.tags
-#     OWNER to acclabshqadmin;
+class GlobalTagsTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tags"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    name: sa.Column[CIText] = sa.Column(CIText())
+    contributor = sa.Column(sa.UUID)
+    language = sa.Column(sa.String(9), default="en")
+    label = sa.Column(sa.String(99))
+    type = sa.Column(sa.String(19))
+    key = sa.Column(sa.Integer)
+    description = sa.Column(sa.Text())
+
+    __table_args__ = (
+        sa.UniqueConstraint('name', 'type', name='name_type_key'),
+    )
 
 
 # individual platform tables
@@ -399,26 +395,24 @@ class PadTable(Base):  # pylint: disable=too-few-public-methods
     # version ltree,
 
 
-# CREATE TABLE IF NOT EXISTS public.tagging
-# (
-#     id integer NOT NULL DEFAULT nextval('tagging_id_seq'::regclass),
-#     pad integer,
-#     tag_id integer NOT NULL,
-#     type character varying(19) COLLATE pg_catalog."default",
-#     CONSTRAINT tagging_pkey PRIMARY KEY (id),
-#     CONSTRAINT unique_pad_tag_type UNIQUE (pad, tag_id, type),
-#     CONSTRAINT tagging_pad_fkey FOREIGN KEY (pad)
-#         REFERENCES public.pads (id) MATCH SIMPLE
-#         ON UPDATE CASCADE
-#         ON DELETE CASCADE
-# )
-# WITH (
-#     OIDS = FALSE
-# )
-# TABLESPACE pg_default;
-#
-# ALTER TABLE IF EXISTS public.tagging
-#     OWNER to acclabshqadmin;
+class PlatformTaggingTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tagging"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    pad = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            PadTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False)
+    tag_id = sa.Column(sa.Integer, nullable=False)
+    type = sa.Column(sa.String(19))
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            'pad', 'tag_id', 'type', name='unique_pad_tag_type'),
+    )
 
 
 # blogs
