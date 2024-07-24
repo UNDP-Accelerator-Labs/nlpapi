@@ -74,6 +74,6 @@ start_api() {
 start_smind
 start_api
 
-sleep 1
+sleep 5
 
 exec make run-ts
