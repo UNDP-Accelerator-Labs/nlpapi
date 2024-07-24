@@ -82,8 +82,8 @@ class LlamaNode(Node):
         print(f"LLAMA_CPP_LIB is {lib} {lib_exists=}")
         self._model = Llama(
             model_path=self.get_arg("model_path").get("str"),
-            n_ctx=30000,
-            n_gpu_layers=-1,  # n_gpu_layers=33,
+            n_ctx=self.get_arg("n_ctx").get("int", 30000),
+            n_gpu_layers=self.get_arg("n_gpu_layers").get("int", -1),
             # n_threads=6,
             # n_batch=521,
             seed=123,
