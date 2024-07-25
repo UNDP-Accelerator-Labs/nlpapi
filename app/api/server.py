@@ -591,12 +591,17 @@ def setup(
 
     config = get_config()
     db = DBConnector(config["db"])
-    platforms = {
+    all_platforms = {
         pname: DBConnector(pconfig)
         for pname, pconfig in config["platforms"].items()
     }
+    platforms: dict[str, DBConnector] = {
+        pname: pdb
+        for pname, pdb in all_platforms.items()
+        if pname != "login"
+    }
     try:
-        login_db = platforms["login"]
+        login_db = all_platforms["login"]
     except KeyError as kerr:
         ps_str = envload_str("LOGIN_DB_NAME_PLATFORMS", default="")
         raise ValueError(
