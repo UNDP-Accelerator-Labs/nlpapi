@@ -15,7 +15,11 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import TypedDict
 
-from app.system.deepdive.collection import DeepDiveName, DocumentObj
+from app.system.deepdive.collection import (
+    DeepDiveName,
+    DocumentObj,
+    SegmentStats,
+)
 from app.system.smind.api import QueueStat
 from app.system.smind.vec import DBName, VecDBStat
 from app.system.workqueues.queue import ProcessError, ProcessQueueStats
@@ -70,6 +74,9 @@ BuildIndexResponse = TypedDict('BuildIndexResponse', {
 CollectionResponse = TypedDict('CollectionResponse', {
     "collection_id": int,
 })
+CollectionStats = TypedDict('CollectionStats', {
+    "segments": list[SegmentStats],
+})
 CollectionJSON = TypedDict('CollectionJSON', {
     "id": int,
     "user": str,
@@ -89,6 +96,9 @@ DocumentResponse = TypedDict('DocumentResponse', {
 DocumentListResponse = TypedDict('DocumentListResponse', {
     "documents": list[DocumentObj],
     "is_readonly": bool,
+})
+TagListResponse = TypedDict('TagListResponse', {
+    "tags": dict[str, list[str]],
 })
 FulltextResponse = TypedDict('FulltextResponse', {
     "content": str | None,

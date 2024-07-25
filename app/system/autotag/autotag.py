@@ -54,6 +54,18 @@ def create_tag_group(session: Session, name: str | None) -> int:
     return int(row_id)
 
 
+def get_tag_group(session: Session, name: str | None) -> int:
+    stmt = sa.select(TagGroupTable.id)
+    if name is not None:
+        stmt = stmt.where(TagGroupTable.name == name)
+    stmt = stmt.order_by(TagGroupTable.id.desc())
+    stmt = stmt.limit(1)
+    tag_group = session.execute(stmt).scalar()
+    if tag_group is None:
+        raise ValueError(f"could not find tag group {name=}")
+    return int(tag_group)
+
+
 def add_tag_members(
         db: DBConnector,
         session: Session,
@@ -208,17 +220,16 @@ def create_cluster(
 
 
 def get_tags_for_main_id(
-        db: DBConnector, tag_group: int, main_id: str) -> set[str]:
-    with db.get_session() as session:
-        stmt = sa.select(TagCluster.name).where(sa.and_(
-            TagNamesTable.main_id == main_id,
-            TagNamesTable.tag_group_from <= tag_group,
-            sa.or_(
-                TagNamesTable.tag_group_to.is_(None),
-                TagNamesTable.tag_group_to > tag_group),
-            TagNamesTable.keyword == TagClusterMember.keyword,
-            TagClusterMember.tag_cluster == TagCluster.id))
-        return {row.name for row in session.execute(stmt)}
+        session: Session, tag_group: int, main_id: str) -> set[str]:
+    stmt = sa.select(TagCluster.name).where(sa.and_(
+        TagNamesTable.main_id == main_id,
+        TagNamesTable.tag_group_from <= tag_group,
+        sa.or_(
+            TagNamesTable.tag_group_to.is_(None),
+            TagNamesTable.tag_group_to > tag_group),
+        TagNamesTable.keyword == TagClusterMember.keyword,
+        TagClusterMember.tag_cluster == TagCluster.id))
+    return {row.name for row in session.execute(stmt)}
 
 
 def create_tag_tables(db: DBConnector) -> None:

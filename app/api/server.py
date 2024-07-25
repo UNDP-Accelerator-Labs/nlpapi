@@ -39,6 +39,7 @@ from app.api.response_types import (
     CollectionListResponse,
     CollectionOptionsResponse,
     CollectionResponse,
+    CollectionStats,
     DateResponse,
     DocumentListResponse,
     DocumentResponse,
@@ -48,6 +49,7 @@ from app.api.response_types import (
     Snippy,
     SnippyResponse,
     StatsResponse,
+    TagListResponse,
     URLInspectResponse,
     UserResponse,
     VersionResponse,
@@ -64,6 +66,7 @@ from app.misc.util import (
 )
 from app.misc.version import get_version
 from app.system.auth import get_session, is_valid_token, SessionInfo
+from app.system.autotag.autotag import get_tag_group, get_tags_for_main_id
 from app.system.autotag.cluster import register_tagger
 from app.system.config import get_config
 from app.system.dates.datetranslate import extract_date
@@ -79,6 +82,7 @@ from app.system.deepdive.collection import (
     requeue,
     requeue_error,
     requeue_meta,
+    segment_stats,
     set_options,
 )
 from app.system.deepdive.diver import maybe_diver_thread
@@ -865,6 +869,21 @@ def setup(
             "process_queue": process_queue_info(process_queue_redis),
         }
 
+    @server.json_post(f"{prefix}/tags/list")
+    def _post_tags_list(_req: QSRH, rargs: ReqArgs) -> TagListResponse:
+        args = rargs["post"]
+        name: str | None = args.get("name")
+        main_ids: list[str] = list(args["main_ids"])
+        tags: dict[str, list[str]] = {}
+        with db.get_session() as session:
+            tag_group = get_tag_group(session, name)
+            for main_id in main_ids:
+                tags[main_id] = sorted(
+                    get_tags_for_main_id(session, tag_group, main_id))
+        return {
+            "tags": tags,
+        }
+
     # # # SECURE # # #
     with server.middlewares(verify_token):
         # *** auto tag ***
@@ -1018,6 +1037,13 @@ def setup(
                 res[name] = mod.execute(
                     input_str, user, module.get("args", {}))
             return res
+
+    @server.json_get(f"{prefix}/collection/stats")
+    def _get_collection_stats(_req: QSRH, _rargs: ReqArgs) -> CollectionStats:
+        stats = list(segment_stats(db))
+        return {
+            "segments": stats,
+        }
 
     # # # SESSION # # #
     with server.middlewares(verify_session):

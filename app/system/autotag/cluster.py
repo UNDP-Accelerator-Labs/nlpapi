@@ -426,13 +426,15 @@ def tagger_update_platform(
     for base in all_platforms:
         all_main_ids.extend(get_all_docs(base))
 
-    def get_main_id_keywords(main_id: str) -> set[str]:
-        return get_tags_for_main_id(db, tag_group, main_id)
+    with db.get_session() as session:
+        def get_main_id_keywords(main_id: str) -> set[str]:
+            return get_tags_for_main_id(session, tag_group, main_id)
 
-    all_tags, kwords = process_main_ids(
-        all_main_ids,
-        platforms=all_platforms,
-        get_keywords=get_main_id_keywords)
+        all_tags, kwords = process_main_ids(
+            all_main_ids,
+            platforms=all_platforms,
+            get_keywords=get_main_id_keywords)
+
     fill_in_everything(global_db, platforms, all_tags=all_tags, kwords=kwords)
     return (
         f"updated all platforms ({all_platforms}) with tag group {tag_group}: "

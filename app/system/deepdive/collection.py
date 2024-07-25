@@ -107,6 +107,15 @@ SegmentObj = TypedDict('SegmentObj', {
 })
 
 
+SegmentStats = TypedDict('SegmentStats', {
+    "deep_dive": int,
+    "is_valid": bool | None,
+    "has_result": bool,
+    "has_error": bool,
+    "count": int,
+})
+
+
 def get_deep_dive_keys(deep_dive: DeepDiveName) -> tuple[str, str]:
     if deep_dive == "circular_economy":
         return ("verify_circular_economy", "rate_circular_economy")
@@ -677,6 +686,29 @@ def combine_segments(
         if not is_error:
             remove_segments(session, collection_id, [main_id])
         return "done"
+
+
+def segment_stats(db: DBConnector) -> Iterable[SegmentStats]:
+    with db.get_session() as session:
+        stmt = sa.select(
+            DeepDiveSegment.deep_dive_id,
+            DeepDiveSegment.is_valid,
+            DeepDiveSegment.deep_dive_result.is_not(None).label("result"),
+            DeepDiveSegment.error.is_not(None).label("error"),
+            sa.func.count().label("total"))  # pylint: disable=not-callable
+        stmt = stmt.group_by(
+            DeepDiveSegment.deep_dive_id,
+            DeepDiveSegment.is_valid,
+            DeepDiveSegment.deep_dive_result.is_not(None),
+            DeepDiveSegment.error.is_not(None))
+        for row in session.execute(stmt):
+            yield {
+                "deep_dive": row.deep_dive_id,
+                "is_valid": row.is_valid,
+                "has_result": row.result,
+                "has_error": row.error,
+                "count": row.total,
+            }
 
 
 def create_deep_dive_tables(db: DBConnector) -> None:
