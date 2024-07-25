@@ -99,6 +99,7 @@ DocumentListResponse = TypedDict('DocumentListResponse', {
 })
 TagListResponse = TypedDict('TagListResponse', {
     "tags": dict[str, list[str]],
+    "tag_group": int,
 })
 FulltextResponse = TypedDict('FulltextResponse', {
     "content": str | None,

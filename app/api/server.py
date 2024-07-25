@@ -887,6 +887,7 @@ def setup(
                     get_tags_for_main_id(session, tag_group, main_id))
         return {
             "tags": tags,
+            "tag_group": tag_group,
         }
 
     # # # SECURE # # #
