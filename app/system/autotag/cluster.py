@@ -31,9 +31,11 @@ from app.system.autotag.autotag import (
     create_tag_group,
     get_incomplete,
     get_keywords,
+    get_tags_for_main_id,
     is_ready,
     write_tag,
 )
+from app.system.autotag.platform import fill_in_everything, process_main_ids
 from app.system.db.db import DBConnector
 from app.system.prep.fulltext import AllDocsFn, FullTextFn, IsRemoveFn
 from app.system.prep.snippify import snippify_text
@@ -76,6 +78,8 @@ TOP_K = 10
 def register_tagger(
         db: DBConnector,
         *,
+        global_db: DBConnector,
+        platforms: dict[str, DBConnector],
         process_queue_redis: Redis,
         articles_graph: GraphProfile,
         graph_tags: GraphProfile,
@@ -153,7 +157,12 @@ def register_tagger(
                 articles_graph=articles_graph,
                 process_enqueue=process_enqueue)
         if entry["stage"] == "platform":
-            return "TODO"
+            return tagger_update_platform(
+                db,
+                global_db=global_db,
+                platforms=platforms,
+                tag_group=entry["tag_group"],
+                get_all_docs=get_all_docs)
         raise ValueError(f"invalid stage {entry['stage']}")
 
     process_enqueue = register_process_queue(
@@ -403,3 +412,28 @@ def tagger_cluster(
             "tag_group": tag_group,
         })
     return f"created {len(clusters)} clusters for {tag_group=}"
+
+
+def tagger_update_platform(
+        db: DBConnector,
+        *,
+        global_db: DBConnector,
+        platforms: dict[str, DBConnector],
+        tag_group: int,
+        get_all_docs: AllDocsFn) -> str:
+    all_platforms: set[str] = set(platforms.keys())
+    all_main_ids: list[str] = []
+    for base in all_platforms:
+        all_main_ids.extend(get_all_docs(base))
+
+    def get_main_id_keywords(main_id: str) -> set[str]:
+        return get_tags_for_main_id(db, tag_group, main_id)
+
+    all_tags, kwords = process_main_ids(
+        all_main_ids,
+        platforms=all_platforms,
+        get_keywords=get_main_id_keywords)
+    fill_in_everything(global_db, platforms, all_tags=all_tags, kwords=kwords)
+    return (
+        f"updated all platforms ({all_platforms}) with tag group {tag_group}: "
+        f"main_ids={len(all_main_ids)} all_tags={len(all_tags)}")

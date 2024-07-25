@@ -870,6 +870,8 @@ def setup(
         # *** auto tag ***
         tag_processor = register_tagger(
             db,
+            global_db=login_db,
+            platforms=platforms,
             process_queue_redis=process_queue_redis,
             articles_graph=graph_embed,
             graph_tags=graph_tags,
