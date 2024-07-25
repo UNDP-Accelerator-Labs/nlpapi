@@ -25,7 +25,7 @@ from app.system.db.base import (
     TagClusterMember,
     TagGroupMembers,
     TagGroupTable,
-    TagsTable,
+    TagNamesTable,
 )
 from app.system.db.db import DBConnector
 
@@ -88,15 +88,15 @@ def write_tag(
 
     def get_previous_keywords() -> Iterable[TagKeyword]:
         stmt = sa.select(
-            TagsTable.id,
-            TagsTable.keyword,
-            TagsTable.tag_group_to)
+            TagNamesTable.id,
+            TagNamesTable.keyword,
+            TagNamesTable.tag_group_to)
         stmt = stmt.where(sa.and_(
-            TagsTable.main_id == main_id,
-            TagsTable.tag_group_from <= tag_group,
+            TagNamesTable.main_id == main_id,
+            TagNamesTable.tag_group_from <= tag_group,
             sa.or_(
-                TagsTable.tag_group_to.is_(None),
-                TagsTable.tag_group_to > tag_group)))
+                TagNamesTable.tag_group_to.is_(None),
+                TagNamesTable.tag_group_to > tag_group)))
         for row in session.execute(stmt):
             yield {
                 "id": row.id,
@@ -105,8 +105,8 @@ def write_tag(
             }
 
     def finish_keywords(finished_ids: list[int]) -> None:
-        stmt = sa.update(TagsTable)
-        stmt = stmt.where(TagsTable.id.in_(finished_ids))
+        stmt = sa.update(TagNamesTable)
+        stmt = stmt.where(TagNamesTable.id.in_(finished_ids))
         stmt = stmt.values(tag_group_to=tag_group)
         session.execute(stmt)
 
@@ -116,7 +116,7 @@ def write_tag(
             include: bool,
             end_group: int | None) -> None:
         for keyword in new_keywords:
-            stmt = db.upsert(TagsTable).values(
+            stmt = db.upsert(TagNamesTable).values(
                 main_id=main_id,
                 tag_group_from=tag_group if include else tag_group + 1,
                 tag_group_to=end_group,
@@ -167,13 +167,13 @@ def is_ready(session: Session, tag_group: int) -> bool:
 def get_keywords(session: Session, tag_group: int) -> set[str]:
     main_ids = sa.select(TagGroupMembers.main_id)
     main_ids = main_ids.where(TagGroupMembers.tag_group == tag_group)
-    stmt = sa.select(TagsTable.keyword)
+    stmt = sa.select(TagNamesTable.keyword)
     stmt = stmt.where(sa.and_(
-        TagsTable.main_id.in_(main_ids),
-        TagsTable.tag_group_from <= tag_group,
+        TagNamesTable.main_id.in_(main_ids),
+        TagNamesTable.tag_group_from <= tag_group,
         sa.or_(
-            TagsTable.tag_group_to.is_(None),
-            TagsTable.tag_group_to > tag_group)))
+            TagNamesTable.tag_group_to.is_(None),
+            TagNamesTable.tag_group_to > tag_group)))
     stmt = stmt.distinct()
     return {
         row.keyword
@@ -211,12 +211,12 @@ def get_tags_for_main_id(
         db: DBConnector, tag_group: int, main_id: str) -> set[str]:
     with db.get_session() as session:
         stmt = sa.select(TagCluster.name).where(sa.and_(
-            TagsTable.main_id == main_id,
-            TagsTable.tag_group_from <= tag_group,
+            TagNamesTable.main_id == main_id,
+            TagNamesTable.tag_group_from <= tag_group,
             sa.or_(
-                TagsTable.tag_group_to.is_(None),
-                TagsTable.tag_group_to > tag_group),
-            TagsTable.keyword == TagClusterMember.keyword,
+                TagNamesTable.tag_group_to.is_(None),
+                TagNamesTable.tag_group_to > tag_group),
+            TagNamesTable.keyword == TagClusterMember.keyword,
             TagClusterMember.tag_cluster == TagCluster.id))
         return {row.name for row in session.execute(stmt)}
 
@@ -226,7 +226,7 @@ def create_tag_tables(db: DBConnector) -> None:
         [
             TagGroupTable,
             TagGroupMembers,
-            TagsTable,
+            TagNamesTable,
             TagCluster,
             TagClusterMember,
         ])
