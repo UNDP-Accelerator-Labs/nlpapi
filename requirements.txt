@@ -45,8 +45,8 @@ scipy==1.10.0
 seaborn==0.12.2
 sentence-transformers~=2.3.0
 spacy==3.5.3
-SQLAlchemy==2.0.9
 sqlalchemy-citext==1.8.0
+SQLAlchemy==2.0.9
 SQLAlchemy[mypy]==2.0.9
 thinc==8.1.12
 tokenizers<0.19
