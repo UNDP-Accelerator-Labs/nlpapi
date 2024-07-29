@@ -45,8 +45,8 @@ scipy
 seaborn
 sentence-transformers
 spacy
-sqlalchemy-citext
 SQLAlchemy
+sqlalchemy-citext
 SQLAlchemy[mypy]
 thinc
 tokenizers
