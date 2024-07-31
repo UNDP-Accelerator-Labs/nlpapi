@@ -241,6 +241,7 @@ class TagGroupTable(Base):  # pylint: disable=too-few-public-methods
         sa.DateTime(timezone=True),
         nullable=False,
         server_default=sa.func.now())  # pylint: disable=not-callable
+    is_updating = sa.Column(sa.Boolean, nullable=False, default=True)
 
 
 class TagGroupMembers(Base):  # pylint: disable=too-few-public-methods

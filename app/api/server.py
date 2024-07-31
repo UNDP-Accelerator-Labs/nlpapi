@@ -915,7 +915,8 @@ def setup(
             args = rargs["post"]
             name: str | None = args.get("name")
             bases: list[str] = list(args["bases"])
-            tag_processor(name=name, bases=bases)
+            is_updating = to_bool(args.get("is_updating", True))
+            tag_processor(name=name, bases=bases, is_updating=is_updating)
             return {
                 "enqueued": True,
             }

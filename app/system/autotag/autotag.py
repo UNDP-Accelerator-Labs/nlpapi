@@ -43,10 +43,14 @@ TagKeyword = TypedDict('TagKeyword', {
 })
 
 
-def create_tag_group(session: Session, name: str | None) -> int:
+def create_tag_group(
+        session: Session,
+        name: str | None,
+        *,
+        is_updating: bool) -> int:
     if name is None:
         name = f"tag {get_time_str()}"
-    stmt = sa.insert(TagGroupTable).values(name=name)
+    stmt = sa.insert(TagGroupTable).values(name=name, is_updating=is_updating)
     stmt = stmt.returning(TagGroupTable.id)
     row_id = session.execute(stmt).scalar()
     if row_id is None:
@@ -64,6 +68,15 @@ def get_tag_group(session: Session, name: str | None) -> int:
     if tag_group is None:
         raise ValueError(f"could not find tag group {name=}")
     return int(tag_group)
+
+
+def is_updating_tag_group(session: Session, tag_group: int) -> bool:
+    stmt = sa.select(TagGroupTable.is_updating)
+    stmt = stmt.where(TagGroupTable.id == tag_group)
+    tag_group_is_updating = session.execute(stmt).scalar()
+    if tag_group_is_updating is None:
+        return False
+    return bool(tag_group_is_updating)
 
 
 def add_tag_members(

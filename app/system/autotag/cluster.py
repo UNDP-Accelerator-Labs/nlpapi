@@ -33,6 +33,7 @@ from app.system.autotag.autotag import (
     get_keywords,
     get_tags_for_main_id,
     is_ready,
+    is_updating_tag_group,
     write_tag,
 )
 from app.system.autotag.platform import fill_in_everything, process_main_ids
@@ -44,13 +45,19 @@ from app.system.workqueues.queue import ProcessEnqueue, register_process_queue
 
 
 class TaggerProcessor(Protocol):  # pylint: disable=too-few-public-methods
-    def __call__(self, *, name: str | None, bases: list[str]) -> None:
+    def __call__(
+            self,
+            *,
+            name: str | None,
+            bases: list[str],
+            is_updating: bool) -> None:
         ...
 
 
 InitTaggerPayload = TypedDict('InitTaggerPayload', {
     "stage": Literal["init"],
     "name": str | None,
+    "is_updating": bool,
     "bases": list[str],
 })
 TagTaggerPayload = TypedDict('TagTaggerPayload', {
@@ -93,6 +100,7 @@ def register_tagger(
                 "stage": "init",
                 "name": "" if entry["name"] is None else entry["name"],
                 "bases": ",".join(entry["bases"]),
+                "is_updating": f"{int(entry['is_updating'])}",
             }
         if entry["stage"] == "tag":
             return {
@@ -116,6 +124,7 @@ def register_tagger(
                 "stage": "init",
                 "name": payload["name"] if payload["name"] else None,
                 "bases": payload["bases"].split(","),
+                "is_updating": bool(int(payload["is_updating"])),
             }
         if payload["stage"] == "tag":
             return {
@@ -171,13 +180,15 @@ def register_tagger(
         tagger_payload_from_json,
         tagger_compute)
 
-    def tagger_processor(*, name: str | None, bases: list[str]) -> None:
+    def tagger_processor(
+            *, name: str | None, bases: list[str], is_updating: bool) -> None:
         process_enqueue(
             process_queue_redis,
             {
                 "stage": "init",
                 "name": name,
                 "bases": bases,
+                "is_updating": is_updating,
             })
 
     return tagger_processor
@@ -259,7 +270,8 @@ def tagger_init(
     errors: list[str] = []
     total = 0
     with db.get_session() as session:
-        cur_tag_group = create_tag_group(session, entry["name"])
+        cur_tag_group = create_tag_group(
+            session, entry["name"], is_updating=entry["is_updating"])
         for base in entry["bases"]:
             cur_main_ids: list[str] = []
             for cur_main_id in get_all_docs(base):
@@ -404,13 +416,15 @@ def tagger_cluster(
                 tag_group,
                 representative,
                 kw_cluster)
+        is_updating = is_updating_tag_group(session, tag_group)
 
-    process_enqueue(
-        process_queue_redis,
-        {
-            "stage": "platform",
-            "tag_group": tag_group,
-        })
+    if is_updating:
+        process_enqueue(
+            process_queue_redis,
+            {
+                "stage": "platform",
+                "tag_group": tag_group,
+            })
     return f"created {len(clusters)} clusters for {tag_group=}"
 
 
