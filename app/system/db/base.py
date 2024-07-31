@@ -153,6 +153,37 @@ class QueryLog(Base):  # pylint: disable=too-few-public-methods
 # deep dives
 
 
+class DeepDivePrompt(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "deep_dive_prompt"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    name = sa.Column(sa.Text(), nullable=False)
+    main_prompt = sa.Column(sa.Text(), nullable=False)
+    post_prompt = sa.Column(sa.Text(), nullable=True)
+    categories = sa.Column(sa.Text(), nullable=True)
+
+
+class DeepDiveProcess(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "deep_dive_process"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    name = sa.Column(sa.Text(), nullable=False)
+    verify_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            DeepDivePrompt.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False)
+    categories_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            DeepDivePrompt.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False)
+
+
 class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "deep_dive_collection"
 
@@ -161,9 +192,16 @@ class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
     user: sa.Column[sa.Uuid] = sa.Column(
         sa.Uuid, nullable=False, primary_key=True)  # type: ignore
     name = sa.Column(sa.Text(), nullable=False, primary_key=True)
-    verify_key = sa.Column(sa.Text(), nullable=False)
-    deep_dive_key = sa.Column(sa.Text(), nullable=False)
+    verify_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
+    deep_dive_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
     is_public = sa.Column(sa.Boolean, nullable=False, default=False)
+    process = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            DeepDiveProcess.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False)
 
 
 DEEP_DIVE_ELEMENT_ID_SEQ: sa.Sequence = sa.Sequence(
