@@ -205,6 +205,12 @@ def maybe_float(value: Any) -> float | None:
     return float(value)
 
 
+def maybe_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    return int(value)
+
+
 def is_json(value: str) -> bool:
     try:
         json.loads(value)

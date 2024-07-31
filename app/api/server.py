@@ -61,6 +61,7 @@ from app.misc.util import (
     DEFAULT_HIT_LIMIT,
     get_time_str,
     maybe_float,
+    maybe_int,
     SMALL_CHUNK_SIZE,
     to_bool,
 )
@@ -877,11 +878,15 @@ def setup(
     @server.json_post(f"{prefix}/tags/list")
     def _post_tags_list(_req: QSRH, rargs: ReqArgs) -> TagListResponse:
         args = rargs["post"]
+        tag_group: int | None = maybe_int(args.get("tag_group"))
         name: str | None = args.get("name")
+        if tag_group is not None and name is not None:
+            raise ValueError(f"{tag_group=} or {name=} cannot both be set")
         main_ids: list[str] = list(args["main_ids"])
         tags: dict[str, list[str]] = {}
         with db.get_session() as session:
-            tag_group = get_tag_group(session, name)
+            if tag_group is None:
+                tag_group = get_tag_group(session, name)
             for main_id in main_ids:
                 tags[main_id] = sorted(
                     get_tags_for_main_id(session, tag_group, main_id))

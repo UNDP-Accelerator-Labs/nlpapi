@@ -16,7 +16,6 @@
 import os
 from typing import cast
 
-import llama_cpp
 from llama_cpp import CreateChatCompletionStreamResponse, Llama
 from scattermind.system.base import GraphId, NodeId
 from scattermind.system.client.client import ComputeTask
@@ -169,8 +168,9 @@ class LlamaNode(Node):
         system_prompt_keys = inputs.get_data("system_prompt_key")
         tasks = inputs.get_current_tasks()
 
-        model.set_cache(llama_cpp.llama_cache.LlamaDiskCache(
-            os.path.join(cache_dir, self.get_id().to_parseable())))
+        # NOTE: disk cache performs poorly as the cache grows
+        # model.set_cache(llama_cpp.llama_cache.LlamaDiskCache(
+        #     os.path.join(cache_dir, self.get_id().to_parseable())))
         for prompt, system_prompt_key, task in zip(
                 prompts.iter_values(),
                 system_prompt_keys.iter_values(),
