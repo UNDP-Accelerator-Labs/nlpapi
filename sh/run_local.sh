@@ -37,6 +37,7 @@ if [ ! -f "${ENV_FILE}" ]; then
 fi
 
 start_redis() {
+    mkdir -p "userdata/$1/"
     redis-server "local/redis/$1.conf" --port "$2" \
         >> "userdata/$1/redis-${DATE}.log" 2>&1 &
 }
