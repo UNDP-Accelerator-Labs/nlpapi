@@ -53,6 +53,7 @@ from app.api.response_types import (
     TagDocsResponse,
     TagListResponse,
     TitleResponse,
+    TitlesResponse,
     URLInspectResponse,
     UserResponse,
     VersionResponse,
@@ -1185,11 +1186,7 @@ def setup(
                 "error": error_msg,
             }
 
-        @server.json_post(f"{prefix}/documents/title")
-        def _post_documents_title(
-                _req: QSRH, rargs: ReqArgs) -> TitleResponse:
-            args = rargs["post"]
-            main_id: str = args["main_id"]
+        def get_doc_info(main_id: str) -> TitleResponse:
             url_title, error_msg = get_url_title(main_id)
             if url_title is None:
                 return {
@@ -1202,6 +1199,26 @@ def setup(
                 "url": url,
                 "title": title,
                 "error": error_msg,
+            }
+
+        @server.json_post(f"{prefix}/documents/info")
+        def _post_documents_info(
+                _req: QSRH, rargs: ReqArgs) -> TitleResponse:
+            args = rargs["post"]
+            main_id: str = args["main_id"]
+            return get_doc_info(main_id)
+
+        @server.json_post(f"{prefix}/documents/infos")
+        def _post_documents_infos(
+                _req: QSRH, rargs: ReqArgs) -> TitlesResponse:
+            args = rargs["post"]
+            main_ids: list[str] = args["main_ids"]
+            info: list[TitleResponse] = [
+                get_doc_info(main_id)
+                for main_id in main_ids
+            ]
+            return {
+                "info": info,
             }
 
         @server.json_post(f"{prefix}/documents/requeue")

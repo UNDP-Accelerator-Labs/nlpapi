@@ -120,6 +120,9 @@ TitleResponse = TypedDict('TitleResponse', {
     "title": str | None,
     "error": str | None,
 })
+TitlesResponse = TypedDict('TitlesResponse', {
+    "info": list[TitleResponse],
+})
 RequeueResponse = TypedDict('RequeueResponse', {
     "done": bool,
 })
