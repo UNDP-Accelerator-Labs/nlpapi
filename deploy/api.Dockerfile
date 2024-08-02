@@ -1,6 +1,9 @@
 FROM continuumio/miniconda3:24.1.2-0
 RUN apt-get update && apt-get -y upgrade \
   && apt-get install -y --no-install-recommends \
+    build-essential \
+    manpages-dev \
+    software-properties-common \
     git \
     libpq-dev \
     gcc \
@@ -15,7 +18,7 @@ ARG REQUIREMENTS_PATH
 COPY "${REQUIREMENTS_PATH}" "requirements.docker.txt"
 RUN mkdir sh
 COPY sh/install.sh sh
-RUN REQUIREMENTS_PATH="requirements.docker.txt" make install-api
+RUN FORCE_CPU="1" REQUIREMENTS_PATH="requirements.docker.txt" make install-api
 COPY LICENSE .
 COPY sh/ sh/
 COPY nlpapi/ nlpapi/
