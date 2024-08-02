@@ -49,7 +49,10 @@ from app.api.response_types import (
     Snippy,
     SnippyResponse,
     StatsResponse,
+    TagClustersResponse,
+    TagDocsResponse,
     TagListResponse,
+    TitleResponse,
     URLInspectResponse,
     UserResponse,
     VersionResponse,
@@ -67,7 +70,13 @@ from app.misc.util import (
 )
 from app.misc.version import get_version
 from app.system.auth import get_session, is_valid_token, SessionInfo
-from app.system.autotag.autotag import get_tag_group, get_tags_for_main_id
+from app.system.autotag.autotag import (
+    get_main_ids_for_tag,
+    get_tag_cluster_id,
+    get_tag_clusters,
+    get_tag_group,
+    get_tags_for_main_id,
+)
 from app.system.autotag.cluster import register_tagger
 from app.system.config import get_config
 from app.system.dates.datetranslate import extract_date
@@ -875,6 +884,43 @@ def setup(
             "process_queue": process_queue_info(process_queue_redis),
         }
 
+    @server.json_post(f"{prefix}/tags/clusters")
+    def _post_tags_clusters(_req: QSRH, rargs: ReqArgs) -> TagClustersResponse:
+        args = rargs["post"]
+        tag_group: int | None = maybe_int(args.get("tag_group"))
+        name: str | None = args.get("name")
+        if tag_group is not None and name is not None:
+            raise ValueError(f"{tag_group=} or {name=} cannot both be set")
+        with db.get_session() as session:
+            if tag_group is None:
+                tag_group = get_tag_group(session, name)
+            clusters = get_tag_clusters(session, tag_group)
+        return {
+            "clusters": clusters,
+            "tag_group": tag_group,
+        }
+
+    @server.json_post(f"{prefix}/tags/docs")
+    def _post_tags_docs(_req: QSRH, rargs: ReqArgs) -> TagDocsResponse:
+        args = rargs["post"]
+        tag_group: int = int(args["tag_group"])
+        cluster: str | None = args.get("cluster")
+        cluster_id: int | None = maybe_int(args.get("cluster_id"))
+        if cluster is not None and cluster_id is not None:
+            raise ValueError(f"{cluster=} or {cluster_id=} cannot both be set")
+        with db.get_session() as session:
+            if cluster_id is None:
+                if cluster is None:
+                    raise ValueError(
+                        "either cluster or cluster_id must be set")
+                cluster_id = get_tag_cluster_id(session, tag_group, cluster)
+            main_ids = get_main_ids_for_tag(session, tag_group, cluster_id)
+        return {
+            "main_ids": sorted(main_ids),
+            "tag_group": tag_group,
+            "cluster_id": cluster_id,
+        }
+
     @server.json_post(f"{prefix}/tags/list")
     def _post_tags_list(_req: QSRH, rargs: ReqArgs) -> TagListResponse:
         args = rargs["post"]
@@ -1136,6 +1182,25 @@ def setup(
             content, error_msg = get_full_text(main_id)
             return {
                 "content": normalize_text(content),
+                "error": error_msg,
+            }
+
+        @server.json_post(f"{prefix}/documents/title")
+        def _post_documents_title(
+                _req: QSRH, rargs: ReqArgs) -> TitleResponse:
+            args = rargs["post"]
+            main_id: str = args["main_id"]
+            url_title, error_msg = get_url_title(main_id)
+            if url_title is None:
+                return {
+                    "url": None,
+                    "title": None,
+                    "error": error_msg,
+                }
+            url, title = url_title
+            return {
+                "url": url,
+                "title": title,
                 "error": error_msg,
             }
 

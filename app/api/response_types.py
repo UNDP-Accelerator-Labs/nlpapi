@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import TypedDict
 
+from app.system.autotag.autotag import TagClusterEntry
 from app.system.deepdive.collection import (
     DeepDiveName,
     DocumentObj,
@@ -101,8 +102,22 @@ TagListResponse = TypedDict('TagListResponse', {
     "tags": dict[str, list[str]],
     "tag_group": int,
 })
+TagClustersResponse = TypedDict('TagClustersResponse', {
+    "clusters": list[TagClusterEntry],
+    "tag_group": int,
+})
+TagDocsResponse = TypedDict('TagDocsResponse', {
+    "main_ids": list[str],
+    "tag_group": int,
+    "cluster_id": int,
+})
 FulltextResponse = TypedDict('FulltextResponse', {
     "content": str | None,
+    "error": str | None,
+})
+TitleResponse = TypedDict('TitleResponse', {
+    "url": str | None,
+    "title": str | None,
     "error": str | None,
 })
 RequeueResponse = TypedDict('RequeueResponse', {

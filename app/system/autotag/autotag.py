@@ -43,6 +43,12 @@ TagKeyword = TypedDict('TagKeyword', {
 })
 
 
+TagClusterEntry = TypedDict('TagClusterEntry', {
+    "id": int,
+    "name": str,
+})
+
+
 def create_tag_group(
         session: Session,
         name: str | None,
@@ -243,6 +249,43 @@ def get_tags_for_main_id(
         TagNamesTable.keyword == TagClusterMember.keyword,
         TagClusterMember.tag_cluster == TagCluster.id))
     return {row.name for row in session.execute(stmt)}
+
+
+def get_tag_cluster_id(session: Session, tag_group: int, tag: str) -> int:
+    stmt = sa.select(TagCluster.id).where(sa.and_(
+        TagCluster.tag_group == tag_group,
+        TagCluster.name == tag))
+    stmt = stmt.limit(1)
+    cluster_id = session.execute(stmt).scalar()
+    if cluster_id is None:
+        raise ValueError(f"could not find tag cluster {tag=} {tag_group=}")
+    return int(cluster_id)
+
+
+def get_tag_clusters(
+        session: Session, tag_group: int) -> list[TagClusterEntry]:
+    stmt = sa.select(TagCluster.id, TagCluster.name).where(
+        TagCluster.tag_group == tag_group)
+    return [
+        {
+            "id": int(row.id),
+            "name": row.name,
+        }
+        for row in session.execute(stmt)
+    ]
+
+
+def get_main_ids_for_tag(
+        session: Session, tag_group: int, tag_cluster: int) -> set[str]:
+    stmt = sa.select(TagNamesTable.main_id).where(sa.and_(
+        TagNamesTable.tag_group_from <= tag_group,
+        sa.or_(
+            TagNamesTable.tag_group_to.is_(None),
+            TagNamesTable.tag_group_to > tag_group),
+        TagNamesTable.keyword == TagClusterMember.keyword,
+        TagClusterMember.tag_cluster == tag_cluster))
+    stmt = stmt.distinct()
+    return {row.main_id for row in session.execute(stmt)}
 
 
 def create_tag_tables(db: DBConnector) -> None:
