@@ -1,0 +1,63 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "version": "1.0.0",
+    "title": "NLP-API Documentation",
+    "description": "This is the documentation for the NLP-API Suite."
+  },
+  "tags": [
+    {
+      "name": "Semantic Search",
+      "description": "Endpoints related to semantic search."
+    },
+    {
+      "name": "Analyze",
+      "description": "Endpoints for analyzing plain text."
+    },
+    {
+      "name": "Documents",
+      "description": "Endpoints for retrieving information about documents."
+    },
+    {
+      "name": "Collections",
+      "description": "Endpoints for managing LLM pipeline collections."
+    }
+  ],
+  "paths": {
+    "/api/search": {
+      "post": {
+        "summary": "Search documents via semantic search",
+        "description": "Retrieves documents based on semantic search criteria. You can filter the results using various parameters such as query, offset, limit, country, document type, language, start date, and end date. You can also search for neighbor documents of a given document.",
+        "tags": ["Semantic Search"],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Successful operation"
+          }
+        },
+        "security": [{ "sessionAuth": [] }]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "acclab_platform-session",
+        "description": "The platform session cookie. If it represents a logged in user with the appropriate rights the search will expand to all possible documents instead of just public ones."
+      },
+      "tokenAuth": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "token",
+        "description": "A token to allow protected operations."
+      }
+    }
+  },
+  "security": [
+    {
+      "tokenAuth": []
+    }
+  ]
+}
