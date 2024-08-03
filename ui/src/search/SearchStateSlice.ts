@@ -81,7 +81,7 @@ const searchStateSlice = createSlice<SearchState, SearchReducers, string>({
     setSearch: (state, action) => {
       const { db, query, filters, page } = action.payload;
       if (state.db !== db) {
-        localStorage.setItem('vecdb', db);
+        localStorage.setItem('vecdb', `${db}`);
         state.db = db;
       }
       state.query = query;

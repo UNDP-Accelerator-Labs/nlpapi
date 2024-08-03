@@ -88,7 +88,7 @@ export default class ApiActions {
 
   async search(
     query: string,
-    vecdb: DBName,
+    vecdb: Readonly<DBName>,
     filters: SearchFilters,
     page: number,
     cb: ResultCallback,
@@ -132,7 +132,11 @@ export default class ApiActions {
     });
   }
 
-  async stats(vecdb: DBName, filters: SearchFilters, cb: StatCallback) {
+  async stats(
+    vecdb: Readonly<DBName>,
+    filters: SearchFilters,
+    cb: StatCallback,
+  ) {
     this.statNum += 1;
     const statNum = this.statNum;
     const { doc_count, fields } = await this.api.stats(

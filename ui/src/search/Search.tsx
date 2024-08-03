@@ -741,7 +741,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
               Database:{' '}
               <Select
                 onChange={this.onDBChange}
-                value={db}>
+                value={`${db}`}>
                 {dbs.map((db) => (
                   <Option
                     key={db}

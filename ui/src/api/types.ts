@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-export type DBName = 'main' | 'test' | 'rave_ce';
-export type DeepDiveName = 'circular_economy' | 'circular_economy_undp';
+export type DBName = string & { _dbName: void };
+export type DeepDiveName = string & { _deepDiveName: void };
 
 export type VersionResponse = {
   app_name: string;

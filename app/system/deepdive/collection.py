@@ -281,20 +281,37 @@ def add_documents(
 
 
 @overload
-def convert_deep_dive_result(ddr: dict[str, int | str]) -> DeepDiveResult:
+def convert_deep_dive_result(
+        ddr: dict[str, int | str],
+        *,
+        categories: list[str] | None) -> DeepDiveResult:
     ...
 
 
 @overload
-def convert_deep_dive_result(ddr: None) -> None:
+def convert_deep_dive_result(
+        ddr: None, *, categories: list[str] | None) -> None:
     ...
 
 
 def convert_deep_dive_result(
-        ddr: dict[str, int | str] | None) -> DeepDiveResult | None:
+        ddr: dict[str, int | str] | None,
+        *,
+        categories: list[str] | None) -> DeepDiveResult | None:
     if ddr is None:
         return None
     if "values" not in ddr:
+        if categories is not None:
+            if "reason" in categories:
+                raise ValueError(
+                    "must use 'values' key when 'reason' is a category")
+            return {
+                "reason": cast(str, ddr["reason"]),
+                "values": {
+                    cat: int(ddr[cat])
+                    for cat in categories
+                },
+            }
         return {
             "reason": cast(str, ddr["reason"]),
             "values": {
@@ -303,7 +320,12 @@ def convert_deep_dive_result(
                 if key != "reason"
             },
         }
-    return cast(DeepDiveResult, ddr)
+    res = cast(DeepDiveResult, ddr)
+    if categories is not None:
+        missing = set(categories).difference(res["values"].keys())
+        if missing:
+            raise ValueError(f"categories {missing} are missing in {ddr}")
+    return res
 
 
 def get_documents(
@@ -345,7 +367,7 @@ def get_documents(
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
                 "deep_dive_result": convert_deep_dive_result(
-                    row.deep_dive_result),
+                    row.deep_dive_result, categories=None),
                 "error": row.error,
                 "tag": row.tag,
                 "tag_reason": row.tag_reason,
@@ -531,7 +553,7 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
                 "deep_dive_result": convert_deep_dive_result(
-                    row.deep_dive_result),
+                    row.deep_dive_result, categories=None),
                 "error": row.error,
                 "tag": row.tag,
                 "tag_reason": row.tag_reason,
@@ -603,7 +625,7 @@ def get_segments_in_queue(db: DBConnector) -> Iterable[SegmentObj]:
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
                 "deep_dive_result": convert_deep_dive_result(
-                    row.deep_dive_result),
+                    row.deep_dive_result, categories=None),
                 "error": row.error,
             }
 
@@ -640,7 +662,8 @@ def get_segments(
             "content": row.content,
             "is_valid": row.is_valid,
             "verify_reason": row.verify_reason,
-            "deep_dive_result": convert_deep_dive_result(row.deep_dive_result),
+            "deep_dive_result": convert_deep_dive_result(
+                row.deep_dive_result, categories=None),
             "error": row.error,
         }
 
