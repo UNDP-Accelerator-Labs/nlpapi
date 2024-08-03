@@ -286,7 +286,8 @@ export const DEFAULT_API: ApiProvider = {
           let reason: string | undefined = undefined;
           let scores: StatNumbers = {};
           if (deep_dive_result) {
-            const { reason: reasonValue, ...scoresValue } = deep_dive_result;
+            const { reason: reasonValue, values: scoresValue } =
+              deep_dive_result;
             reason = reasonValue;
             scores = scoresValue;
           }

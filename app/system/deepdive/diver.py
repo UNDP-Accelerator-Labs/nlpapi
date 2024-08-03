@@ -259,7 +259,7 @@ def process_segments(
                             vres["is_hit"],
                             vres["reason"])
                 else:
-                    ddres, derror = interpret_deep_dive(text)
+                    ddres, derror = interpret_deep_dive(text, categories)
                     if ddres is None:
                         derror = (
                             ""
@@ -331,7 +331,9 @@ def interpret_verify(text: str) -> tuple[VerifyResult | None, str | None]:
         return (None, traceback.format_exc())
 
 
-def interpret_deep_dive(text: str) -> tuple[DeepDiveResult | None, str | None]:
+def interpret_deep_dive(
+        text: str,
+        categories: list[str]) -> tuple[DeepDiveResult | None, str | None]:
     obj, error = parse_json(text)
     if obj is None:
         return (None, error)
@@ -339,13 +341,10 @@ def interpret_deep_dive(text: str) -> tuple[DeepDiveResult | None, str | None]:
         return (
             {
                 "reason": f"{obj['reason']}",
-                "cultural": int(obj["cultural"]),
-                "economic": int(obj["economic"]),
-                "educational": int(obj["educational"]),
-                "institutional": int(obj["institutional"]),
-                "legal": int(obj["legal"]),
-                "political": int(obj["political"]),
-                "technological": int(obj["technological"]),
+                "values": {
+                    key: int(obj[key])
+                    for key in categories
+                },
             },
             None,
         )

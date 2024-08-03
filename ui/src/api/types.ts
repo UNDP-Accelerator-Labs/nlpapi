@@ -128,13 +128,7 @@ export type CollectionOptions = {
 
 type DeepDiveResult = {
   reason: string;
-  cultural: number;
-  economic: number;
-  educational: number;
-  institutional: number;
-  legal: number;
-  political: number;
-  technological: number;
+  values: { [key: string]: number };
 };
 
 type ApiDocumentObj = {
