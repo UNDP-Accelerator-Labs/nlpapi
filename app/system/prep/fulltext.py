@@ -16,7 +16,7 @@
 import traceback
 from collections.abc import Callable, Iterable
 from datetime import datetime
-from typing import TypeAlias
+from typing import Protocol, TypeAlias
 
 import sqlalchemy as sa
 from scattermind.system.util import maybe_first
@@ -40,11 +40,18 @@ from app.system.stats import create_length_counter
 AllDocsFn: TypeAlias = Callable[[str], Iterable[str]]
 IsRemoveFn: TypeAlias = Callable[[str], tuple[bool, str | None]]
 FullTextFn: TypeAlias = Callable[[str], tuple[str | None, str | None]]
-UrlTitleFn: TypeAlias = Callable[
-    [str], tuple[tuple[str, str] | None, str | None]]
 TagFn: TypeAlias = Callable[[str], tuple[str | None, str]]
 StatusDateTypeFn: TypeAlias = Callable[
     [str], tuple[tuple[DocStatus, str | None, str] | None, str | None]]
+
+
+class UrlTitleFn(Protocol):  # pylint: disable=too-few-public-methods
+    def __call__(
+            self,
+            main_id: str,
+            *,
+            is_logged_in: bool) -> tuple[tuple[str, str] | None, str | None]:
+        ...
 
 
 def get_base_doc(main_id: str) -> tuple[str, int]:
@@ -268,6 +275,7 @@ def get_url_title_pad(
         doc_id: int,
         *,
         ignore_unpublished: bool,
+        is_logged_in: bool,
         ) -> tuple[tuple[str, str | None] | None, str | None]:
     url_base = PLATFORM_URLS.get(base)
     if url_base is None:
@@ -279,8 +287,14 @@ def get_url_title_pad(
         row = session.execute(stmt).one_or_none()
         if row is None:
             return (None, f"could not find {doc_id=}")
-        if ignore_unpublished and int(row.status) <= 1:
+        status_int = int(row.status)
+        if ignore_unpublished and status_int <= 1:
             return (None, "pad is unpublished")
+        status = STATUS_MAP.get(status_int)
+        if status is None:
+            return (None, f"invalid {status_int=}")
+        if not is_logged_in and status != "public":
+            return (None, "no access")
         title = get_title(row.title)
         return ((url, title), None)
 
@@ -317,6 +331,8 @@ def create_url_title(
 
     def get_url_title(
             main_id: str,
+            *,
+            is_logged_in: bool,
             ) -> tuple[tuple[str, str] | None, str | None]:
         try:
             base, doc_id = get_base_doc(main_id)
@@ -327,7 +343,8 @@ def create_url_title(
                     pdb,
                     base,
                     doc_id,
-                    ignore_unpublished=ignore_unpublished)
+                    ignore_unpublished=ignore_unpublished,
+                    is_logged_in=is_logged_in)
             elif bdb is not None:
                 res = get_url_title_blog(
                     bdb,

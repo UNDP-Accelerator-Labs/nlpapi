@@ -100,6 +100,12 @@ export type SearchState = {
   p: number;
 };
 
+export type InfoResult = {
+  url: string | undefined;
+  title: string | undefined;
+  error: string | undefined;
+};
+
 export type Collection = {
   id: number;
   user: string;

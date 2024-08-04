@@ -325,6 +325,7 @@ type SearchState = {
   isLoading: boolean;
   isAdding: boolean;
   documentMessage: string;
+  queryNice: string | undefined;
 };
 
 class Search extends PureComponent<SearchProps, SearchState> {
@@ -345,6 +346,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
       isLoading: false,
       isAdding: false,
       documentMessage: '',
+      queryNice: undefined,
     };
     this.queryRef = React.createRef();
   }
@@ -386,6 +388,21 @@ class Search extends PureComponent<SearchProps, SearchState> {
         },
         () => apiActions.search(query, db, filters, page, this.setResults),
       );
+      if (forceUpdate || query !== oldQuery) {
+        this.setState(
+          {
+            queryNice: undefined,
+          },
+          () => {
+            if (!query || !query.startsWith('=')) {
+              return;
+            }
+            apiActions.info(query.slice(1), (_url, title, _error) => {
+              this.setState({ queryNice: title });
+            });
+          },
+        );
+      }
     }
   }
 
@@ -702,6 +719,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
       results: { status },
       isAdding,
       documentMessage,
+      queryNice,
     } = this.state;
     const pageCount = Math.min(
       Math.ceil((count ?? 0) / PAGE_SIZE),
@@ -763,7 +781,7 @@ class Search extends PureComponent<SearchProps, SearchState> {
           </SearchDiv>
           <SearchInfo>
             Status: {status && !isLoading ? status : 'pending'} Showing results
-            for: {query}
+            for: {queryNice ?? query}
           </SearchInfo>
           <Results isLoading={isLoading}>{this.results()}</Results>
           <PaginationDiv>{this.pagination(page, pageCount)}</PaginationDiv>

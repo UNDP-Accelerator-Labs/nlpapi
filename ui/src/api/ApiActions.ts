@@ -40,6 +40,11 @@ type UserCallback = (
   userName: string | undefined,
 ) => void;
 type StatCallback = (stats: Stats) => void;
+type InfoCallback = (
+  url: string | undefined,
+  title: string | undefined,
+  error: string | undefined,
+) => void;
 type ResultCallback = (results: SearchResult) => void;
 type AddCallback = () => void;
 type AddCollectionCallback = (collectionId: number) => void;
@@ -139,6 +144,11 @@ export default class ApiActions {
       return;
     }
     cb({ count: doc_count, fields });
+  }
+
+  async info(mainId: string, cb: InfoCallback) {
+    const { url, title, error } = await this.api.docInfo(mainId);
+    cb(url, title, error);
   }
 
   async addCollection(

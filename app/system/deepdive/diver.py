@@ -117,7 +117,7 @@ def process_pending(
         main_id = doc["main_id"]
         if doc["url"] is None or doc["title"] is None:
             log_diver(f"processing {main_id}: url and title")
-            url_title, error = get_url_title(main_id)
+            url_title, error = get_url_title(main_id, is_logged_in=True)
             url = "#"
             title = "ERROR: unknown"
             if error is not None:

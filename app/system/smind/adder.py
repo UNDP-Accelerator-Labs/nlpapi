@@ -145,7 +145,7 @@ def register_adder(
         else:
             input_str = ""
         if not is_remove:
-            info, error_info = get_url_title(main_id)
+            info, error_info = get_url_title(main_id, is_logged_in=True)
             if info is None:
                 raise ValueError(error_info)
             url, title = info

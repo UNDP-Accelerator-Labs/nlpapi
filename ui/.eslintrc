@@ -28,6 +28,7 @@
       }
     ]
   },
+  "ignorePatterns": ["config/*", "scripts/*"],
   "extends": [
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",

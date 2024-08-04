@@ -1105,6 +1105,48 @@ def setup(
         }
 
     # # # SESSION # # #
+    def get_doc_info(main_id: str, *, is_logged_in: bool) -> TitleResponse:
+        url_title, error_msg = get_url_title(
+            main_id, is_logged_in=is_logged_in)
+        if url_title is None:
+            return {
+                "url": None,
+                "title": None,
+                "error": error_msg,
+            }
+        url, title = url_title
+        return {
+            "url": url,
+            "title": title,
+            "error": error_msg,
+        }
+
+    @server.json_post(f"{prefix}/documents/info")
+    @server.middleware(maybe_session)
+    def _post_documents_info(
+            _req: QSRH, rargs: ReqArgs) -> TitleResponse:
+        session: SessionInfo | None = rargs["meta"].get("session")
+        args = rargs["post"]
+        main_id: str = args["main_id"]
+        is_logged_in = session is not None
+        return get_doc_info(main_id, is_logged_in=is_logged_in)
+
+    @server.json_post(f"{prefix}/documents/infos")
+    @server.middleware(maybe_session)
+    def _post_documents_infos(
+            _req: QSRH, rargs: ReqArgs) -> TitlesResponse:
+        session: SessionInfo | None = rargs["meta"].get("session")
+        args = rargs["post"]
+        main_ids: list[str] = args["main_ids"]
+        is_logged_in = session is not None
+        info: list[TitleResponse] = [
+            get_doc_info(main_id, is_logged_in=is_logged_in)
+            for main_id in main_ids
+        ]
+        return {
+            "info": info,
+        }
+
     with server.middlewares(verify_session):
         # *** collections ***
 
@@ -1184,41 +1226,6 @@ def setup(
             return {
                 "content": normalize_text(content),
                 "error": error_msg,
-            }
-
-        def get_doc_info(main_id: str) -> TitleResponse:
-            url_title, error_msg = get_url_title(main_id)
-            if url_title is None:
-                return {
-                    "url": None,
-                    "title": None,
-                    "error": error_msg,
-                }
-            url, title = url_title
-            return {
-                "url": url,
-                "title": title,
-                "error": error_msg,
-            }
-
-        @server.json_post(f"{prefix}/documents/info")
-        def _post_documents_info(
-                _req: QSRH, rargs: ReqArgs) -> TitleResponse:
-            args = rargs["post"]
-            main_id: str = args["main_id"]
-            return get_doc_info(main_id)
-
-        @server.json_post(f"{prefix}/documents/infos")
-        def _post_documents_infos(
-                _req: QSRH, rargs: ReqArgs) -> TitlesResponse:
-            args = rargs["post"]
-            main_ids: list[str] = args["main_ids"]
-            info: list[TitleResponse] = [
-                get_doc_info(main_id)
-                for main_id in main_ids
-            ]
-            return {
-                "info": info,
             }
 
         @server.json_post(f"{prefix}/documents/requeue")

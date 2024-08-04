@@ -32,6 +32,7 @@ import {
   DocumentListResponse,
   DocumentResponse,
   FulltextResponse,
+  InfoResult,
   SearchFilters,
   StatNumbers,
   UserResult,
@@ -51,6 +52,7 @@ export type ApiProvider = {
     offset: number,
     limit: number,
   ) => Promise<ApiSearchResult>;
+  docInfo: (mainId: string) => Promise<InfoResult>;
   addCollection: (
     name: string,
     deepDive: DeepDiveName,
@@ -143,6 +145,34 @@ export const DEFAULT_API: ApiProvider = {
       return {
         hits: [],
         status: 'error',
+      };
+    }
+  },
+  docInfo: async (mainId) => {
+    const url = await getSearchApiUrl();
+    try {
+      const res = await fetch(`${url}/api/documents/info`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          main_id: mainId,
+        }),
+      });
+      const { url: respUrl, title, error } = await res.json();
+      return {
+        url: respUrl ?? undefined,
+        title: title ?? undefined,
+        error: error ?? undefined,
+      };
+    } catch (err) {
+      console.error(err);
+      return {
+        url: undefined,
+        title: undefined,
+        error: err,
       };
     }
   },
