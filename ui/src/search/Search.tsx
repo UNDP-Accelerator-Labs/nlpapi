@@ -325,7 +325,8 @@ type SearchState = {
   isLoading: boolean;
   isAdding: boolean;
   documentMessage: string;
-  queryNice: string | undefined;
+  nearestTitle: string | undefined;
+  nearestUrl: string | undefined;
 };
 
 class Search extends PureComponent<SearchProps, SearchState> {
@@ -346,7 +347,8 @@ class Search extends PureComponent<SearchProps, SearchState> {
       isLoading: false,
       isAdding: false,
       documentMessage: '',
-      queryNice: undefined,
+      nearestTitle: undefined,
+      nearestUrl: undefined,
     };
     this.queryRef = React.createRef();
   }
@@ -391,14 +393,19 @@ class Search extends PureComponent<SearchProps, SearchState> {
       if (forceUpdate || query !== oldQuery) {
         this.setState(
           {
-            queryNice: undefined,
+            nearestTitle: undefined,
+            nearestUrl: undefined,
           },
           () => {
             if (!query || !query.startsWith('=')) {
               return;
             }
-            apiActions.info(query.slice(1), (_url, title, _error) => {
-              this.setState({ queryNice: title });
+            apiActions.info(query.slice(1), (url, title, error) => {
+              if (url && title) {
+                this.setState({ nearestTitle: title, nearestUrl: url });
+              } else {
+                console.error(error);
+              }
             });
           },
         );
@@ -719,7 +726,8 @@ class Search extends PureComponent<SearchProps, SearchState> {
       results: { status },
       isAdding,
       documentMessage,
-      queryNice,
+      nearestTitle,
+      nearestUrl,
     } = this.state;
     const pageCount = Math.min(
       Math.ceil((count ?? 0) / PAGE_SIZE),
@@ -780,8 +788,19 @@ class Search extends PureComponent<SearchProps, SearchState> {
             />
           </SearchDiv>
           <SearchInfo>
-            Status: {status && !isLoading ? status : 'pending'} Showing results
-            for: {queryNice ?? query}
+            Status: {status && !isLoading ? status : 'pending'} Showing{' '}
+            {nearestTitle ? (
+              <React.Fragment>
+                neighbors of{' '}
+                {nearestUrl ? (
+                  <a href={nearestUrl}>{nearestTitle}</a>
+                ) : (
+                  `${nearestTitle}`
+                )}
+              </React.Fragment>
+            ) : (
+              `results for: ${query}`
+            )}
           </SearchInfo>
           <Results isLoading={isLoading}>{this.results()}</Results>
           <PaginationDiv>{this.pagination(page, pageCount)}</PaginationDiv>
