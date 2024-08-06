@@ -372,6 +372,7 @@ def vec_add(
     embed_time = time.monotonic() - embed_start
     # add embedding to vecdb
     vec_start = time.monotonic()
+    print(f"{len(input_str)=} vs {len(embed_chunks)=}")
     prev_count, new_count = add_embed(
         vec_db,
         name=articles,

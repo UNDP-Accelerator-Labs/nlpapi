@@ -136,6 +136,7 @@ def register_adder(
         is_remove, error_remove = doc_is_remove(main_id)
         if error_remove is not None:
             raise ValueError(error_remove)
+        print(f"{main_id=} {is_remove=}")
         base, doc_id = get_base_doc(main_id)
         articles = get_articles(vdb_str)
         if not is_remove:
