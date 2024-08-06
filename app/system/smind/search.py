@@ -342,17 +342,21 @@ def vec_add(
     preprocess_time = time.monotonic() - preprocess_start
     # compute embedding
     embed_start = time.monotonic()
-    snippets = [
-        snippet
-        for (snippet, _) in snippify_text(
-            input_str,
-            chunk_size=CHUNK_SIZE,
-            chunk_padding=CHUNK_PADDING)
-    ]
-    embeds = get_text_results_immediate(
-        snippets,
-        graph_profile=articles_graph,
-        output_sample=[1.0])
+    if not input_str:
+        snippets: list[str] = []
+        embeds: list[list[float] | None] = []
+    else:
+        snippets = [
+            snippet
+            for (snippet, _) in snippify_text(
+                input_str,
+                chunk_size=CHUNK_SIZE,
+                chunk_padding=CHUNK_PADDING)
+        ]
+        embeds = get_text_results_immediate(
+            snippets,
+            graph_profile=articles_graph,
+            output_sample=[1.0])
     embed_main: EmbedMain = {
         "base": base,
         "doc_id": doc_id,
@@ -372,7 +376,7 @@ def vec_add(
     embed_time = time.monotonic() - embed_start
     # add embedding to vecdb
     vec_start = time.monotonic()
-    print(f"{len(input_str)=} vs {len(embed_chunks)=}")
+    # print(f"{len(input_str)=} vs {len(embed_chunks)=}")
     prev_count, new_count = add_embed(
         vec_db,
         name=articles,
