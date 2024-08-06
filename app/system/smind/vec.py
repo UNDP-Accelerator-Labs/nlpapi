@@ -633,6 +633,7 @@ def add_embed(
     chunk_hash = compute_chunk_hash(chunks)
     doc_embed = compute_doc_embedding(embed_size, chunks)
     cur_hash, new_count = chunk_hash
+    is_remove = new_count == 0
     main_id = get_main_id(data)
     main_uuid = get_main_uuid(data)
 
@@ -663,15 +664,18 @@ def add_embed(
 
     base = data["base"]
     doc_type = meta_obj["doc_type"]
-    required_doc_types = KNOWN_DOC_TYPES.get(base)
-    if required_doc_types is not None and doc_type not in required_doc_types:
-        raise ValueError(
-            f"base {base} requires doc_type from "
-            f"{required_doc_types} not {doc_type}")
-    required_base = DOC_TYPE_TO_BASE.get(doc_type)
-    if required_base is not None and required_base != base:
-        raise ValueError(
-            f"doc_type {doc_type} requires base {required_base} != {base}")
+    if not is_remove:
+        required_doc_types = KNOWN_DOC_TYPES.get(base)
+        if (
+                required_doc_types is not None
+                and doc_type not in required_doc_types):
+            raise ValueError(
+                f"base {base} requires doc_type from "
+                f"{required_doc_types} not {doc_type}")
+        required_base = DOC_TYPE_TO_BASE.get(doc_type)
+        if required_base is not None and required_base != base:
+            raise ValueError(
+                f"doc_type {doc_type} requires base {required_base} != {base}")
 
     vec_name = get_db_name(name, is_vec=True)
 
@@ -724,7 +728,7 @@ def add_embed(
         if chunks:
             insert_chunks()
 
-    if new_count != 0:
+    if not is_remove:
         new_index_count = build_scalar_index(
             db,
             name,
