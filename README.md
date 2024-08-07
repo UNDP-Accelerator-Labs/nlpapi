@@ -8,6 +8,7 @@ A public facing UI can be found [here](https://nlpapi.sdg-innovation-commons.org
 ## Setup Python
 
 In order to setup python install `python >= 3.11` and `conda`.
+Also, make sure `redis` is installed on your system.
 Create a new environment and activate it.
 Then run:
 ```
@@ -25,6 +26,12 @@ And ensure that all lints pass:
 make lint-all
 ```
 You can also call individual lints via make. See `make help`.
+
+## Running a full instance locally (without vector database)
+
+`make run-local` which will create a `userdata/env.local` file where you need
+to fill in the correct values. Then run `make run-local` again. Also, makes
+sure to add the `gguf` file into the `models` folder (to run the LLM).
 
 ## Running the server
 

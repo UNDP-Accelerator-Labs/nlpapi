@@ -21,6 +21,7 @@ import os
 import re
 import string
 import threading
+import time
 import uuid
 from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timezone
@@ -28,7 +29,10 @@ from typing import Any, get_args, IO, Literal, NoReturn, TypeAlias, TypeVar
 
 import numpy as np
 import pandas as pd
+import redis
+import sqlalchemy as sa
 import torch
+from qdrant_client.http.exceptions import ResponseHandlingException
 
 from app.misc.io import open_read
 
@@ -201,6 +205,12 @@ def maybe_float(value: Any) -> float | None:
     return float(value)
 
 
+def maybe_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    return int(value)
+
+
 def is_json(value: str) -> bool:
     try:
         json.loads(value)
@@ -312,8 +322,8 @@ def from_timestamp(timestamp: float) -> pd.Timestamp:
     return pd.to_datetime(timestamp, unit="s", utc=True)
 
 
-def to_timestamp(time: pd.Timestamp) -> float:
-    return (time - UNIX_EPOCH) / pd.Timedelta("1s")
+def to_timestamp(ts: pd.Timestamp) -> float:
+    return (ts - UNIX_EPOCH) / pd.Timedelta("1s")
 
 
 def now_ts() -> pd.Timestamp:
@@ -613,3 +623,28 @@ def single(arr: list[str]) -> str:
     if len(arr) != 1:
         raise ValueError(f"expected single item got {arr}")
     return arr[0]
+
+
+EXCEPTIONS: tuple[type[BaseException]] = (  # type: ignore
+    ResponseHandlingException,
+    sa.exc.OperationalError,
+    ConnectionRefusedError,
+    redis.exceptions.ConnectionError,
+)
+
+
+def retry_err(
+        call: Callable[..., RT],
+        *args: Any,
+        max_retry: int = 3,
+        sleep: float = 3.0) -> RT:
+    error = 0
+    while True:
+        try:
+            return call(*args)
+        except EXCEPTIONS:
+            error += 1
+            if error > max_retry:
+                raise
+            if sleep > 0.0:
+                time.sleep(sleep)

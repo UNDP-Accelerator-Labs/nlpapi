@@ -40,6 +40,11 @@ type UserCallback = (
   userName: string | undefined,
 ) => void;
 type StatCallback = (stats: Stats) => void;
+type InfoCallback = (
+  url: string | undefined,
+  title: string | undefined,
+  error: string | undefined,
+) => void;
 type ResultCallback = (results: SearchResult) => void;
 type AddCallback = () => void;
 type AddCollectionCallback = (collectionId: number) => void;
@@ -141,6 +146,11 @@ export default class ApiActions {
     cb({ count: doc_count, fields });
   }
 
+  async info(mainId: string, cb: InfoCallback) {
+    const { url, title, error } = await this.api.docInfo(mainId);
+    cb(url, title, error);
+  }
+
   async addCollection(
     name: string,
     deepDive: DeepDiveName,
@@ -187,9 +197,10 @@ export default class ApiActions {
     collectionId: number,
     mainIds: string[],
     metaOnly: boolean,
+    errorOnly: boolean,
     cb: AddCallback,
   ) {
-    await this.api.requeue(collectionId, mainIds, metaOnly);
+    await this.api.requeue(collectionId, mainIds, metaOnly, errorOnly);
     cb();
   }
 } // ApiActions

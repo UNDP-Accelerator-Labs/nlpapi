@@ -19,6 +19,7 @@ import os
 from dotenv import load_dotenv
 
 from app.misc.util import python_module
+from app.system.autotag.autotag import create_tag_tables
 from app.system.config import get_config
 from app.system.db.db import DBConnector
 from app.system.deepdive.collection import create_deep_dive_tables
@@ -51,6 +52,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="create all deep dive tables")
     parser.add_argument(
+        "--init-tags",
+        default=False,
+        action="store_true",
+        help="create all tag tables")
+    parser.add_argument(
         "--env",
         default=None,
         help="loads the given env file at startup")
@@ -75,6 +81,8 @@ def run() -> None:
         create_location_tables(DBConnector(config["db"]))
     if args.init_deep_dive or args.init_db:
         create_deep_dive_tables(DBConnector(config["db"]))
+    if args.init_tags or args.init_db:
+        create_tag_tables(DBConnector(config["db"]))
 
 
 if __name__ == "__main__":

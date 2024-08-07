@@ -8,14 +8,15 @@
         "text": ["uint8", [null]]
       },
       "output_format": {
-        "tags": ["uint8", [null]]
+        "tags": ["uint8", [null]],
+        "scores": ["float", [null]]
       },
       "nodes": [
         {
           "name": "node_0",
           "kind": "nlpapi.tag_model",
           "args": {
-            "threshold": 0.25
+            "threshold": 0.1
           },
           "outs": {
             "out": null
@@ -26,7 +27,8 @@
         }
       ],
       "vmap": {
-        "tags": "node_0:tags"
+        "tags": "node_0:tags",
+        "scores": "node_0:scores"
       }
     }
   ],

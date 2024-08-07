@@ -17,7 +17,7 @@
  */
 import { PureComponent } from 'react';
 import styled from 'styled-components';
-import { StatNumbers } from '../api/types';
+import { StatFinal, StatFull } from '../api/types';
 
 const MAX_STAT_VALUE = 4;
 
@@ -44,8 +44,8 @@ const SvgText = styled.text`
 `;
 
 type SpiderGraphProps = {
-  stats: StatNumbers;
-  cmpStats?: StatNumbers;
+  stats: StatFull;
+  cmpStats?: StatFull;
   radius?: number;
   padding?: number;
   color?: string;
@@ -54,25 +54,118 @@ type SpiderGraphProps = {
   showCmpCircles?: boolean;
 };
 
-export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
+type EmptySpiderGraphProps = {
+  stats: undefined;
+  cmpStats: undefined;
+};
+
+type SpiderGraphState = {
+  finalStats?: StatFinal;
+  finalCmpStats?: StatFinal;
+};
+
+export default class SpiderGraph extends PureComponent<
+  SpiderGraphProps,
+  SpiderGraphState
+> {
+  constructor(props: Readonly<SpiderGraphProps>) {
+    super(props);
+    this.state = {
+      finalStats: undefined,
+      finalCmpStats: undefined,
+    };
+  }
+
+  componentDidMount() {
+    this.componentDidUpdate({
+      stats: undefined,
+      cmpStats: undefined,
+    });
+  }
+
+  componentDidUpdate(
+    prevProps: Readonly<SpiderGraphProps> | EmptySpiderGraphProps,
+  ) {
+    const { stats: prevStats, cmpStats: prevCmpStats } = prevProps;
+    const { stats, cmpStats } = this.props;
+    if (prevStats !== stats) {
+      this.setState({
+        finalStats: this.convertStats(stats),
+      });
+    }
+    if (prevCmpStats !== cmpStats && cmpStats) {
+      this.setState({
+        finalCmpStats: this.convertStats(cmpStats),
+      });
+    }
+  }
+
+  convertStats(stats: StatFull): StatFinal {
+    const ci = 0.95;
+    const c = (1.0 - ci) * 0.5 + ci;
+    return Object.fromEntries(
+      Object.entries(stats).map(([key, value]) => {
+        if (!value) {
+          return [key, undefined];
+        }
+        const { mean, stddev, count } = value;
+        return [
+          key,
+          {
+            mean,
+            ciMax: Math.min(
+              MAX_STAT_VALUE,
+              mean + (c * stddev) / Math.sqrt(count),
+            ),
+            ciMin: Math.max(0, mean - (c * stddev) / Math.sqrt(count)),
+          },
+        ];
+      }),
+    );
+  }
+
   getDenom(): number {
-    const { stats, cmpStats, isRelative } = this.props;
+    const { isRelative } = this.props;
     if (!isRelative) {
       return MAX_STAT_VALUE;
     }
+    const { finalStats, finalCmpStats } = this.state;
 
-    const getMax = (vals: StatNumbers): number =>
-      Object.keys(vals).reduce((p, key) => Math.max(p, +(vals[key] ?? 0)), 0);
+    const getMax = (vals: StatFinal): number =>
+      Object.keys(vals).reduce(
+        (p, key) => Math.max(p, +(vals[key]?.ciMax ?? 0)),
+        0,
+      );
 
-    return Math.max(getMax(stats), cmpStats ? getMax(cmpStats) : 0);
+    return Math.max(
+      finalStats ? getMax(finalStats) : 0,
+      finalCmpStats ? getMax(finalCmpStats) : 0,
+    );
   }
 
-  getRads(stats: StatNumbers, order: string[], radius: number): number[] {
+  getRads(stats: StatFinal, order: string[], radius: number): number[] {
     const allMax = this.getDenom();
     if (allMax === 0) {
       return order.map(() => 0);
     }
-    return order.map((key) => (+(stats[key] ?? 0) / allMax) * radius);
+    return order.map((key) => (+(stats[key]?.mean ?? 0) / allMax) * radius);
+  }
+
+  getRange(
+    stats: StatFinal,
+    order: string[],
+    radius: number,
+    isMax: boolean,
+  ): number[] {
+    const allMax = this.getDenom();
+    if (allMax === 0) {
+      return order.map(() => 0);
+    }
+    return order.map(
+      (key) =>
+        (+((isMax ? stats[key]?.ciMax : stats[key]?.ciMin) ?? 0) / allMax) *
+        radius,
+    );
   }
 
   getOutline(order: string[], angles: number[], rads: number[]): string {
@@ -90,21 +183,36 @@ export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
       padding = 5,
       color = 'black',
       cmpColor = '#f781bf',
-      stats,
-      cmpStats,
       showCmpCircles = false,
     } = this.props;
+    const { finalStats: finalStats = {}, finalCmpStats: finalCmpStats = {} } =
+      this.state;
     const mid = radius + padding;
     const size = mid * 2;
-    const order = Object.keys(stats).toSorted(cmpStatsFn);
+    const order = Object.keys(finalStats).toSorted(cmpStatsFn);
     const count = Math.max(order.length, 1);
     const angles = order.map((_, ix) => (ix * 360) / count);
-    const rads = this.getRads(stats, order, radius);
-    const d = this.getOutline(order, angles, rads);
-    const cmpRads = cmpStats ? this.getRads(cmpStats, order, radius) : [];
-    const cmpD = cmpStats
-      ? this.getOutline(order, angles, cmpRads)
-      : undefined;
+
+    const getMean = (stats: StatFinal): [number[], string] => {
+      const rads = this.getRads(stats, order, radius);
+      const d = this.getOutline(order, angles, rads);
+      return [rads, d];
+    };
+
+    const getArea = (stats: StatFinal): string => {
+      const maxR = this.getRange(stats, order, radius, true);
+      const minR = this.getRange(stats, order, radius, false);
+      const maxBound = this.getOutline(order, angles, maxR);
+      const minBound = this.getOutline(order, angles, minR);
+      return `${maxBound} ${minBound}`;
+    };
+
+    const [rads, d] = getMean(finalStats);
+    const area = getArea(finalStats);
+    const [cmpRads, cmpD] = finalCmpStats
+      ? getMean(finalCmpStats)
+      : [[], undefined];
+    const cmpArea = finalCmpStats ? getArea(finalCmpStats) : undefined;
     const isShowCmpCircles = showCmpCircles && cmpRads.some((r) => r > 0);
     return (
       <svg
@@ -145,6 +253,22 @@ export default class SpiderGraph extends PureComponent<SpiderGraphProps> {
               </g>
             );
           })}
+          {cmpArea ? (
+            <path
+              d={cmpArea}
+              stroke="none"
+              fill={cmpColor}
+              fillRule="evenodd"
+              opacity={0.2}
+            />
+          ) : null}
+          <path
+            d={area}
+            stroke="none"
+            fill={color}
+            fillRule="evenodd"
+            opacity={0.2}
+          />
           {cmpD ? (
             <path
               d={cmpD}

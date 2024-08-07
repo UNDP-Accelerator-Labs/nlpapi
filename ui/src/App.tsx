@@ -23,6 +23,7 @@ import ApiActions from './api/ApiActions';
 import { DBName, SearchState } from './api/types';
 import CollectionView from './collections/CollectionView';
 import { LOGIN_URL } from './misc/constants';
+import Swagger from './misc/Swagger';
 import Search from './search/Search';
 import { setSearch } from './search/SearchStateSlice';
 import { RootState } from './store';
@@ -146,7 +147,7 @@ class App extends PureComponent<AppProps, AppState> {
       userId: undefined,
       userName: undefined,
       isCollapsed: +(localStorage.getItem('menuCollapse') ?? 0) > 0,
-      dbs: ['main'],
+      dbs: ['main', 'test', 'rave_ce'],
     };
     this.apiActions = new ApiActions(undefined);
 
@@ -205,9 +206,21 @@ class App extends PureComponent<AppProps, AppState> {
       this.setState(
         {
           userStart: true,
+          userId: localStorage.getItem('pageLoadUserId') ?? undefined,
+          userName: localStorage.getItem('pageLoadUserName') ?? undefined,
         },
         () => {
           apiActions.user((userId, userName) => {
+            if (userId) {
+              localStorage.setItem('pageLoadUserId', userId);
+            } else {
+              localStorage.removeItem('pageLoadUserId');
+            }
+            if (userName) {
+              localStorage.setItem('pageLoadUserName', userName);
+            } else {
+              localStorage.removeItem('pageLoadUserName');
+            }
             this.setState({ userReady: true, userId, userName });
           });
         },
@@ -297,6 +310,10 @@ class App extends PureComponent<AppProps, AppState> {
                   userId={userId}
                 />
               }
+            />
+            <Route
+              path="/api-docs"
+              element={<Swagger />}
             />
           </Routes>
         </BrowserRouter>

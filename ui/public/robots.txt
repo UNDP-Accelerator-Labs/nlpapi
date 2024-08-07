@@ -4,7 +4,6 @@ Allow: /
 Disallow: /api/
 Disallow: /qdrant/
 Disallow: /dashboard/
-Disallow: /collections/
 Disallow: /cluster/
 Disallow: /telemetry/
 

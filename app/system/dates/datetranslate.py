@@ -14,8 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import re
+import time
 from datetime import datetime
 
+import requests
 import translators as ts  # type: ignore
 from dateutil import parser
 from dateutil.parser import ParserError
@@ -43,13 +45,32 @@ def get_translate_lang(
     return langs[0]["lang"]
 
 
+TRANSLATE_FREQ: float = 1.0
+LAST_TRANSLATE: float | None = None
+
+
 def translate_date(*, date: str, lang: str) -> str:
+    global LAST_TRANSLATE  # pylint: disable=global-statement
+
     if lang == "en":
         return date
+    if LAST_TRANSLATE is not None:
+        diff = TRANSLATE_FREQ - (time.monotonic() - LAST_TRANSLATE)
+        if diff > 0.0:
+            time.sleep(diff)
     try:
-        return ts.translate_text(date, from_language=lang, to_language="en")
-    except TranslatorError:
-        return date
+        try:
+            return ts.translate_text(
+                date, from_language=lang, to_language="en")
+        except TranslatorError:
+            return date
+        except requests.exceptions.HTTPError as err:
+            response: requests.Response = err.response
+            if response.status_code != 429:
+                raise
+            raise ValueError(f"quota reached: {response.headers}") from err
+    finally:
+        LAST_TRANSLATE = time.monotonic()
 
 
 def parse_date(date_en: str) -> datetime | None:

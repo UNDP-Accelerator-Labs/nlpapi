@@ -18,7 +18,7 @@
 import React, { MouseEventHandler, PureComponent } from 'react';
 import styled from 'styled-components';
 import ApiActions from '../api/ApiActions';
-import { DocumentObj, StatNumbers } from '../api/types';
+import { DocumentObj, StatFull } from '../api/types';
 import SpiderGraph from '../misc/SpiderGraph';
 
 type Tab = 'tag' | 'verify' | 'scores' | 'error' | 'fulltext';
@@ -186,7 +186,7 @@ type DocumentProps = {
   isReadonly: boolean;
   doc: DocumentObj;
   collectionId: number;
-  allScores: StatNumbers;
+  allScores: StatFull;
   visIsRelative: boolean;
   requestUpdate: () => void;
 };
@@ -286,16 +286,22 @@ export default class Document extends PureComponent<
     e.preventDefault();
     const {
       apiActions,
-      doc: { mainId },
+      doc: { mainId, error },
       collectionId,
       requestUpdate,
     } = this.props;
     if (collectionId < 0) {
       return;
     }
-    apiActions.requeue(collectionId, [mainId], false, () => {
-      requestUpdate();
-    });
+    apiActions.requeue(
+      collectionId,
+      [mainId],
+      false,
+      error !== undefined,
+      () => {
+        requestUpdate();
+      },
+    );
   };
 
   clickRefreshMeta: MouseEventHandler<HTMLSpanElement> = (e) => {
@@ -312,7 +318,7 @@ export default class Document extends PureComponent<
     if (collectionId < 0) {
       return;
     }
-    apiActions.requeue(collectionId, [mainId], true, () => {
+    apiActions.requeue(collectionId, [mainId], true, false, () => {
       requestUpdate();
     });
   };
@@ -326,6 +332,7 @@ export default class Document extends PureComponent<
       isValid,
       verifyReason,
       deepDiveReason,
+      scoresFull,
       scores,
       error,
       tag,
@@ -429,7 +436,7 @@ export default class Document extends PureComponent<
             {deepDiveReason ? (
               <OutputDiv>
                 <SpiderGraph
-                  stats={scores}
+                  stats={scoresFull}
                   cmpStats={allScores}
                   isRelative={visIsRelative}
                 />

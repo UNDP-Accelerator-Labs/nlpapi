@@ -15,10 +15,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import TypedDict
 
-from app.system.deepdive.collection import DeepDiveName, DocumentObj
+from app.system.autotag.autotag import TagClusterEntry
+from app.system.deepdive.collection import (
+    DeepDiveName,
+    DocumentObj,
+    SegmentStats,
+)
 from app.system.smind.api import QueueStat
-from app.system.smind.search import EmbedQueueStats, ProcessError
 from app.system.smind.vec import DBName, VecDBStat
+from app.system.workqueues.queue import ProcessError, ProcessQueueStats
 
 
 SourceResponse = TypedDict('SourceResponse', {
@@ -47,7 +52,7 @@ VersionResponse = TypedDict('VersionResponse', {
 StatsResponse = TypedDict('StatsResponse', {
     "vecdbs": list[VecDBStat],
     "queues": list[QueueStat],
-    "vec_queue": EmbedQueueStats,
+    "process_queue": ProcessQueueStats,
 })
 URLInspectResponse = TypedDict('URLInspectResponse', {
     "url": str,
@@ -70,6 +75,9 @@ BuildIndexResponse = TypedDict('BuildIndexResponse', {
 CollectionResponse = TypedDict('CollectionResponse', {
     "collection_id": int,
 })
+CollectionStats = TypedDict('CollectionStats', {
+    "segments": list[SegmentStats],
+})
 CollectionJSON = TypedDict('CollectionJSON', {
     "id": int,
     "user": str,
@@ -90,16 +98,37 @@ DocumentListResponse = TypedDict('DocumentListResponse', {
     "documents": list[DocumentObj],
     "is_readonly": bool,
 })
+TagListResponse = TypedDict('TagListResponse', {
+    "tags": dict[str, list[str]],
+    "tag_group": int,
+})
+TagClustersResponse = TypedDict('TagClustersResponse', {
+    "clusters": list[TagClusterEntry],
+    "tag_group": int,
+})
+TagDocsResponse = TypedDict('TagDocsResponse', {
+    "main_ids": list[str],
+    "tag_group": int,
+    "cluster_id": int,
+})
 FulltextResponse = TypedDict('FulltextResponse', {
     "content": str | None,
     "error": str | None,
 })
+TitleResponse = TypedDict('TitleResponse', {
+    "url": str | None,
+    "title": str | None,
+    "error": str | None,
+})
+TitlesResponse = TypedDict('TitlesResponse', {
+    "info": list[TitleResponse],
+})
 RequeueResponse = TypedDict('RequeueResponse', {
     "done": bool,
 })
-AddEmbedQueue = TypedDict('AddEmbedQueue', {
+AddQueue = TypedDict('AddQueue', {
     "enqueued": bool,
 })
-ErrorEmbedQueue = TypedDict('ErrorEmbedQueue', {
+ErrorProcessQueue = TypedDict('ErrorProcessQueue', {
     "errors": list[ProcessError],
 })

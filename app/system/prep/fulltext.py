@@ -14,12 +14,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import datetime
-from typing import TypeAlias
+from typing import Protocol, TypeAlias
 
 import sqlalchemy as sa
-from scattermind.system.util import first
+from scattermind.system.util import maybe_first
 
 from app.misc.lru import LRU
 from app.misc.util import CHUNK_PADDING, DocStatus, fmt_time, TITLE_CHUNK_SIZE
@@ -37,12 +37,21 @@ from app.system.prep.snippify import snippify_text
 from app.system.stats import create_length_counter
 
 
+AllDocsFn: TypeAlias = Callable[[str], Iterable[str]]
+IsRemoveFn: TypeAlias = Callable[[str], tuple[bool, str | None]]
 FullTextFn: TypeAlias = Callable[[str], tuple[str | None, str | None]]
-UrlTitleFn: TypeAlias = Callable[
-    [str], tuple[tuple[str, str] | None, str | None]]
 TagFn: TypeAlias = Callable[[str], tuple[str | None, str]]
 StatusDateTypeFn: TypeAlias = Callable[
     [str], tuple[tuple[DocStatus, str | None, str] | None, str | None]]
+
+
+class UrlTitleFn(Protocol):  # pylint: disable=too-few-public-methods
+    def __call__(
+            self,
+            main_id: str,
+            *,
+            is_logged_in: bool) -> tuple[tuple[str, str] | None, str | None]:
+        ...
 
 
 def get_base_doc(main_id: str) -> tuple[str, int]:
@@ -56,6 +65,105 @@ def get_title(title: str | None) -> str | None:
     if title is not None:
         title = sanity_check(f"{title}")
     return title
+
+
+def all_pad(db: DBConnector, base: str) -> Iterable[str]:
+    with db.get_session() as session:
+        stmt = sa.select(PadTable.id).order_by(PadTable.id)
+        for row in session.execute(stmt):
+            yield f"{base}:{row.id}"
+
+
+def all_blog(db: DBConnector, base: str) -> Iterable[str]:
+    with db.get_session() as session:
+        stmt = sa.select(ArticlesTable.id).order_by(ArticlesTable.id)
+        for row in session.execute(stmt):
+            yield f"{base}:{row.id}"
+
+
+def create_all_docs(
+        platforms: dict[str, DBConnector],
+        blogs: dict[str, DBConnector]) -> AllDocsFn:
+
+    def get_all_docs(base: str) -> Iterable[str]:
+        pdb = platforms.get(base)
+        bdb = blogs.get(base)
+        if pdb is not None:
+            yield from all_pad(pdb, base)
+        elif bdb is not None:
+            yield from all_blog(bdb, base)
+        else:
+            raise ValueError(f"unknown base: {base}")
+
+    return get_all_docs
+
+
+def is_remove_pad(db: DBConnector, doc_id: int) -> bool:
+    with db.get_session() as session:
+        stmt = sa.select(
+            PadTable.status, PadTable.full_text, PadTable.title)
+        stmt = stmt.where(PadTable.id == doc_id)
+        row = session.execute(stmt).one_or_none()
+        if row is None:
+            return True  # pad doesn't exist (anymore)
+        if int(row.status) <= 1:
+            return True  # pad got unpublished
+        res = sanity_check(f"{row.full_text}")
+        if not res:
+            return True  # empty pad
+        title = get_title(row.title)
+        if title:
+            res = f"{title}\n\n{res}"
+        return not res.strip()
+
+
+def is_remove_blog(db: DBConnector, doc_id: int) -> bool:
+    with db.get_session() as session:
+        stmt = sa.select(
+            ArticlesTable.id,
+            ArticlesTable.title,
+            ArticlesTable.relevance,
+            ArticleContentTable.article_id,
+            ArticleContentTable.content)
+        stmt = stmt.where(sa.and_(
+            ArticleContentTable.article_id == ArticlesTable.id,
+            ArticlesTable.id == doc_id))
+        row = session.execute(stmt).one_or_none()
+        if row is None:
+            return True  # doc doesn't exist (anymore)
+        if int(row.relevance) <= 1:
+            return True  # doc not relevant (anymore)
+        content = sanity_check(f"{row.content}".strip())
+        if not content:
+            return True  # empty content
+        title = get_title(row.title)
+        if title:
+            content = f"{title}\n\n{content}"
+        return not content.strip()
+
+
+def create_is_remove(
+        platforms: dict[str, DBConnector],
+        blogs: dict[str, DBConnector]) -> IsRemoveFn:
+
+    def get_is_remove(main_id: str) -> tuple[bool, str | None]:
+        try:
+            base, doc_id = get_base_doc(main_id)
+            pdb = platforms.get(base)
+            bdb = blogs.get(base)
+            if pdb is not None:
+                is_remove = is_remove_pad(pdb, doc_id)
+                res: tuple[bool, str | None] = (is_remove, None)
+            elif bdb is not None:
+                is_remove = is_remove_blog(bdb, doc_id)
+                res = (is_remove, None)
+            else:
+                res = (False, f"unknown {base=}")
+        except Exception:  # pylint: disable=broad-exception-caught
+            res = (False, traceback.format_exc())
+        return res
+
+    return get_is_remove
 
 
 def read_pad(
@@ -167,6 +275,7 @@ def get_url_title_pad(
         doc_id: int,
         *,
         ignore_unpublished: bool,
+        is_logged_in: bool,
         ) -> tuple[tuple[str, str | None] | None, str | None]:
     url_base = PLATFORM_URLS.get(base)
     if url_base is None:
@@ -178,8 +287,14 @@ def get_url_title_pad(
         row = session.execute(stmt).one_or_none()
         if row is None:
             return (None, f"could not find {doc_id=}")
-        if ignore_unpublished and int(row.status) <= 1:
+        status_int = int(row.status)
+        if ignore_unpublished and status_int <= 1:
             return (None, "pad is unpublished")
+        status = STATUS_MAP.get(status_int)
+        if status is None:
+            return (None, f"invalid {status_int=}")
+        if not is_logged_in and status != "public":
+            return (None, "no access")
         title = get_title(row.title)
         return ((url, title), None)
 
@@ -216,6 +331,8 @@ def create_url_title(
 
     def get_url_title(
             main_id: str,
+            *,
+            is_logged_in: bool,
             ) -> tuple[tuple[str, str] | None, str | None]:
         try:
             base, doc_id = get_base_doc(main_id)
@@ -226,7 +343,8 @@ def create_url_title(
                     pdb,
                     base,
                     doc_id,
-                    ignore_unpublished=ignore_unpublished)
+                    ignore_unpublished=ignore_unpublished,
+                    is_logged_in=is_logged_in)
             elif bdb is not None:
                 res = get_url_title_blog(
                     bdb,
@@ -247,7 +365,7 @@ def create_url_title(
                         "could not retrieve full text to "
                         f"infer title: {input_error}",
                     )
-                title_loc = first(snippify_text(
+                title_loc = maybe_first(snippify_text(
                     input_str,
                     chunk_size=TITLE_CHUNK_SIZE,
                     chunk_padding=CHUNK_PADDING))

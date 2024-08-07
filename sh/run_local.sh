@@ -37,6 +37,7 @@ if [ ! -f "${ENV_FILE}" ]; then
 fi
 
 start_redis() {
+    mkdir -p "userdata/$1/"
     redis-server "local/redis/$1.conf" --port "$2" \
         >> "userdata/$1/redis-${DATE}.log" 2>&1 &
 }
@@ -55,6 +56,7 @@ start_smind() {
         --device "${DEVICE}" \
         worker \
         --graph local/graphs/ \
+        --max-task-retries 2 \
         >> "userdata/smind-${DATE}.log" 2>&1 &
 }
 
@@ -72,5 +74,7 @@ start_api() {
 
 start_smind
 start_api
+
+sleep 1
 
 exec make run-ts

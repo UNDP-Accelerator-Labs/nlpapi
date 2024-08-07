@@ -34,20 +34,26 @@ from app.api.mod import Module
 from app.api.mods.lang import LanguageModule
 from app.api.mods.loc import LocationModule
 from app.api.response_types import (
-    AddEmbedQueue,
+    AddQueue,
     BuildIndexResponse,
     CollectionListResponse,
     CollectionOptionsResponse,
     CollectionResponse,
+    CollectionStats,
     DateResponse,
     DocumentListResponse,
     DocumentResponse,
-    ErrorEmbedQueue,
+    ErrorProcessQueue,
     FulltextResponse,
     RequeueResponse,
     Snippy,
     SnippyResponse,
     StatsResponse,
+    TagClustersResponse,
+    TagDocsResponse,
+    TagListResponse,
+    TitleResponse,
+    TitlesResponse,
     URLInspectResponse,
     UserResponse,
     VersionResponse,
@@ -59,11 +65,20 @@ from app.misc.util import (
     DEFAULT_HIT_LIMIT,
     get_time_str,
     maybe_float,
+    maybe_int,
     SMALL_CHUNK_SIZE,
     to_bool,
 )
 from app.misc.version import get_version
 from app.system.auth import get_session, is_valid_token, SessionInfo
+from app.system.autotag.autotag import (
+    get_main_ids_for_tag,
+    get_tag_cluster_id,
+    get_tag_clusters,
+    get_tag_group,
+    get_tags_for_main_id,
+)
+from app.system.autotag.cluster import register_tagger
 from app.system.config import get_config
 from app.system.dates.datetranslate import extract_date
 from app.system.db.db import DBConnector
@@ -76,7 +91,9 @@ from app.system.deepdive.collection import (
     get_deep_dive_name,
     get_documents,
     requeue,
+    requeue_error,
     requeue_meta,
+    segment_stats,
     set_options,
 )
 from app.system.deepdive.diver import maybe_diver_thread
@@ -92,16 +109,21 @@ from app.system.location.response import (
 )
 from app.system.prep.clean import normalize_text, sanity_check
 from app.system.prep.fulltext import (
+    AllDocsFn,
+    create_all_docs,
     create_full_text,
+    create_is_remove,
     create_status_date_type,
     create_tag_fn,
     create_url_title,
     FullTextFn,
-    get_base_doc,
+    IsRemoveFn,
     StatusDateTypeFn,
+    TagFn,
     UrlTitleFn,
 )
 from app.system.prep.snippify import snippify_text
+from app.system.smind.adder import register_adder
 from app.system.smind.api import (
     get_queue_stats,
     get_redis,
@@ -109,16 +131,10 @@ from app.system.smind.api import (
     load_graph,
     load_smind,
 )
+from app.system.smind.keepalive import set_main_articles
 from app.system.smind.search import (
     AddEmbed,
-    adder_enqueue,
-    adder_info,
     ClearResponse,
-    get_embed_errors,
-    ProcessEntry,
-    QueryEmbed,
-    requeue_errors,
-    set_main_articles,
     vec_add,
     vec_clear,
     vec_filter,
@@ -132,12 +148,18 @@ from app.system.smind.vec import (
     get_vec_client,
     get_vec_stats,
     MetaKey,
-    MetaObject,
+    QueryEmbed,
     StatEmbed,
     VecDBStat,
 )
 from app.system.stats import create_length_counter
 from app.system.urlinspect.inspect import inspect_url
+from app.system.workqueues.queue import (
+    get_process_queue_errors,
+    maybe_process_thread,
+    process_queue_info,
+    requeue_errors,
+)
 
 
 MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
@@ -195,13 +217,16 @@ def add_vec_features(
         vec_db: QdrantClient,
         *,
         prefix: str,
-        add_queue_redis: Redis,
+        process_queue_redis: Redis,
         qdrant_cache: Redis,
         smind_config: str,
         graph_embed: GraphProfile,
         ner_graphs: dict[LanguageStr, GraphProfile],
+        get_all_docs: AllDocsFn,
+        doc_is_remove: IsRemoveFn,
         get_full_text: FullTextFn,
         get_url_title: UrlTitleFn,
+        get_tag: TagFn,
         get_status_date_type: StatusDateTypeFn,
         maybe_session: MiddlewareF,
         verify_readonly: MiddlewareF,
@@ -213,7 +238,7 @@ def add_vec_features(
     articles_dict: dict[DBName, str] = {}
 
     def init_vec_db() -> None:
-        time.sleep(360.0)  # NOTE: give qdrant plenty of time...
+        time.sleep(60.0)  # NOTE: give qdrant plenty of time...
         try:
             tstart = time.monotonic()
             print("start loading vector database...")
@@ -242,10 +267,15 @@ def add_vec_features(
             articles_dict["rave_ce"] = articles_rave_ce
 
             set_main_articles(
-                db, vec_db, articles=articles_main, articles_graph=graph_embed)
+                db,
+                vec_db,
+                articles=articles_main,
+                articles_graph=graph_embed,
+                vec_search_fn=vec_search)
 
             with cond:
                 cond.notify_all()
+            maybe_process_thread(process_queue_redis)
             print(
                 "loading vector database complete "
                 f"in {time.monotonic() - tstart}s!")
@@ -253,6 +283,8 @@ def add_vec_features(
             print(
                 "ERROR! loading vector database "
                 f"failed:\n{traceback.format_exc()}")
+            # NOTE: RecursionError will also be caught here
+            init_vec_db()
 
     th = threading.Thread(target=init_vec_db, daemon=True)
     th.start()
@@ -343,10 +375,10 @@ def add_vec_features(
 
     # *** system ***
 
-    @server.json_get(f"{prefix}/embed/error")
-    def _get_embed_error(_req: QSRH, _rargs: ReqArgs) -> ErrorEmbedQueue:
+    @server.json_get(f"{prefix}/queue/error")
+    def _get_queue_error(_req: QSRH, _rargs: ReqArgs) -> ErrorProcessQueue:
         return {
-            "errors": get_embed_errors(add_queue_redis),
+            "errors": get_process_queue_errors(process_queue_redis),
         }
 
     with server.middlewares(verify_token):
@@ -360,7 +392,7 @@ def add_vec_features(
             clear_rcache = bool(args.get("clear_rcache", False))
             clear_rbody = bool(args.get("clear_rbody", False))
             clear_rworker = bool(args.get("clear_rworker", False))
-            clear_adder = bool(args.get("clear_adder", False))
+            clear_process_queue = bool(args.get("clear_process_queue", False))
             clear_veccache = bool(args.get("clear_veccache", False))
             clear_vecdb_main = bool(args.get("clear_vecdb_main", False))
             clear_vecdb_test = bool(args.get("clear_vecdb_test", False))
@@ -370,7 +402,7 @@ def add_vec_features(
             return vec_clear(
                 vec_db,
                 smind_config,
-                add_queue_redis=add_queue_redis,
+                process_queue_redis=process_queue_redis,
                 qdrant_cache=qdrant_cache,
                 get_vec_db=get_ctx_vec_db,
                 clear_rmain=clear_rmain,
@@ -378,7 +410,7 @@ def add_vec_features(
                 clear_rcache=clear_rcache,
                 clear_rbody=clear_rbody,
                 clear_rworker=clear_rworker,
-                clear_adder=clear_adder,
+                clear_process_queue=clear_process_queue,
                 clear_veccache=clear_veccache,
                 clear_vecdb_main=clear_vecdb_main,
                 clear_vecdb_test=clear_vecdb_test,
@@ -388,71 +420,45 @@ def add_vec_features(
 
         # *** embeddings ***
 
-        def add_embed_fn(entry: ProcessEntry) -> AddEmbed:
-            vdb_str = entry["db"]
-            main_id = entry["main_id"]
-            user = entry["user"]
-            base, doc_id = get_base_doc(main_id)
-            articles = get_articles(vdb_str)
-            input_str, error_input = get_full_text(main_id)
-            if input_str is None:
-                raise ValueError(error_input)
-            info, error_info = get_url_title(main_id)
-            if info is None:
-                raise ValueError(error_info)
-            url, title = info
-            sdt, error_sdt = get_status_date_type(main_id)
-            if sdt is None:
-                raise ValueError(error_sdt)
-            status, date_str, doc_type = sdt
-            meta_obj: MetaObject = {
-                "status": status,
-                "date": date_str,
-                "doc_type": doc_type,
-            }
-            return vec_add(
-                db,
-                vec_db,
-                input_str,
-                qdrant_cache=qdrant_cache,
-                articles=articles,
-                articles_graph=graph_embed,
-                ner_graphs=ner_graphs,
-                user=user,
-                base=base,
-                doc_id=doc_id,
-                url=url,
-                title=title,
-                meta_obj=meta_obj)
+        base_processor, adder_processor = register_adder(
+            db,
+            vec_db,
+            process_queue_redis=process_queue_redis,
+            qdrant_cache=qdrant_cache,
+            graph_embed=graph_embed,
+            ner_graphs=ner_graphs,
+            get_articles=get_articles,
+            get_all_docs=get_all_docs,
+            doc_is_remove=doc_is_remove,
+            get_full_text=get_full_text,
+            get_url_title=get_url_title,
+            get_tag=get_tag,
+            get_status_date_type=get_status_date_type)
 
-        @server.json_post(f"{prefix}/embed/requeue")
+        @server.json_post(f"{prefix}/queue/requeue")
         @server.middleware(verify_write)
-        def _post_embed_requeue(
-                _req: QSRH, _rargs: ReqArgs) -> AddEmbedQueue:
-            res = requeue_errors(add_queue_redis, add_embed_fn)
+        def _post_queue_requeue(
+                _req: QSRH, _rargs: ReqArgs) -> AddQueue:
+            res = requeue_errors(process_queue_redis)
             return {
                 "enqueued": res,
             }
 
         @server.json_post(f"{prefix}/embed/add")
         @server.middleware(verify_write)
-        def _post_embed_add(_req: QSRH, rargs: ReqArgs) -> AddEmbedQueue:
+        def _post_embed_add(_req: QSRH, rargs: ReqArgs) -> AddQueue:
             args = rargs["post"]
             meta = rargs["meta"]
-            main_id = args["main_id"]
+            main_id = args.get("main_id")
+            bases = args.get("bases")
+            if (main_id is None) == (bases is None):
+                raise ValueError("must use either main_id or base")
             vdb_str: str = args["db"]
             user: uuid.UUID = meta["user"]
-            info, error_info = get_url_title(main_id)
-            if info is None:
-                raise ValueError(error_info)
-            adder_enqueue(
-                add_queue_redis,
-                add_embed_fn,
-                {
-                    "db": vdb_str,
-                    "main_id": main_id,
-                    "user": user,
-                })
+            if main_id is not None:
+                adder_processor(vdb_str=vdb_str, main_id=main_id, user=user)
+            if bases is not None:
+                base_processor(vdb_str=vdb_str, bases=list(bases), user=user)
             return {
                 "enqueued": True,
             }
@@ -484,6 +490,7 @@ def add_vec_features(
                 articles=articles,
                 articles_graph=graph_embed,
                 ner_graphs=ner_graphs,
+                get_tag=get_tag,
                 user=user,
                 base=base,
                 doc_id=doc_id,
@@ -595,12 +602,17 @@ def setup(
 
     config = get_config()
     db = DBConnector(config["db"])
-    platforms = {
+    all_platforms = {
         pname: DBConnector(pconfig)
         for pname, pconfig in config["platforms"].items()
     }
+    platforms: dict[str, DBConnector] = {
+        pname: pdb
+        for pname, pdb in all_platforms.items()
+        if pname != "login"
+    }
     try:
-        login_db = platforms["login"]
+        login_db = all_platforms["login"]
     except KeyError as kerr:
         ps_str = envload_str("LOGIN_DB_NAME_PLATFORMS", default="")
         raise ValueError(
@@ -621,12 +633,15 @@ def setup(
     smind_config = config["smind"]
     smind = load_smind(smind_config)
     graph_embed = load_graph(config, smind, "graph_embed.json")
+    graph_tags = load_graph(config, smind, "graph_tags.json")
 
     if envload_bool("HAS_LLAMA", default=False):
         graph_llama = load_graph(config, smind, "graph_llama.json")
     else:
         graph_llama = None
 
+    get_all_docs = create_all_docs(platforms, blogs)
+    doc_is_remove = create_is_remove(platforms, blogs)
     get_full_text = create_full_text(
         platforms,
         blogs,
@@ -668,7 +683,7 @@ def setup(
 
     qdrant_cache = get_redis(
         smind_config, redis_name="rcache", overwrite_prefix="qdrant")
-    add_queue_redis = get_redis(
+    process_queue_redis = get_redis(
         smind_config, redis_name="rmain", overwrite_prefix="embed_add")
 
     write_token = config["write_token"]
@@ -799,13 +814,16 @@ def setup(
             db,
             vec_db,
             prefix=prefix,
-            add_queue_redis=add_queue_redis,
+            process_queue_redis=process_queue_redis,
             qdrant_cache=qdrant_cache,
             smind_config=smind_config,
             graph_embed=graph_embed,
             ner_graphs=ner_graphs,
+            get_all_docs=get_all_docs,
+            doc_is_remove=doc_is_remove,
             get_full_text=get_full_text,
             get_url_title=get_url_title,
+            get_tag=get_tag,
             get_status_date_type=get_status_date_type,
             maybe_session=maybe_session,
             verify_readonly=verify_readonly,
@@ -864,11 +882,92 @@ def setup(
         return {
             "vecdbs": vecdbs,
             "queues": get_queue_stats(smind),
-            "vec_queue": adder_info(add_queue_redis),
+            "process_queue": process_queue_info(process_queue_redis),
+        }
+
+    @server.json_post(f"{prefix}/tags/clusters")
+    def _post_tags_clusters(_req: QSRH, rargs: ReqArgs) -> TagClustersResponse:
+        args = rargs["post"]
+        tag_group: int | None = maybe_int(args.get("tag_group"))
+        name: str | None = args.get("name")
+        if tag_group is not None and name is not None:
+            raise ValueError(f"{tag_group=} or {name=} cannot both be set")
+        with db.get_session() as session:
+            if tag_group is None:
+                tag_group = get_tag_group(session, name)
+            clusters = get_tag_clusters(session, tag_group)
+        return {
+            "clusters": clusters,
+            "tag_group": tag_group,
+        }
+
+    @server.json_post(f"{prefix}/tags/docs")
+    def _post_tags_docs(_req: QSRH, rargs: ReqArgs) -> TagDocsResponse:
+        args = rargs["post"]
+        tag_group: int = int(args["tag_group"])
+        cluster: str | None = args.get("cluster")
+        cluster_id: int | None = maybe_int(args.get("cluster_id"))
+        if cluster is not None and cluster_id is not None:
+            raise ValueError(f"{cluster=} or {cluster_id=} cannot both be set")
+        with db.get_session() as session:
+            if cluster_id is None:
+                if cluster is None:
+                    raise ValueError(
+                        "either cluster or cluster_id must be set")
+                cluster_id = get_tag_cluster_id(session, tag_group, cluster)
+            main_ids = get_main_ids_for_tag(session, tag_group, cluster_id)
+        return {
+            "main_ids": sorted(main_ids),
+            "tag_group": tag_group,
+            "cluster_id": cluster_id,
+        }
+
+    @server.json_post(f"{prefix}/tags/list")
+    def _post_tags_list(_req: QSRH, rargs: ReqArgs) -> TagListResponse:
+        args = rargs["post"]
+        tag_group: int | None = maybe_int(args.get("tag_group"))
+        name: str | None = args.get("name")
+        if tag_group is not None and name is not None:
+            raise ValueError(f"{tag_group=} or {name=} cannot both be set")
+        main_ids: list[str] = list(args["main_ids"])
+        tags: dict[str, list[str]] = {}
+        with db.get_session() as session:
+            if tag_group is None:
+                tag_group = get_tag_group(session, name)
+            for main_id in main_ids:
+                tags[main_id] = sorted(
+                    get_tags_for_main_id(session, tag_group, main_id))
+        return {
+            "tags": tags,
+            "tag_group": tag_group,
         }
 
     # # # SECURE # # #
     with server.middlewares(verify_token):
+        # *** auto tag ***
+        tag_processor = register_tagger(
+            db,
+            global_db=login_db,
+            platforms=platforms,
+            process_queue_redis=process_queue_redis,
+            articles_graph=graph_embed,
+            graph_tags=graph_tags,
+            get_all_docs=get_all_docs,
+            doc_is_remove=doc_is_remove,
+            get_full_text=get_full_text)
+
+        @server.json_post(f"{prefix}/tags/create")
+        @server.middleware(verify_write)
+        def _post_tags_create(_req: QSRH, rargs: ReqArgs) -> AddQueue:
+            args = rargs["post"]
+            name: str | None = args.get("name")
+            bases: list[str] = list(args["bases"])
+            is_updating = to_bool(args.get("is_updating", True))
+            tag_processor(name=name, bases=bases, is_updating=is_updating)
+            return {
+                "enqueued": True,
+            }
+
         # *** location ***
 
         @server.json_get(f"{prefix}/geoforward")
@@ -998,7 +1097,56 @@ def setup(
                     input_str, user, module.get("args", {}))
             return res
 
+    @server.json_get(f"{prefix}/collection/stats")
+    def _get_collection_stats(_req: QSRH, _rargs: ReqArgs) -> CollectionStats:
+        stats = list(segment_stats(db))
+        return {
+            "segments": stats,
+        }
+
     # # # SESSION # # #
+    def get_doc_info(main_id: str, *, is_logged_in: bool) -> TitleResponse:
+        url_title, error_msg = get_url_title(
+            main_id, is_logged_in=is_logged_in)
+        if url_title is None:
+            return {
+                "url": None,
+                "title": None,
+                "error": error_msg,
+            }
+        url, title = url_title
+        return {
+            "url": url,
+            "title": title,
+            "error": error_msg,
+        }
+
+    @server.json_post(f"{prefix}/documents/info")
+    @server.middleware(maybe_session)
+    def _post_documents_info(
+            _req: QSRH, rargs: ReqArgs) -> TitleResponse:
+        session: SessionInfo | None = rargs["meta"].get("session")
+        args = rargs["post"]
+        main_id: str = args["main_id"]
+        is_logged_in = session is not None
+        return get_doc_info(main_id, is_logged_in=is_logged_in)
+
+    @server.json_post(f"{prefix}/documents/infos")
+    @server.middleware(maybe_session)
+    def _post_documents_infos(
+            _req: QSRH, rargs: ReqArgs) -> TitlesResponse:
+        session: SessionInfo | None = rargs["meta"].get("session")
+        args = rargs["post"]
+        main_ids: list[str] = args["main_ids"]
+        is_logged_in = session is not None
+        info: list[TitleResponse] = [
+            get_doc_info(main_id, is_logged_in=is_logged_in)
+            for main_id in main_ids
+        ]
+        return {
+            "info": info,
+        }
+
     with server.middlewares(verify_session):
         # *** collections ***
 
@@ -1087,9 +1235,12 @@ def setup(
             collection_id = int(args["collection_id"])
             main_ids: list[str] = args["main_ids"]
             meta_only = to_bool(args.get("meta_only", False))
+            error_only = to_bool(args.get("error_only", False))
             session: SessionInfo = rargs["meta"]["session"]
             if meta_only:
                 requeue_meta(db, collection_id, session["uuid"], main_ids)
+            elif error_only:
+                requeue_error(db, collection_id, session["uuid"], main_ids)
             else:
                 requeue(db, collection_id, session["uuid"], main_ids)
             maybe_start_dive()

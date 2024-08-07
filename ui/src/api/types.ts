@@ -100,6 +100,12 @@ export type SearchState = {
   p: number;
 };
 
+export type InfoResult = {
+  url: string | undefined;
+  title: string | undefined;
+  error: string | undefined;
+};
+
 export type Collection = {
   id: number;
   user: string;
@@ -147,7 +153,13 @@ type ApiDocumentObj = {
   tag_reason: string | undefined;
 };
 
-export type StatNumbers = { [key: string]: number };
+export type StatNumbers = { [key: string]: number | undefined };
+export type StatFull = {
+  [key: string]: { mean: number; stddev: number; count: number } | undefined;
+};
+export type StatFinal = {
+  [key: string]: { mean: number; ciMax: number; ciMin: number } | undefined;
+};
 
 export type DocumentObj = {
   id: number;
@@ -160,6 +172,7 @@ export type DocumentObj = {
   isValid: boolean | undefined;
   verifyReason: string | undefined;
   scores: StatNumbers;
+  scoresFull: StatFull;
   deepDiveReason: string | undefined;
   error: string | undefined;
   tag: string | undefined;

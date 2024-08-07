@@ -186,4 +186,8 @@ def get_config() -> Config:
         raise ValueError("write_token must be set!")
     if CONFIG["tanuki"] == "INVALID":
         raise ValueError("tanuki must be set!")
+    # with open_write("userdata/config.json", text=True) as fout:
+    #     print(
+    #         json.dumps(CONFIG, indent=4, sort_keys=True),
+    #         file=fout)
     return CONFIG

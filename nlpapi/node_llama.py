@@ -16,9 +16,9 @@
 import os
 from typing import cast
 
-import llama_cpp
 from llama_cpp import CreateChatCompletionStreamResponse, Llama
 from scattermind.system.base import GraphId, NodeId
+from scattermind.system.client.client import ComputeTask
 from scattermind.system.graph.graph import Graph
 from scattermind.system.graph.node import Node
 from scattermind.system.info import DataFormatJSON, STRING_INFO
@@ -81,8 +81,8 @@ class LlamaNode(Node):
         print(f"LLAMA_CPP_LIB is {lib} {lib_exists=}")
         self._model = Llama(
             model_path=self.get_arg("model_path").get("str"),
-            n_ctx=30000,
-            n_gpu_layers=33,
+            n_ctx=self.get_arg("n_ctx").get("int", 30000),
+            n_gpu_layers=self.get_arg("n_gpu_layers").get("int", -1),
             # n_threads=6,
             # n_batch=521,
             seed=123,
@@ -107,7 +107,10 @@ class LlamaNode(Node):
             prompt: str,
             *,
             system_prompt_key: str,
-            cache_dir: str) -> str:
+            cache_dir: str,
+            task: ComputeTask) -> str:
+        if not task.is_valid():
+            return ""
         # FIXME: maybe use state
         # if not load_state(model, cache_dir):
         set_seed = True
@@ -127,7 +130,15 @@ class LlamaNode(Node):
 
         try:
             for out in model.create_chat_completion(
-                    messages, max_tokens=None, stream=True):
+                    messages,
+                    max_tokens=None,
+                    stream=True,
+                    # response_format={
+                    #     "type": "json_object",
+                    # },
+                    ):
+                if not task.is_valid():
+                    break
                 resp = cast(CreateChatCompletionStreamResponse, out)
                 delta = resp["choices"][0]["delta"]
                 content: str | None = cast(str, delta.get("content", ""))
@@ -157,8 +168,9 @@ class LlamaNode(Node):
         system_prompt_keys = inputs.get_data("system_prompt_key")
         tasks = inputs.get_current_tasks()
 
-        model.set_cache(llama_cpp.llama_cache.LlamaDiskCache(
-            os.path.join(cache_dir, self.get_id().to_parseable())))
+        # NOTE: disk cache performs poorly as the cache grows
+        # model.set_cache(llama_cpp.llama_cache.LlamaDiskCache(
+        #     os.path.join(cache_dir, self.get_id().to_parseable())))
         for prompt, system_prompt_key, task in zip(
                 prompts.iter_values(),
                 system_prompt_keys.iter_values(),
@@ -169,7 +181,8 @@ class LlamaNode(Node):
                 model,
                 prompt_str.strip(),
                 system_prompt_key=system_prompt_key_str.strip(),
-                cache_dir=cache_dir)
+                cache_dir=cache_dir,
+                task=task)
             response = str_to_tensor(response_str)
             state.push_results(
                 "out",

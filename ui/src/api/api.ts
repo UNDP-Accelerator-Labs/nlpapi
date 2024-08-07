@@ -32,6 +32,7 @@ import {
   DocumentListResponse,
   DocumentResponse,
   FulltextResponse,
+  InfoResult,
   SearchFilters,
   StatNumbers,
   UserResult,
@@ -51,6 +52,7 @@ export type ApiProvider = {
     offset: number,
     limit: number,
   ) => Promise<ApiSearchResult>;
+  docInfo: (mainId: string) => Promise<InfoResult>;
   addCollection: (
     name: string,
     deepDive: DeepDiveName,
@@ -70,6 +72,7 @@ export type ApiProvider = {
     collectionId: number,
     mainIds: string[],
     metaOnly: boolean,
+    errorOnly: boolean,
   ) => Promise<void>;
 };
 
@@ -142,6 +145,34 @@ export const DEFAULT_API: ApiProvider = {
       return {
         hits: [],
         status: 'error',
+      };
+    }
+  },
+  docInfo: async (mainId) => {
+    const url = await getSearchApiUrl();
+    try {
+      const res = await fetch(`${url}/api/documents/info`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          main_id: mainId,
+        }),
+      });
+      const { url: respUrl, title, error } = await res.json();
+      return {
+        url: respUrl ?? undefined,
+        title: title ?? undefined,
+        error: error ?? undefined,
+      };
+    } catch (err) {
+      console.error(err);
+      return {
+        url: undefined,
+        title: undefined,
+        error: err,
       };
     }
   },
@@ -270,6 +301,16 @@ export const DEFAULT_API: ApiProvider = {
             isValid: is_valid ?? undefined,
             verifyReason: verify_reason ?? undefined,
             scores,
+            scoresFull: Object.fromEntries(
+              Object.entries(scores).map(([key, score]) => [
+                key,
+                {
+                  mean: score ?? 0,
+                  stddev: 0,
+                  count: 1,
+                },
+              ]),
+            ),
             deepDiveReason: reason,
             error: error ?? undefined,
             tag: tag ?? undefined,
@@ -294,7 +335,7 @@ export const DEFAULT_API: ApiProvider = {
     const { content, error }: FulltextResponse = await res.json();
     return { content: content ?? undefined, error: error ?? undefined };
   },
-  requeue: async (collectionId, mainIds, metaOnly) => {
+  requeue: async (collectionId, mainIds, metaOnly, errorOnly) => {
     const url = await getCollectionApiUrl();
     const res = await fetch(`${url}/api/documents/requeue`, {
       method: 'POST',
@@ -306,6 +347,7 @@ export const DEFAULT_API: ApiProvider = {
         collection_id: collectionId,
         main_ids: mainIds,
         meta_only: metaOnly,
+        error_only: errorOnly,
       }),
     });
     await res.json();

@@ -36,7 +36,7 @@ DEVICE=auto
 
 cd ..
 if [ "${DEVICE}" = "auto" ]; then
-    exec python -u -m scattermind --config study/config.json worker --graph study/graphs/
+    exec python -u -m scattermind --config study/config.json worker --graph study/graphs/ --max-task-retries 2
 else
-    exec python -u -m scattermind --config study/config.json --device "${DEVICE}" worker --graph study/graphs/
+    exec python -u -m scattermind --config study/config.json --device "${DEVICE}" worker --graph study/graphs/ --max-task-retries 2
 fi

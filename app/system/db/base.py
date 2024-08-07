@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import numpy as np
 import sqlalchemy as sa
+from citext import CIText  # type: ignore
 from psycopg2.extensions import AsIs, register_adapter
 from sqlalchemy.orm import registry
 from sqlalchemy.orm.decl_api import DeclarativeMeta
@@ -50,6 +51,9 @@ class Base(
     metadata = mapper_registry.metadata
 
     __init__ = mapper_registry.constructor
+
+
+# locations
 
 
 LOCATION_CACHE_ID_SEQ: sa.Sequence = sa.Sequence(
@@ -118,6 +122,9 @@ class LocationUsers(Base):  # pylint: disable=too-few-public-methods
     language_length = sa.Column(sa.Integer, nullable=False, default=0)
 
 
+# queries
+
+
 class QueryLog(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "query_log"
 
@@ -143,6 +150,40 @@ class QueryLog(Base):  # pylint: disable=too-few-public-methods
         server_default=sa.text("1"))
 
 
+# deep dives
+
+
+class DeepDivePrompt(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "deep_dive_prompt"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    name = sa.Column(sa.Text(), nullable=False)
+    main_prompt = sa.Column(sa.Text(), nullable=False)
+    post_prompt = sa.Column(sa.Text(), nullable=True)
+    categories = sa.Column(sa.Text(), nullable=True)
+
+
+class DeepDiveProcess(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "deep_dive_process"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    name = sa.Column(sa.Text(), nullable=False)
+    verify_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            DeepDivePrompt.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False)
+    categories_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            DeepDivePrompt.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False)
+
+
 class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "deep_dive_collection"
 
@@ -151,9 +192,16 @@ class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
     user: sa.Column[sa.Uuid] = sa.Column(
         sa.Uuid, nullable=False, primary_key=True)  # type: ignore
     name = sa.Column(sa.Text(), nullable=False, primary_key=True)
-    verify_key = sa.Column(sa.Text(), nullable=False)
-    deep_dive_key = sa.Column(sa.Text(), nullable=False)
+    verify_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
+    deep_dive_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
     is_public = sa.Column(sa.Boolean, nullable=False, default=False)
+    process = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            DeepDiveProcess.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False)
 
 
 DEEP_DIVE_ELEMENT_ID_SEQ: sa.Sequence = sa.Sequence(
@@ -188,7 +236,119 @@ class DeepDiveElement(Base):  # pylint: disable=too-few-public-methods
     tag_reason = sa.Column(sa.Text(), nullable=True)
 
 
-# platform tables
+DEEP_DIVE_SEGMENT_ID_SEQ: sa.Sequence = sa.Sequence(
+    "deep_dive_segment_id_seq", start=1, increment=1)
+
+
+class DeepDiveSegment(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "deep_dive_segment"
+
+    id = sa.Column(
+        sa.Integer,
+        DEEP_DIVE_SEGMENT_ID_SEQ,
+        nullable=False,
+        unique=True,
+        server_default=DEEP_DIVE_SEGMENT_ID_SEQ.next_value())
+    main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
+    page = sa.Column(sa.Integer, nullable=False, primary_key=True)
+    deep_dive_id = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            DeepDiveCollection.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True)
+    content = sa.Column(sa.Text(), nullable=False)
+    verify_reason = sa.Column(sa.Text(), nullable=True)
+    is_valid = sa.Column(sa.Boolean, nullable=True)
+    deep_dive_result = sa.Column(sa.JSON, nullable=True)
+    error = sa.Column(sa.Text(), nullable=True)
+
+
+# auto tags
+
+
+class TagGroupTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tag_group"
+
+    id = sa.Column(
+        sa.Integer, unique=True, primary_key=True, autoincrement=True)
+    name = sa.Column(sa.Text(), nullable=False)
+    snaptime = sa.Column(
+        sa.DateTime(timezone=True),
+        nullable=False,
+        server_default=sa.func.now())  # pylint: disable=not-callable
+    is_updating = sa.Column(sa.Boolean, nullable=False, default=True)
+
+
+class TagGroupMembers(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tag_group_members"
+
+    tag_group = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            TagGroupTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True)
+    main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
+    complete = sa.Column(sa.Boolean, nullable=False, default=False)
+
+
+class TagNamesTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tag_names"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    main_id = sa.Column(sa.String(MAIN_ID_LEN))
+    tag_group_from = sa.Column(  # inclusive
+        sa.Integer,
+        sa.ForeignKey(
+            TagGroupTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False)
+    tag_group_to = sa.Column(  # exclusive
+        sa.Integer,
+        sa.ForeignKey(
+            TagGroupTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=True)
+    keyword = sa.Column(sa.Text())
+
+
+class TagCluster(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tag_cluster"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    tag_group = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            TagGroupTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False)
+    name = sa.Column(sa.Text())
+
+
+class TagClusterMember(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tag_cluster_member"
+
+    tag_cluster = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            TagCluster.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False,
+        primary_key=True)
+    keyword = sa.Column(sa.Text(), nullable=False, primary_key=True)
+
+
+# global platform tables
+
 
 class SessionTable(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "session"
@@ -224,6 +384,26 @@ class UsersTable(Base):  # pylint: disable=too-few-public-methods
     created_from_sso = sa.Column(sa.Boolean, default=False)
 
 
+class GlobalTagsTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tags"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    name: sa.Column[CIText] = sa.Column(CIText())
+    contributor = sa.Column(sa.UUID)
+    language = sa.Column(sa.String(9), default="en")
+    label = sa.Column(sa.String(99))
+    type = sa.Column(sa.String(19))
+    key = sa.Column(sa.Integer)
+    description = sa.Column(sa.Text())
+
+    __table_args__ = (
+        sa.UniqueConstraint('name', 'type', name='name_type_key'),
+    )
+
+
+# individual platform tables
+
+
 class PadTable(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "pads"
 
@@ -254,7 +434,28 @@ class PadTable(Base):  # pylint: disable=too-few-public-methods
     # version ltree,
 
 
+class PlatformTaggingTable(Base):  # pylint: disable=too-few-public-methods
+    __tablename__ = "tagging"
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    pad = sa.Column(
+        sa.Integer,
+        sa.ForeignKey(
+            PadTable.id,
+            onupdate="CASCADE",
+            ondelete="CASCADE"),
+        nullable=False)
+    tag_id = sa.Column(sa.Integer, nullable=False)
+    type = sa.Column(sa.String(19))
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            'pad', 'tag_id', 'type', name='unique_pad_tag_type'),
+    )
+
+
 # blogs
+
 
 class ArticlesTable(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "articles"

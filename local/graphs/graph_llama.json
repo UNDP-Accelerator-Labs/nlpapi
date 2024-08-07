@@ -16,7 +16,9 @@
           "name": "node_0",
           "kind": "nlpapi.node_llama",
           "args": {
-            "model_path": "models/Meta-Llama-3-8B-Instruct-IQ3_XS.gguf"
+            "model_path": "models/Meta-Llama-3-8B-Instruct-IQ3_XS.gguf",
+            "n_ctx": 30000,
+            "n_gpu_layers": -1
           },
           "outs": {
             "out": null

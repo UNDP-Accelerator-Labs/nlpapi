@@ -15,12 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import collections
 import hashlib
-import time
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from datetime import datetime
 from typing import (
-    Any,
     cast,
     get_args,
     Literal,
@@ -30,6 +28,7 @@ from typing import (
     TypeVar,
 )
 
+import numpy as np
 from qdrant_client import QdrantClient
 from qdrant_client.conversions.common_types import PayloadSchemaType
 from qdrant_client.http.exceptions import (
@@ -46,6 +45,7 @@ from qdrant_client.models import (
     FilterSelector,
     HnswConfigDiff,
     MatchAny,
+    MatchExcept,
     MatchValue,
     OptimizersConfig,
     OrderBy,
@@ -57,11 +57,12 @@ from qdrant_client.models import (
     ScalarQuantization,
     ScalarQuantizationConfig,
     ScalarType,
+    ScoredPoint,
     VectorParams,
     WithLookup,
 )
 
-from app.misc.util import DocStatus, get_time_str, parse_time_str
+from app.misc.util import DocStatus, get_time_str, parse_time_str, retry_err
 from app.system.config import Config
 
 
@@ -70,7 +71,6 @@ T = TypeVar('T')
 
 QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
 REF_KEY: Literal["main_uuid"] = "main_uuid"
-DUMMY_VEC: list[float] = [1.0]
 
 
 META_CAT = "_"
@@ -185,6 +185,22 @@ ResultChunk = TypedDict('ResultChunk', {
     "snippets": list[str],
     "meta": dict[MetaKey, list[str] | str | int],
 })
+QueryEmbed = TypedDict('QueryEmbed', {
+    "hits": list[ResultChunk],
+    "status": Literal["ok", "error"],
+})
+
+DocResult = TypedDict('DocResult', {
+    "main_id": str,
+    "score": float,
+    "doc_id": int,
+    "base": str,
+    "url": str,
+    "title": str,
+    "updated": str,
+    "embed": list[float],
+    "meta": dict[MetaKey, list[str] | str | int],
+})
 
 
 FILE_PROTOCOL = "file://"
@@ -259,23 +275,6 @@ def get_vec_client(config: Config) -> QdrantClient | None:
             api_key=token,
             timeout=600)
     return db
-
-
-def retry_err(
-        call: Callable[..., T],
-        *args: Any,
-        max_retry: int = 3,
-        sleep: float = 3.0) -> T:
-    error = 0
-    while True:
-        try:
-            return call(*args)
-        except ResponseHandlingException:
-            error += 1
-            if error > max_retry:
-                raise
-            if sleep > 0.0:
-                time.sleep(sleep)
 
 
 def vec_flushall(db: QdrantClient) -> None:
@@ -369,7 +368,10 @@ def build_db_name(
         data_name = get_db_name(name, is_vec=False)
         db.recreate_collection(
             data_name,
-            vectors_config=VectorParams(size=1, distance=distance),
+            vectors_config=config,
+            optimizers_config=optimizers,
+            hnsw_config=hnsw_config,
+            quantization_config=quant_config,
             on_disk_payload=True,
             # replication_factor=3,
             # shard_number=6,
@@ -514,6 +516,7 @@ def full_scroll(
         name: str,
         *,
         scroll_filter: Filter | None,
+        with_vectors: bool,
         with_payload: bool | Sequence[str]) -> list[Record]:
     offset = None
     cur_limit = 10
@@ -524,6 +527,7 @@ def full_scroll(
             scroll_filter=scroll_filter,
             offset=offset,
             limit=cur_limit,
+            with_vectors=with_vectors,
             with_payload=with_payload)
         res.extend(cur)
         print(
@@ -544,6 +548,15 @@ def compute_chunk_hash(chunks: list[EmbedChunk]) -> HashTup:
         blake.update(f"{len(snippet)}:".encode("utf-8"))
         blake.update(snippet.encode("utf-8"))
     return (blake.hexdigest(), len(chunks))
+
+
+def compute_doc_embedding(
+        embed_size: int, chunks: list[EmbedChunk]) -> list[float]:
+    # we can use the average. see here:
+    # https://datascience.stackexchange.com/a/110506
+    if not chunks:
+        return list(np.zeros((embed_size,)))
+    return list(np.array([chunk["embed"] for chunk in chunks]).mean(axis=0))
 
 
 def get_main_id(data: EmbedMain) -> str:
@@ -615,9 +628,12 @@ def add_embed(
         *,
         name: str,
         data: EmbedMain,
+        embed_size: int,
         chunks: list[EmbedChunk]) -> tuple[int, int]:
     chunk_hash = compute_chunk_hash(chunks)
+    doc_embed = compute_doc_embedding(embed_size, chunks)
     cur_hash, new_count = chunk_hash
+    is_remove = new_count == 0
     main_id = get_main_id(data)
     main_uuid = get_main_uuid(data)
 
@@ -632,6 +648,7 @@ def add_embed(
         db,
         data_name,
         scroll_filter=filter_data,
+        with_vectors=False,
         with_payload=["hash", "count"])
     prev_hash: str | None = None
     prev_count: int = 0
@@ -647,15 +664,18 @@ def add_embed(
 
     base = data["base"]
     doc_type = meta_obj["doc_type"]
-    required_doc_types = KNOWN_DOC_TYPES.get(base)
-    if required_doc_types is not None and doc_type not in required_doc_types:
-        raise ValueError(
-            f"base {base} requires doc_type from "
-            f"{required_doc_types} not {doc_type}")
-    required_base = DOC_TYPE_TO_BASE.get(doc_type)
-    if required_base is not None and required_base != base:
-        raise ValueError(
-            f"doc_type {doc_type} requires base {required_base} != {base}")
+    if not is_remove:
+        required_doc_types = KNOWN_DOC_TYPES.get(base)
+        if (
+                required_doc_types is not None
+                and doc_type not in required_doc_types):
+            raise ValueError(
+                f"base {base} requires doc_type from "
+                f"{required_doc_types} not {doc_type}")
+        required_base = DOC_TYPE_TO_BASE.get(doc_type)
+        if required_base is not None and required_base != base:
+            raise ValueError(
+                f"doc_type {doc_type} requires base {required_base} != {base}")
 
     vec_name = get_db_name(name, is_vec=True)
 
@@ -708,7 +728,7 @@ def add_embed(
         if chunks:
             insert_chunks()
 
-    if new_count != 0:
+    if not is_remove:
         new_index_count = build_scalar_index(
             db,
             name,
@@ -723,7 +743,7 @@ def add_embed(
             points=[
                 PointStruct(
                     id=main_uuid,
-                    vector=DUMMY_VEC,
+                    vector=doc_embed,
                     payload=to_data_payload(data, chunk_hash)),
             ],
             wait=False))
@@ -740,7 +760,8 @@ def stat_total(
         name: str,
         *,
         filters: dict[MetaKey, list[str]] | None) -> int:
-    query_filter = get_filter(filters, for_vec=False, skip_fields=None)
+    query_filter = get_filter(
+        filters, for_vec=False, skip_fields=None, exclude_main_id=None)
     data_name = get_db_name(name, is_vec=False)
     if query_filter is None:
         res = db.get_collection(data_name).points_count
@@ -758,7 +779,8 @@ def stat_embed(
         field: MetaKey,
         filters: dict[MetaKey, list[str]] | None,
         ) -> dict[str, int]:
-    query_filter = get_filter(filters, for_vec=False, skip_fields={field})
+    query_filter = get_filter(
+        filters, for_vec=False, skip_fields={field}, exclude_main_id=None)
     data_name = get_db_name(name, is_vec=False)
 
     field_key = convert_meta_key_data(field, None)
@@ -766,6 +788,7 @@ def stat_embed(
         db,
         data_name,
         scroll_filter=query_filter,
+        with_vectors=False,
         with_payload=[field_key])
 
     def convert(val: str | list[str]) -> list[str]:
@@ -805,7 +828,7 @@ def fill_meta_data(payload: Payload) -> MetaObjectOpt:
             continue
         meta_key, meta_value = meta_info
         if meta_value is not None:
-            inner: dict[str, float] = cast(dict, meta.get(meta_key))
+            inner: dict[str, float] | None = cast(dict, meta.get(meta_key))
             if inner is None:
                 inner = {}
                 meta[meta_key] = inner
@@ -819,7 +842,8 @@ def get_filter(
         filters: dict[MetaKey, list[str]] | None,
         *,
         for_vec: bool,
-        skip_fields: set[MetaKey] | None) -> Filter | None:
+        skip_fields: set[MetaKey] | None,
+        exclude_main_id: str | None) -> Filter | None:
     if filters is None:
         return None
 
@@ -846,23 +870,15 @@ def get_filter(
             conds.append(FieldCondition(
                 key=ikey, range=DatetimeRange(gte=min(dates), lte=max(dates))))
             continue
-        if key == "doc_type":
-            # NOTE: utilizing base vec index for known doc_types
-            # each doc_type can only be in one base
-            bases: set[str] = set()
-            for doc_type in values:
-                fixed_base = DOC_TYPE_TO_BASE.get(doc_type)
-                if fixed_base is None:
-                    bases = set()
-                    break
-                bases.add(fixed_base)
-            if bases:
-                conds.append(FieldCondition(
-                    key="base",
-                    match=MatchAny(any=sorted(bases))))
-                continue
         ikey = convert_meta_key(key)
         conds.append(FieldCondition(key=ikey, match=MatchAny(any=values)))
+    if exclude_main_id is not None:
+        conds.append(
+            FieldCondition(
+                key="main_id",
+                match=MatchExcept(**{
+                    "except": [exclude_main_id],
+                })))
     if not conds:
         return None
     return Filter(must=conds)
@@ -897,6 +913,127 @@ def get_meta_from_data_payload(
     }
 
 
+def get_doc(db: QdrantClient, name: str, main_id: str) -> DocResult | None:
+    data_name = get_db_name(name, is_vec=False)
+    filter_data = Filter(
+        must=[
+            FieldCondition(
+                key="main_id",
+                match=MatchValue(value=main_id)),
+        ])
+    res = full_scroll(
+        db,
+        data_name,
+        scroll_filter=filter_data,
+        with_vectors=True,
+        with_payload=True)
+    if len(res) <= 0:
+        return None
+    payload = res[0].payload
+    assert payload is not None
+    embed = res[0].vector
+    assert embed is not None
+    base = payload["base"]
+    doc_id = payload["doc_id"]
+    url = payload["url"]
+    title = payload.get("title")
+    if title is None:
+        title = url
+    updated = payload["updated"]
+    main_id = payload["main_id"]
+    defaults: dict[MetaKey, list[str] | str | int] = {
+        "date": updated,
+    }
+    meta = get_meta_from_data_payload(payload, defaults)
+    return {
+        "main_id": main_id,
+        "score": 1.0,
+        "base": base,
+        "doc_id": doc_id,
+        "embed": list(embed),  # type: ignore
+        "url": url,
+        "title": title,
+        "updated": updated,
+        "meta": meta,
+    }
+
+
+def to_result(doc_result: DocResult) -> ResultChunk:
+    return {
+        "main_id": doc_result["main_id"],
+        "base": doc_result["base"],
+        "doc_id": doc_result["doc_id"],
+        "snippets": [],
+        "meta": doc_result["meta"],
+        "score": doc_result["score"],
+        "title": doc_result["title"],
+        "updated": doc_result["updated"],
+        "url": doc_result["url"],
+    }
+
+
+def search_docs(
+        db: QdrantClient,
+        name: str,
+        embed: list[float],
+        *,
+        offset: int | None,
+        limit: int,
+        score_threshold: float | None,
+        filters: dict[MetaKey, list[str]] | None,
+        exclude_main_id: str | None,
+        with_vectors: bool,
+        ) -> list[DocResult]:
+    data_name = get_db_name(name, is_vec=False)
+    real_offset = 0 if offset is None else offset
+    query_filter = get_filter(
+        filters,
+        for_vec=False,
+        skip_fields=None,
+        exclude_main_id=exclude_main_id)
+    docs = retry_err(
+        lambda: db.search(
+            data_name,
+            query_vector=embed,
+            offset=real_offset,
+            limit=limit,
+            query_filter=query_filter,
+            score_threshold=score_threshold,
+            with_vectors=with_vectors,
+            with_payload=True,
+            timeout=600))
+
+    def convert_doc(doc: ScoredPoint) -> DocResult:
+        payload = doc.payload
+        assert payload is not None
+        embed = doc.vector
+        base = payload["base"]
+        doc_id = payload["doc_id"]
+        url = payload["url"]
+        title = payload.get("title")
+        if title is None:
+            title = url
+        updated = payload["updated"]
+        main_id = payload["main_id"]
+        defaults: dict[MetaKey, list[str] | str | int] = {
+            "date": updated,
+        }
+        meta = get_meta_from_data_payload(payload, defaults)
+        return {
+            "main_id": main_id,
+            "score": doc.score,
+            "base": base,
+            "doc_id": doc_id,
+            "embed": list(embed) if embed else [],  # type: ignore
+            "url": url,
+            "title": title,
+            "updated": updated,
+            "meta": meta,
+        }
+
+    return [convert_doc(doc) for doc in docs]
+
+
 def query_embed(
         db: QdrantClient,
         name: str,
@@ -912,7 +1049,8 @@ def query_embed(
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     print(f"query {name} offset={real_offset} limit={total_limit}")
-    vec_filter = get_filter(filters, for_vec=True, skip_fields=None)
+    vec_filter = get_filter(
+        filters, for_vec=True, skip_fields=None, exclude_main_id=None)
     vec_name = get_db_name(name, is_vec=True)
     data_name = get_db_name(name, is_vec=False)
     hits = retry_err(
@@ -984,7 +1122,8 @@ def query_docs(
     total_limit = real_offset + limit
     print(f"scroll {name} offset={real_offset} limit={total_limit}")
     data_name = get_db_name(name, is_vec=False)
-    query_filter = get_filter(filters, for_vec=False, skip_fields=None)
+    query_filter = get_filter(
+        filters, for_vec=False, skip_fields=None, exclude_main_id=None)
     if order_by is None:
         order_by = "date"
     if isinstance(order_by, tuple):

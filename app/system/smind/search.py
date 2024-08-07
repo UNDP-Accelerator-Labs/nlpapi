@@ -15,18 +15,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import hashlib
 import re
-import threading
 import time
 import traceback
 import uuid
 from collections.abc import Callable
 from typing import Literal, Protocol, TypedDict
 
-import numpy as np
 from qdrant_client import QdrantClient
 from redipy import Redis
-from scattermind.system.util import first
+from scattermind.system.util import maybe_first
 
+from app.misc.math import dot_order
 from app.misc.util import (
     CHUNK_PADDING,
     CHUNK_SIZE,
@@ -34,7 +33,6 @@ from app.misc.util import (
     fmt_time,
     json_compact_str,
     json_maybe_read,
-    json_read_str,
     parse_time_str,
     SMALL_CHUNK_SIZE,
     TITLE_CHUNK_SIZE,
@@ -42,13 +40,9 @@ from app.misc.util import (
 )
 from app.system.db.db import DBConnector
 from app.system.language.pipeline import extract_language
-from app.system.location.pipeline import extract_locations
-from app.system.location.response import (
-    DEFAULT_MAX_REQUESTS,
-    GeoQuery,
-    LanguageStr,
-)
+from app.system.location.response import LanguageStr
 from app.system.prep.clean import normalize_text, sanity_check
+from app.system.prep.fulltext import TagFn
 from app.system.prep.snippify import snippify_text
 from app.system.smind.api import (
     clear_redis,
@@ -56,22 +50,34 @@ from app.system.smind.api import (
     GraphProfile,
 )
 from app.system.smind.cache import cached, clear_cache
-from app.system.smind.log import log_query, sample_query_log
+from app.system.smind.keepalive import update_last_query
+from app.system.smind.log import log_query
 from app.system.smind.vec import (
     add_embed,
     EmbedChunk,
     EmbedMain,
+    get_doc,
     MetaKey,
     MetaObject,
     query_docs,
     query_embed,
+    QueryEmbed,
     ResultChunk,
+    search_docs,
     stat_embed,
     stat_total,
     StatEmbed,
+    to_result,
     vec_flushall,
 )
 from app.system.urlinspect.inspect import inspect_url
+
+
+AddEmbed = TypedDict('AddEmbed', {
+    "previous": int,
+    "snippets": int,
+    "failed": int,
+})
 
 
 class GetVecDB(Protocol):  # pylint: disable=too-few-public-methods
@@ -84,36 +90,13 @@ class GetVecDB(Protocol):  # pylint: disable=too-few-public-methods
         ...
 
 
-ProcessError = TypedDict('ProcessError', {
-    "db": str,
-    "main_id": str,
-    "user": str,
-    "error": str,
-})
-ProcessEntry = TypedDict('ProcessEntry', {
-    "db": str,
-    "main_id": str,
-    "user": uuid.UUID,
-})
-ProcessEntryJSON = TypedDict('ProcessEntryJSON', {
-    "main_id": str,
-    "db": str,
-    "user": str,
-})
-EmbedQueueStats = TypedDict('EmbedQueueStats', {
-    "queue": int,
-    "error": int,
-})
-AddEmbedFn = Callable[[ProcessEntry], 'AddEmbed']
-
-
 ClearResponse = TypedDict('ClearResponse', {
     "clear_rmain": bool,
     "clear_rdata": bool,
     "clear_rcache": bool,
     "clear_rbody": bool,
     "clear_rworker": bool,
-    "clear_adder": bool,
+    "clear_process_queue": bool,
     "clear_veccache": bool,
     "clear_vecdb_all": bool,
     "clear_vecdb_main": bool,
@@ -121,265 +104,13 @@ ClearResponse = TypedDict('ClearResponse', {
     "index_vecdb_main": bool,
     "index_vecdb_test": bool,
 })
-AddEmbed = TypedDict('AddEmbed', {
-    "previous": int,
-    "snippets": int,
-    "failed": int,
-})
-QueryEmbed = TypedDict('QueryEmbed', {
-    "hits": list[ResultChunk],
-    "status": Literal["ok", "error"],
-})
-
-
-MAIN_DB: DBConnector | None = None
-MAIN_VEC_DB: QdrantClient | None = None
-MAIN_ARTICLES: str | None = None
-MAIN_GRAPH: GraphProfile | None = None
-LAST_QUERY: float = 0.0
-KEEP_ALIVE_LOCK: 'threading.RLock | None' = None  # FIXME: type fixed in p3.13
-KEEP_ALIVE_TH: threading.Thread | None = None
-KEEP_ALIVE_FREQ: float = 60.0  # 1min
-
-
-def set_main_articles(
-        db: DBConnector,
-        vec_db: QdrantClient,
-        *,
-        articles: str,
-        articles_graph: GraphProfile) -> None:
-    global MAIN_DB  # pylint: disable=global-statement
-    global MAIN_VEC_DB  # pylint: disable=global-statement
-    global MAIN_ARTICLES  # pylint: disable=global-statement
-    global MAIN_GRAPH  # pylint: disable=global-statement
-    global KEEP_ALIVE_LOCK  # pylint: disable=global-statement
-
-    if MAIN_ARTICLES is not None or KEEP_ALIVE_LOCK is not None:
-        raise ValueError(
-            f"{set_main_articles.__name__} can only be called once!")
-
-    MAIN_DB = db
-    MAIN_VEC_DB = vec_db
-    MAIN_ARTICLES = articles
-    MAIN_GRAPH = articles_graph
-    KEEP_ALIVE_LOCK = threading.RLock()
-    update_last_query(long_time=False, update_time=False)
-
-
-def update_last_query(*, long_time: bool, update_time: bool = True) -> None:
-    global LAST_QUERY  # pylint: disable=global-statement
-    global KEEP_ALIVE_TH  # pylint: disable=global-statement
-
-    if update_time:
-        delay = 600.0 if long_time else 0.0
-        LAST_QUERY = max(LAST_QUERY, time.monotonic() + delay)
-    if KEEP_ALIVE_TH is not None and KEEP_ALIVE_TH.is_alive():
-        return
-    m_db = MAIN_DB
-    m_vec_db = MAIN_VEC_DB
-    m_lock = KEEP_ALIVE_LOCK
-    m_articles = MAIN_ARTICLES
-    m_articles_graph = MAIN_GRAPH
-    if (
-            m_db is None
-            or m_vec_db is None
-            or m_lock is None
-            or m_articles is None
-            or m_articles_graph is None):
-        raise ValueError(f"must call {set_main_articles.__name__} first!")
-    db = m_db
-    vec_db = m_vec_db
-    lock = m_lock
-    articles = m_articles
-    articles_graph = m_articles_graph
-
-    def run() -> None:
-        freq = KEEP_ALIVE_FREQ
-        while th is KEEP_ALIVE_TH:
-            last_query = time.monotonic() - LAST_QUERY
-            if last_query >= freq:
-                input_str = sample_query_log(db, db_name=articles)
-                res = vec_search(
-                    db,
-                    vec_db,
-                    input_str,
-                    articles=articles,
-                    articles_graph=articles_graph,
-                    filters=None,
-                    order_by=None,
-                    offset=None,
-                    limit=10,
-                    hit_limit=1,
-                    score_threshold=None,
-                    short_snippets=True,
-                    no_log=True)
-                if res["status"] != "ok":
-                    print(
-                        f"WARNING: keepalive query {input_str} was not okay! "
-                        f"{res}")
-                    time.sleep(freq)
-            else:
-                sleep = freq - last_query
-                if sleep > 0.0:
-                    time.sleep(sleep)
-
-    with lock:
-        if KEEP_ALIVE_TH is not None and KEEP_ALIVE_TH.is_alive():
-            return
-        th = threading.Thread(target=run, daemon=True)
-        KEEP_ALIVE_TH = th
-        th.start()
-
-
-ADDER_LOCK = threading.RLock()
-ADDER_COND = threading.Condition(ADDER_LOCK)
-ADDER_THREAD: threading.Thread | None = None
-ADDER_QUEUE_KEY = "main_ids"
-ADDER_ERROR_KEY = "errors"
-
-
-def adder_info(add_queue_redis: Redis) -> EmbedQueueStats:
-    adder_queue_key = ADDER_QUEUE_KEY
-    adder_error_key = ADDER_ERROR_KEY
-
-    with add_queue_redis.pipeline() as pipe:
-        pipe.llen(adder_queue_key)
-        pipe.llen(adder_error_key)
-        queue_len, error_len = pipe.execute()
-    return {
-        "queue": queue_len,
-        "error": error_len,
-    }
-
-
-def get_process_error(obj_str: str) -> ProcessError:
-    return json_read_str(obj_str)
-
-
-def get_process_entry(obj_str: str) -> ProcessEntry:
-    obj: ProcessEntryJSON = json_read_str(obj_str)
-    return {
-        "db": obj["db"],
-        "main_id": obj["main_id"],
-        "user": uuid.UUID(obj["user"]),
-    }
-
-
-def process_entry_to_json(entry: ProcessEntry) -> str:
-    obj: ProcessEntryJSON = {
-        "db": entry["db"],
-        "main_id": entry["main_id"],
-        "user": entry["user"].hex,
-    }
-    return process_entry_json_to_str(obj)
-
-
-def process_entry_json_to_str(obj: ProcessEntryJSON) -> str:
-    return json_compact_str(obj)
-
-
-def get_embed_errors(add_queue_redis: Redis) -> list[ProcessError]:
-    adder_error_key = ADDER_ERROR_KEY
-
-    return [
-        get_process_error(obj_str)
-        for obj_str in add_queue_redis.lrange(adder_error_key, 0, -1)
-    ]
-
-
-def adder_enqueue(
-        add_queue_redis: Redis,
-        add_embed_fn: AddEmbedFn,
-        entry: ProcessEntry) -> None:
-    adder_queue_key = ADDER_QUEUE_KEY
-
-    add_queue_redis.rpush(adder_queue_key, process_entry_to_json(entry))
-    maybe_adder_thread(add_queue_redis, add_embed_fn)
-
-
-def requeue_errors(
-        add_queue_redis: Redis,
-        add_embed_fn: AddEmbedFn) -> bool:
-    adder_queue_key = ADDER_QUEUE_KEY
-    adder_error_key = ADDER_ERROR_KEY
-
-    any_enqueued = False
-    while True:
-        obj_str = add_queue_redis.lpop(adder_error_key)
-        if obj_str is None:
-            break
-        error = get_process_error(obj_str)
-        add_queue_redis.rpush(
-            adder_queue_key,
-            process_entry_json_to_str({
-                "db": error["db"],
-                "main_id": error["main_id"],
-                "user": error["user"],
-            }))
-        any_enqueued = True
-    if any_enqueued:
-        maybe_adder_thread(add_queue_redis, add_embed_fn)
-    return any_enqueued
-
-
-def maybe_adder_thread(
-        add_queue_redis: Redis,
-        add_embed_fn: AddEmbedFn) -> None:
-    global ADDER_THREAD  # pylint: disable=global-statement
-
-    adder_queue_key = ADDER_QUEUE_KEY
-    adder_error_key = ADDER_ERROR_KEY
-
-    def get_item() -> ProcessEntry | None:
-        res = add_queue_redis.lpop(adder_queue_key)
-        if res is None:
-            return None
-        return get_process_entry(res)
-
-    def run() -> None:
-        global ADDER_THREAD  # pylint: disable=global-statement
-
-        try:
-            while th is ADDER_THREAD:
-                with ADDER_LOCK:
-                    entry = ADDER_COND.wait_for(get_item, 600.0)
-                if entry is None:
-                    continue
-                print(f"ADDER: processing {entry['main_id']} to {entry['db']}")
-                try:
-                    info = add_embed_fn(entry)
-                    print(f"ADDER: done {entry['main_id']}: {info}")
-                except BaseException:  # pylint: disable=broad-except
-                    error_str = traceback.format_exc()
-                    error: ProcessError = {
-                        "db": entry["db"],
-                        "main_id": entry["main_id"],
-                        "user": entry["user"].hex,
-                        "error": error_str,
-                    }
-                    add_queue_redis.rpush(
-                        adder_error_key,
-                        json_compact_str(error))
-                    print(f"ADDER: error {entry['main_id']}")
-        finally:
-            with ADDER_LOCK:
-                if th is ADDER_THREAD:
-                    ADDER_THREAD = None
-
-    with ADDER_LOCK:
-        if ADDER_THREAD is not None and ADDER_THREAD.is_alive():
-            ADDER_COND.notify_all()
-            return
-        th = threading.Thread(target=run, daemon=True)
-        ADDER_THREAD = th
-        th.start()
 
 
 def vec_clear(
         vec_db: QdrantClient,
         smind_config: str,
         *,
-        add_queue_redis: Redis,
+        process_queue_redis: Redis,
         qdrant_cache: Redis,
         get_vec_db: GetVecDB,
         clear_rmain: bool,
@@ -387,7 +118,7 @@ def vec_clear(
         clear_rcache: bool,
         clear_rbody: bool,
         clear_rworker: bool,
-        clear_adder: bool,
+        clear_process_queue: bool,
         clear_veccache: bool,
         clear_vecdb_main: bool,
         clear_vecdb_test: bool,
@@ -428,12 +159,12 @@ def vec_clear(
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
             clear_rworker = False
-    if clear_adder:
+    if clear_process_queue:
         try:
-            add_queue_redis.flushall()
+            process_queue_redis.flushall()
         except Exception:  # pylint: disable=broad-except
             print(traceback.format_exc())
-            clear_adder = False
+            clear_process_queue = False
     if clear_veccache:
         try:
             clear_cache(qdrant_cache, db_name=None)
@@ -480,7 +211,7 @@ def vec_clear(
         "clear_rcache": clear_rcache,
         "clear_rbody": clear_rbody,
         "clear_rworker": clear_rworker,
-        "clear_adder": clear_adder,
+        "clear_process_queue": clear_process_queue,
         "clear_veccache": clear_veccache,
         "clear_vecdb_all": clear_vecdb_all,
         "clear_vecdb_main": clear_vecdb_main,
@@ -502,6 +233,7 @@ def vec_add(
         articles: str,
         articles_graph: GraphProfile,
         ner_graphs: dict[LanguageStr, GraphProfile],
+        get_tag: TagFn,
         user: uuid.UUID,
         base: str,
         doc_id: int,
@@ -509,6 +241,7 @@ def vec_add(
         title: str | None,
         meta_obj: MetaObject) -> AddEmbed:
     update_last_query(long_time=True)
+    main_id = f"{base}:{doc_id}"
     # FIXME: make "smart" features optional
     full_start = time.monotonic()
     # clear caches
@@ -519,7 +252,7 @@ def vec_add(
     # validate title
     title = normalize_text(sanity_check(title))
     if not title:
-        title_loc = first(snippify_text(
+        title_loc = maybe_first(snippify_text(
             input_str,
             chunk_size=TITLE_CHUNK_SIZE,
             chunk_padding=CHUNK_PADDING))
@@ -567,56 +300,63 @@ def vec_add(
     # fill iso3 if missing
     country_start = time.monotonic()
     if meta_obj.get("iso3") is None:
-        geo_obj: GeoQuery = {
-            "input": input_str,
-            "return_input": False,
-            "return_context": False,
-            "strategy": "top",
-            "language": "xx",
-            "max_requests": DEFAULT_MAX_REQUESTS,
-        }
-        geo_out = extract_locations(db, ner_graphs, geo_obj, user)
-        if geo_out["status"] != "invalid":
-            total: int = 0
-            countries: dict[str, int] = {}
-            for geo_entity in geo_out["entities"]:
-                if geo_entity["location"] is None:
-                    continue
-                cur_country = geo_entity["location"]["country"]
-                prev_ccount = countries.get(cur_country, 0)
-                geo_count = geo_entity["count"]
-                total += geo_count
-                countries[cur_country] = prev_ccount + geo_count
-            meta_obj["iso3"] = {
-                country: count / total
-                for country, count in countries.items()
-            }
-        else:
-            meta_obj["iso3"] = {}
+        assert ner_graphs  # NOTE: avoiding unused argument note
+        # geo_obj: GeoQuery = {
+        #     "input": input_str,
+        #     "return_input": False,
+        #     "return_context": False,
+        #     "strategy": "top",
+        #     "language": "xx",
+        #     "max_requests": DEFAULT_MAX_REQUESTS,
+        # }
+        # geo_out = extract_locations(db, ner_graphs, geo_obj, user)
+        # if geo_out["status"] != "invalid":
+        #     total: int = 0
+        #     countries: dict[str, int] = {}
+        #     for geo_entity in geo_out["entities"]:
+        #         if geo_entity["location"] is None:
+        #             continue
+        #         cur_country = geo_entity["location"]["country"]
+        #         prev_ccount = countries.get(cur_country, 0)
+        #         geo_count = geo_entity["count"]
+        #         total += geo_count
+        #         countries[cur_country] = prev_ccount + geo_count
+        #     meta_obj["iso3"] = {
+        #         country: count / total
+        #         for country, count in countries.items()
+        #     }
+        # else:
+        meta_obj["iso3"] = {}
     else:
         meta_obj["iso3"] = dict(meta_obj["iso3"].items())
     # inspect URL and amend iso3 if country found
     url_iso3 = inspect_url(url)
-    if url_iso3 is not None:
-        print(
-            f"overwriting iso3 score of {url_iso3} "
-            f"was {meta_obj['iso3'].get(url_iso3)}")
-        meta_obj["iso3"][url_iso3] = 2.0
+    if url_iso3 is None:
+        tag_iso3, tag_reason = get_tag(main_id)
+        print(f"tag retrieved: {tag_iso3} {tag_reason}")
+        if tag_iso3 is not None:
+            meta_obj["iso3"][tag_iso3] = 1.0
+    else:
+        meta_obj["iso3"][url_iso3] = 1.0
     country_time = time.monotonic() - country_start
     preprocess_time = time.monotonic() - preprocess_start
     # compute embedding
     embed_start = time.monotonic()
-    snippets = [
-        snippet
-        for (snippet, _) in snippify_text(
-            input_str,
-            chunk_size=CHUNK_SIZE,
-            chunk_padding=CHUNK_PADDING)
-    ]
-    embeds = get_text_results_immediate(
-        snippets,
-        graph_profile=articles_graph,
-        output_sample=[1.0])
+    if not input_str:
+        snippets: list[str] = []
+        embeds: list[list[float] | None] = []
+    else:
+        snippets = [
+            snippet
+            for (snippet, _) in snippify_text(
+                input_str,
+                chunk_size=CHUNK_SIZE,
+                chunk_padding=CHUNK_PADDING)
+        ]
+        embeds = get_text_results_immediate(
+            snippets,
+            graph_profile=articles_graph,
+            output_sample=[1.0])
     embed_main: EmbedMain = {
         "base": base,
         "doc_id": doc_id,
@@ -636,16 +376,18 @@ def vec_add(
     embed_time = time.monotonic() - embed_start
     # add embedding to vecdb
     vec_start = time.monotonic()
+    # print(f"{len(input_str)=} vs {len(embed_chunks)=}")
     prev_count, new_count = add_embed(
         vec_db,
         name=articles,
         data=embed_main,
+        embed_size=articles_graph.get_output_size(),
         chunks=embed_chunks)
     failed = sum(1 if embed is None else 0 for embed in embeds)
     vec_time = time.monotonic() - vec_start
     full_time = time.monotonic() - full_start
     print(
-        f"adding {base}:{doc_id} took "
+        f"adding {main_id} took "
         f"{full_time=}s {preprocess_time=}s {embed_time=}s {vec_time=}s "
         f"{language_time=}s {country_time=}s {cache_time=}s "
         f"{prev_count=} {new_count=} {failed=}")
@@ -757,34 +499,6 @@ def apply_snippets(
     return [apply(ix, hit) for (ix, hit) in enumerate(hits)]
 
 
-def dot_order(
-        embed: list[float],
-        sembeds: list[tuple[tuple[int, str], list[float]]],
-        hit_limit: int) -> dict[int, list[str]]:
-    mat_ref = np.array([embed])  # 1 x len(embed)
-
-    def dot_hit(group: list[tuple[str, list[float]]]) -> list[str]:
-        mat_embed = np.array([
-            sembed
-            for (_, sembed) in group
-        ]).T  # len(embed) x len(group)
-        dots = np.matmul(mat_ref, mat_embed).ravel()
-        ixs = list(np.argsort(dots))[::-1]
-        return [group[ix][0] for ix in ixs[:hit_limit]]
-
-    lookup: dict[int, list[tuple[str, list[float]]]] = {}
-    for ((pos, txt), cur_embed) in sembeds:
-        cur: list[tuple[str, list[float]]] | None = lookup.get(pos)
-        if cur is None:
-            cur = []
-            lookup[pos] = cur
-        cur.append((txt, cur_embed))
-    return {
-        pos: dot_hit(cur_group)
-        for (pos, cur_group) in lookup.items()
-    }
-
-
 def snippet_post(
         hits: list[ResultChunk],
         *,
@@ -852,7 +566,7 @@ def vec_search(
     if offset == 0:
         offset = None
     if not input_str:
-        res = query_docs(
+        res: list[ResultChunk] = query_docs(
             vec_db,
             articles,
             offset=offset,
@@ -864,18 +578,44 @@ def vec_search(
             "status": "ok",
         }
     full_start = time.monotonic()
+    log_start = time.monotonic()
+    if not no_log:
+        log_query(db, db_name=articles, text=input_str, filters=filters)
+    log_time = time.monotonic() - log_start
 
+    if input_str[0] == "=":
+        q_main_id = input_str.strip().removeprefix("=")
+        doc_start = time.monotonic()
+        doc_embed = get_doc(vec_db, articles, q_main_id)
+        doc_time = time.monotonic() - doc_start
+        if doc_embed is not None:
+            dq_start = time.monotonic()
+            res_docs = search_docs(
+                vec_db,
+                articles,
+                doc_embed["embed"],
+                offset=offset,
+                limit=limit,
+                score_threshold=score_threshold,
+                filters=filters,
+                exclude_main_id=q_main_id,
+                with_vectors=False)
+            res = [to_result(doc_result) for doc_result in res_docs]
+            dq_time = time.monotonic() - dq_start
+            full_time = time.monotonic() - full_start
+            print(
+                f"query for '{input_str}' took "
+                f"{full_time=}s {log_time=}s {doc_time=}s {dq_time=}s ")
+            return {
+                "hits": res,
+                "status": "ok",
+            }
     embed_start = time.monotonic()
     embed = get_text_results_immediate(
         [input_str],
         graph_profile=articles_graph,
         output_sample=[1.0])[0]
     embed_time = time.monotonic() - embed_start
-
-    log_start = time.monotonic()
-    if not no_log:
-        log_query(db, db_name=articles, text=input_str, filters=filters)
-    log_time = time.monotonic() - log_start
 
     if embed is None:
         return {
@@ -907,7 +647,7 @@ def vec_search(
     full_time = time.monotonic() - full_start
     print(
         f"query for '{input_str}' took "
-        f"{full_time=}s {embed_time=}s {log_time=}s {query_time=}s "
+        f"{full_time=}s {log_time=}s {embed_time=}s {query_time=}s "
         f"{snippy_time=}s {snippy_embeds=}")
     return {
         "hits": final_hits,

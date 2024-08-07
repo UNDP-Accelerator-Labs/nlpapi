@@ -325,6 +325,8 @@ type SearchState = {
   isLoading: boolean;
   isAdding: boolean;
   documentMessage: string;
+  nearestTitle: string | undefined;
+  nearestUrl: string | undefined;
 };
 
 class Search extends PureComponent<SearchProps, SearchState> {
@@ -345,6 +347,8 @@ class Search extends PureComponent<SearchProps, SearchState> {
       isLoading: false,
       isAdding: false,
       documentMessage: '',
+      nearestTitle: undefined,
+      nearestUrl: undefined,
     };
     this.queryRef = React.createRef();
   }
@@ -386,6 +390,26 @@ class Search extends PureComponent<SearchProps, SearchState> {
         },
         () => apiActions.search(query, db, filters, page, this.setResults),
       );
+      if (forceUpdate || query !== oldQuery) {
+        this.setState(
+          {
+            nearestTitle: undefined,
+            nearestUrl: undefined,
+          },
+          () => {
+            if (!query || !query.startsWith('=')) {
+              return;
+            }
+            apiActions.info(query.slice(1), (url, title, error) => {
+              if (url && title) {
+                this.setState({ nearestTitle: title, nearestUrl: url });
+              } else {
+                console.error(error);
+              }
+            });
+          },
+        );
+      }
     }
   }
 
@@ -568,23 +592,29 @@ class Search extends PureComponent<SearchProps, SearchState> {
     const {
       results: { hits },
     } = this.state;
+    const currentUrl = window.location.href;
     return (
       <React.Fragment>
         {hits.map(
           ({
             url,
             title,
-            base,
-            docId,
+            mainId,
             score,
             meta: { date, iso3, language },
             snippets,
           }) => {
+            const params = new URLSearchParams(
+              new URL(currentUrl).searchParams,
+            );
+            params.set('q', `=${mainId}`);
+            const link = new URL(window.location.href);
+            link.search = params.toString();
             return (
-              <Hit key={docId}>
+              <Hit key={mainId}>
                 <a href={url}>{title}</a>
                 <HitInfo>
-                  {base}-{docId} score: {score} date: {date}
+                  <a href={`${link}`}>{mainId}</a> score: {score} date: {date}
                 </HitInfo>
                 <div>
                   countries: {(iso3 ?? []).join(', ')} languages:{' '}
@@ -696,6 +726,8 @@ class Search extends PureComponent<SearchProps, SearchState> {
       results: { status },
       isAdding,
       documentMessage,
+      nearestTitle,
+      nearestUrl,
     } = this.state;
     const pageCount = Math.min(
       Math.ceil((count ?? 0) / PAGE_SIZE),
@@ -756,8 +788,19 @@ class Search extends PureComponent<SearchProps, SearchState> {
             />
           </SearchDiv>
           <SearchInfo>
-            Status: {status && !isLoading ? status : 'pending'} Showing results
-            for: {query}
+            Status: {status && !isLoading ? status : 'pending'} Showing{' '}
+            {nearestTitle ? (
+              <React.Fragment>
+                neighbors of{' '}
+                {nearestUrl ? (
+                  <a href={nearestUrl}>{nearestTitle}</a>
+                ) : (
+                  `${nearestTitle}`
+                )}
+              </React.Fragment>
+            ) : (
+              `results for: ${query}`
+            )}
           </SearchInfo>
           <Results isLoading={isLoading}>{this.results()}</Results>
           <PaginationDiv>{this.pagination(page, pageCount)}</PaginationDiv>

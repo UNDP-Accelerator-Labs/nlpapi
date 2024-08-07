@@ -28,7 +28,7 @@ import {
   DocumentStats,
   Filter,
   STAT_NAMES,
-  StatNumbers,
+  StatFull,
 } from '../api/types';
 import SpiderGraph from '../misc/SpiderGraph';
 import { RootState } from '../store';
@@ -203,8 +203,8 @@ type CollectionViewState = {
   needsUpdate: boolean;
   needsCmpUpdate: boolean;
   isLoading: boolean;
-  allScores: StatNumbers;
-  cmpScores: StatNumbers;
+  allScores: StatFull;
+  cmpScores: StatFull;
   visIsRelative: boolean;
 };
 
@@ -392,11 +392,17 @@ class CollectionView extends PureComponent<
     if (!window.confirm(`${ma} ${mb}`)) {
       return;
     }
-    apiActions.requeue(collectionId, mainIds, false, () => {
-      this.setState({
-        needsUpdate: true,
-      });
-    });
+    apiActions.requeue(
+      collectionId,
+      mainIds,
+      false,
+      collectionFilter === 'errors',
+      () => {
+        this.setState({
+          needsUpdate: true,
+        });
+      },
+    );
   };
 
   clickRefresh: MouseEventHandler<HTMLSpanElement> = (e) => {
@@ -505,7 +511,7 @@ class CollectionView extends PureComponent<
   computeTotalScores(
     allDocs: DocumentObj[],
     tagFilter: string | null,
-  ): StatNumbers {
+  ): StatFull {
     const docs = allDocs.filter(({ tag }) => !tagFilter || tag === tagFilter);
     if (!docs.length) {
       return {};
@@ -527,12 +533,32 @@ class CollectionView extends PureComponent<
       [] as number[],
     );
     const count = denoms.reduce((p, denom) => p + (denom > 0 ? 1 : 0));
-    return docs.reduce((p, { scores }) => {
+    const means = docs.reduce((p, { scores }) => {
       const total = Math.max(count, 1);
       return Object.fromEntries(
         keys.map((key) => [key, p[key] + +(scores[key] ?? 0) / total]),
       );
     }, Object.fromEntries(keys.map((key) => [key, 0])));
+    const sq = (num: number) => num * num;
+    const sampleStddev = docs.reduce((p, { scores }) => {
+      const total = Math.max(count - 1, 1); // NOTE: sample Stddev is `n - 1`
+      return Object.fromEntries(
+        keys.map((key) => [
+          key,
+          p[key] + sq(+(scores[key] ?? 0) - means[key]) / total,
+        ]),
+      );
+    }, Object.fromEntries(keys.map((key) => [key, 0])));
+    return Object.fromEntries(
+      keys.map((key) => [
+        key,
+        {
+          mean: means[key] ?? 0,
+          count,
+          stddev: Math.sqrt(sampleStddev[key] ?? 0),
+        },
+      ]),
+    );
   }
 
   getFilterTagFn =
