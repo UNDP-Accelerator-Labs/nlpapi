@@ -16,6 +16,8 @@
 [tool.pylint.main]
     load-plugins = [
         "pylint.extensions.typing",
+        "pylint.extensions.docparams",
+        "pylint.extensions.docstyle",
     ]
 
 [tool.pylint.basic]
@@ -79,9 +81,10 @@
 
 [tool.pylint.messages_control]
     disable = [
+        "bad-docstring-quotes",
+        "duplicate-code",
+        "docstring-first-line-empty",
         "fixme",
-        "import-outside-toplevel",
-        "missing-docstring",
         "too-many-arguments",
         "too-many-branches",
         "too-many-instance-attributes",

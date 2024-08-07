@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""The types for the api endpoint results."""
 from typing import TypedDict
 
 from app.system.autotag.autotag import TagClusterEntry

@@ -13,14 +13,27 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Modules can be used through a unified api endpoint to compute multiple
+metrics for a given input string."""
 import uuid
 from collections.abc import Mapping
 from typing import Any
 
 
 class Module:
+    """
+    A module defines a metric for input strings. It can be accessed via the
+    `/api/extract` endpoint when it is registered in `server.py`.
+    """
     @staticmethod
     def name() -> str:
+        """
+        The name of the module.
+
+        Returns:
+            str: The name of the module. This is a parameter to the
+                `/api/extract` endpoint.
+        """
         raise NotImplementedError()
 
     def execute(
@@ -28,4 +41,15 @@ class Module:
             input_str: str,
             user: uuid.UUID,
             args: dict[str, Any]) -> Mapping[str, Any]:
+        """
+        Executes the module and returns a dictionary with its results.
+
+        Args:
+            input_str (str): The input string.
+            user (uuid.UUID): The user that initiated the request.
+            args (dict[str, Any]): Arguments to the module.
+
+        Returns:
+            Mapping[str, Any]: The results.
+        """
         raise NotImplementedError()

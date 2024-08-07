@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Defines all api endpoints."""
 import hmac
 import os
 import sys
@@ -163,7 +164,7 @@ from app.system.workqueues.queue import (
 
 
 MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
-MAX_LINKS = 20
+"""The maximum length allowed for an input string."""
 
 
 VersionDict = TypedDict('VersionDict', {
@@ -175,9 +176,20 @@ VersionDict = TypedDict('VersionDict', {
     "deploy_time": str,
     "start_time": str,
 })
+"""The version dictionary gives information about the environment of the
+server. The python version, the quick_server version, and the app version are
+returned. The exact commit of the app version is also returned and the time
+of deploying the app (when the docker images were built) and the start time
+(when the app started) are provided as well."""
 
 
 def get_version_strs() -> VersionDict:
+    """
+    Computes version details.
+
+    Returns:
+        VersionDict: The version details.
+    """
     py_version_detail = f"{sys.version}"
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     version_name = get_version("name")
@@ -202,6 +214,21 @@ def get_vec_db(
         graph_embed: GraphProfile,
         force_clear: bool,
         force_index: bool) -> str:
+    """
+    Helper function to obtain the internal vector database string of the given
+    database.
+
+    Args:
+        vec_db (QdrantClient): The qdrant client.
+        name (DBName): The external name of the database.
+        graph_embed (GraphProfile): The associated embedding model.
+        force_clear (bool): Whether to delete the db.
+        force_index (bool): Whether to delete the db index.
+
+    Returns:
+        str: The internal name of the database. The database is guaranteed to
+            exist after this function returns.
+    """
     return build_db_name(
         f"articles_{name}",
         distance_fn="dot",
@@ -234,6 +261,47 @@ def add_vec_features(
         verify_token: MiddlewareF,
         verify_write: MiddlewareF,
         verify_tanuki: MiddlewareF) -> Callable[[], dict[DBName, str]]:
+    """
+    Adds vector database api endpoints and features (e.g., starts the
+    processing queue). This function is only called if the vector database is
+    active for this deployment (`NO_QDRANT=false` or unset).
+
+    Args:
+        server (QuickServer): The server to add the api endpoints to.
+        db (DBConnector): The login database connector.
+        vec_db (QdrantClient): The vector database client.
+        prefix (str): The api endpoint prefix.
+        process_queue_redis (Redis): The processing queue redis connector.
+        qdrant_cache (Redis): The qdrant cache redis connector.
+        smind_config (str): The scattermind configuration file.
+        graph_embed (GraphProfile): The embedding model.
+        ner_graphs (dict[LanguageStr, GraphProfile]): The NER models for each
+            language.
+        get_all_docs (AllDocsFn): Function to get all docs.
+        doc_is_remove (IsRemoveFn): Function to check whether a doc exists.
+        get_full_text (FullTextFn): Function to get fulltext of a doc.
+        get_url_title (UrlTitleFn): Function to get url and title of a doc.
+        get_tag (TagFn): Function to get "tag" of doc (in this case it is
+            specifically the country of the lab that published the doc if the
+            country is known).
+        get_status_date_type (StatusDateTypeFn): Function to get meta data of
+            a doc.
+        maybe_session (MiddlewareF): Middleware to check for an optional
+            session cookie.
+        verify_readonly (MiddlewareF): Middleware to guarantee that no write
+            tokens are set.
+        verify_input (MiddlewareF): Middleware to preprocess the input string.
+        verify_token (MiddlewareF): Middleware to ensure that an api token is
+            provided.
+        verify_write (MiddlewareF): Middleware to ensure that a write token is
+            provided.
+        verify_tanuki (MiddlewareF): Middleware to ensure that the tanuki token
+            is provided.
+
+    Returns:
+        Callable[[], dict[DBName, str]]: Function to return all loaded vector
+            databases.
+    """
     cond = threading.Condition()
     articles_dict: dict[DBName, str] = {}
 
