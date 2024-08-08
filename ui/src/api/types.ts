@@ -110,7 +110,7 @@ export type Collection = {
   id: number;
   user: string;
   name: string;
-  deepDiveKey: string;
+  deepDiveName: DeepDiveName;
   isPublic: boolean;
 };
 
@@ -118,7 +118,7 @@ type ApiCollection = {
   id: number;
   user: string;
   name: string;
-  deep_dive_key: string;
+  deep_dive_name: string;
   is_public: boolean;
 };
 
@@ -137,8 +137,6 @@ type ApiDocumentObj = {
   url: string;
   title: string;
   deep_dive: number;
-  verify_key: string;
-  deep_dive_key: string;
   is_valid: boolean | undefined;
   verify_reason: string | undefined;
   deep_dive_result: DeepDiveResult | undefined;
@@ -161,8 +159,6 @@ export type DocumentObj = {
   url: string;
   title: string;
   collectionId: number;
-  verifyKey: string;
-  deepDiveKey: string;
   isValid: boolean | undefined;
   verifyReason: string | undefined;
   scores: StatNumbers;

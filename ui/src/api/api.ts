@@ -207,11 +207,11 @@ export const DEFAULT_API: ApiProvider = {
     const { collections }: ApiCollectionListResponse = await res.json();
     return {
       collections: collections.map(
-        ({ id, user, name, deep_dive_key, is_public }) => ({
+        ({ id, user, name, deep_dive_name, is_public }) => ({
           id,
           user,
           name,
-          deepDiveKey: deep_dive_key,
+          deepDiveName: deep_dive_name as DeepDiveName,
           isPublic: is_public,
         }),
       ),
@@ -274,8 +274,6 @@ export const DEFAULT_API: ApiProvider = {
           url,
           title,
           deep_dive,
-          verify_key,
-          deep_dive_key,
           is_valid,
           verify_reason,
           deep_dive_result,
@@ -297,8 +295,6 @@ export const DEFAULT_API: ApiProvider = {
             url,
             title,
             collectionId: deep_dive,
-            verifyKey: verify_key,
-            deepDiveKey: deep_dive_key,
             isValid: is_valid ?? undefined,
             verifyReason: verify_reason ?? undefined,
             scores,

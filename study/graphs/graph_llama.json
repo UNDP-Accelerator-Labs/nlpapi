@@ -6,7 +6,8 @@
       "input": "node_0",
       "input_format": {
         "prompt": "string",
-        "system_prompt_key": "string"
+        "main_prompt": "string",
+        "post_prompt": "string"
       },
       "output_format": {
         "response": "string"
@@ -23,7 +24,8 @@
           },
           "vmap": {
             "prompt": ":prompt",
-            "system_prompt_key": ":system_prompt_key"
+            "main_prompt": ":main_prompt",
+            "post_prompt": ":post_prompt"
           }
         }
       ],

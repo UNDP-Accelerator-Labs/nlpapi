@@ -78,7 +78,7 @@ CollectionJSON = TypedDict('CollectionJSON', {
     "id": int,
     "user": str,
     "name": str,
-    "deep_dive_key": str,
+    "deep_dive_name": str,
     "is_public": bool,
 })
 CollectionListResponse = TypedDict('CollectionListResponse', {

@@ -165,10 +165,6 @@ class DeepDivePrompt(Base):  # pylint: disable=too-few-public-methods
     main_prompt = sa.Column(sa.Text(), nullable=False)
     post_prompt = sa.Column(sa.Text(), nullable=True)
     categories = sa.Column(sa.Text(), nullable=True)
-    chunk_size = sa.Column(
-        sa.Integer, nullable=False, default=LLM_CHUNK_SIZE)
-    chunk_padding = sa.Column(
-        sa.Integer, nullable=False, default=LLM_CHUNK_PADDING)
 
 
 class DeepDiveProcess(Base):  # pylint: disable=too-few-public-methods
@@ -190,6 +186,10 @@ class DeepDiveProcess(Base):  # pylint: disable=too-few-public-methods
             onupdate="CASCADE",
             ondelete="CASCADE"),
         nullable=False)
+    chunk_size = sa.Column(
+        sa.Integer, nullable=False, default=LLM_CHUNK_SIZE)
+    chunk_padding = sa.Column(
+        sa.Integer, nullable=False, default=LLM_CHUNK_PADDING)
 
 
 class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
@@ -200,8 +200,8 @@ class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
     user: sa.Column[sa.Uuid] = sa.Column(
         sa.Uuid, nullable=False, primary_key=True)  # type: ignore
     name = sa.Column(sa.Text(), nullable=False, primary_key=True)
-    verify_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
-    deep_dive_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
+    # verify_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
+    # deep_dive_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
     is_public = sa.Column(sa.Boolean, nullable=False, default=False)
     process = sa.Column(
         sa.Integer,

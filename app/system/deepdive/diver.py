@@ -34,6 +34,7 @@ from app.system.deepdive.collection import (
     DeepDivePromptInfo,
     DeepDiveResult,
     DocumentObj,
+    get_deep_dive_prompt_info,
     get_documents_in_queue,
     get_segments_in_queue,
     set_deep_dive_segment,
@@ -170,26 +171,33 @@ def process_segments(
     segments = list(retry_err(get_segments_in_queue, db))
     ns = graph_llama.get_ns()
     for queue_counts in smind.get_queue_stats(ns):
-        queue_length = queue_counts['queue_length']
+        queue_length = queue_counts["queue_length"]
         sleep_time = LLM_TIMEOUT // 2 * queue_length
         if queue_length > 0 and sleep_time > 0:
             log_diver(
                 "current queue: "
                 f"{queue_counts['name']}={queue_length} sleep={sleep_time}s")
             time.sleep(sleep_time)
+    prompt_ids = {
+        prompt_id
+        for segment in segments
+        for prompt_id in [segment["verify_id"], segment["categories_id"]]
+    }
+    with db.get_session() as session:
+        prompt_infos = get_deep_dive_prompt_info(session, prompt_ids)
     for segment in segments:
         seg_id = segment["id"]
         main_id = segment["main_id"]
         page = segment["page"]
         full_text = segment["content"]
         is_verify = segment["is_valid"] is None
-        prompt_info: DeepDivePromptInfo = segment["prompt_info"]
-        # FIXME
-        if is_verify:
-            sp_key = segment["verify_key"]
-        elif segment["is_valid"] is True:
-            sp_key = segment["deep_dive_key"]
-        else:
+        prompt_id = (
+            segment["verify_id"] if is_verify else segment["categories_id"])
+        prompt_info = prompt_infos[prompt_id]
+        category_prompt_info = prompt_infos[segment["categories_id"]]
+        categories = category_prompt_info["categories"]
+        assert categories is not None
+        if not is_verify and segment["is_valid"] is False:
             log_diver(f"processing segment {main_id}@{page}: skip invalid")
             retry_err(
                 set_deep_dive_segment,
@@ -199,20 +207,15 @@ def process_segments(
                     "reason": (
                         "Segment did not pass filter! "
                         "No interpretation performed!"),
-                    "cultural": 0,
-                    "economic": 0,
-                    "educational": 0,
-                    "institutional": 0,
-                    "legal": 0,
-                    "political": 0,
-                    "technological": 0,
+                    "values": {
+                        cat: 0
+                        for cat in categories
+                    },
                 })
-            sp_key = None
-        if sp_key is None:
             continue
         log_diver(
             f"processing segment {main_id}@{page} ({seg_id}): "
-            f"llm ({sp_key}) size={len(full_text)}")
+            f"llm ({prompt_info['name']}) size={len(full_text)}")
         llm_out, llm_error = llm_response(smind, ns, full_text, prompt_info)
         if llm_out is not None:
             error_msg = (
@@ -238,8 +241,7 @@ def process_segments(
                         vres["is_hit"],
                         vres["reason"])
             else:
-                ddres, derror = interpret_deep_dive(
-                    llm_out, prompt_info["categories"])
+                ddres, derror = interpret_deep_dive(llm_out, categories)
                 if ddres is None:
                     derror = (
                         ""
@@ -255,7 +257,7 @@ def process_segments(
         elif llm_error == "timeout":
             log_diver(
                 f"processing segment {main_id}@{page}: "
-                f"llm timed out ({sp_key})")
+                f"llm timed out ({prompt_info['name']})")
             retry_err(
                 set_error_segment,
                 db,
@@ -264,7 +266,7 @@ def process_segments(
         elif llm_error == "missing":
             log_diver(
                 f"processing segment {main_id}@{page}: "
-                f"llm error ({sp_key})")
+                f"llm error ({prompt_info['name']})")
             retry_err(
                 set_error_segment,
                 db,
@@ -281,12 +283,15 @@ def llm_response(
         full_text: str,
         prompt_info: DeepDivePromptInfo,
         ) -> tuple[str | None, Literal["timeout", "missing", "okay"]]:
+    post_prompt = prompt_info["post_prompt"]
+    if post_prompt is None:
+        post_prompt = " "
     task_id = smind.enqueue_task(
         ns,
         {
             "prompt": full_text,
             "main_prompt": prompt_info["main_prompt"],
-            "post_prompt": prompt_info["post_prompt"],
+            "post_prompt": post_prompt,
         })
     for _, result in smind.wait_for(
             [task_id], timeout=LLM_TIMEOUT, auto_clear=True):

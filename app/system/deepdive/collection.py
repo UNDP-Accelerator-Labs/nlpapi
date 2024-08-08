@@ -39,13 +39,13 @@ DeepDiveProcessRow = TypedDict('DeepDiveProcessRow', {
 
 
 DeepDiveSegmentationInfo = TypedDict('DeepDiveSegmentationInfo', {
-    "categories": list[str] | None,
     "chunk_size": int,
     "chunk_padding": int,
 })
 
 
 DeepDivePromptInfo = TypedDict('DeepDivePromptInfo', {
+    "name": str,
     "main_prompt": str,
     "post_prompt": str | None,
     "categories": list[str] | None,
@@ -56,7 +56,7 @@ CollectionObj = TypedDict('CollectionObj', {
     "id": int,
     "user": UUID,
     "name": str,
-    "deep_dive_key": str,
+    "deep_dive_name": str,
     "is_public": bool,
 })
 
@@ -83,8 +83,7 @@ DocumentObj = TypedDict('DocumentObj', {
     "url": str | None,
     "title": str | None,
     "deep_dive": int,
-    "verify_key": str,
-    "deep_dive_key": str,
+    "segmentation": DeepDiveSegmentationInfo,
     "is_valid": bool | None,
     "verify_reason": str | None,
     "deep_dive_result": DeepDiveResult | None,
@@ -99,8 +98,8 @@ SegmentObj = TypedDict('SegmentObj', {
     "main_id": str,
     "page": int,
     "deep_dive": int,
-    "verify_key": str,
-    "deep_dive_key": str,
+    "verify_id": int,
+    "categories_id": int,
     "content": str,
     "is_valid": bool | None,
     "verify_reason": str | None,
@@ -118,13 +117,15 @@ SegmentStats = TypedDict('SegmentStats', {
 })
 
 
-def get_deep_dives(session: Session) -> list[str]:
-    stmt = sa.select(DeepDiveProcess.name)
-    return [row.name for row in session.execute(stmt)]
+def get_deep_dives(db: DBConnector) -> list[str]:
+    with db.get_session() as session:
+        stmt = sa.select(DeepDiveProcess.name)
+        return [row.name for row in session.execute(stmt)]
 
 
 def get_process_id(session: Session, name: str) -> int:
-    stmt = sa.select(DeepDiveProcess.id).where(DeepDiveProcess.name == name)
+    stmt = sa.select(DeepDiveProcess.id)
+    stmt = stmt.where(DeepDiveProcess.name == name)
     stmt = stmt.limit(1)
     process_id = session.execute(stmt).scalar()
     if process_id is None:
@@ -145,46 +146,34 @@ def get_deep_dive_process(
     raise ValueError(f"{process_id=} not found")
 
 
-def get_deep_dive_segmentation_info(
-        session: Session, prompt_id: int) -> DeepDiveSegmentationInfo:
-    stmt = sa.select(
-        DeepDivePrompt.categories,
-        DeepDivePrompt.chunk_size,
-        DeepDivePrompt.chunk_padding)
-    stmt = stmt.where(DeepDivePrompt.id == prompt_id)
-    stmt = stmt.limit(1)
-    for row in session.execute(stmt):
-        return {
-            "categories": row.categories,
-            "chunk_size": row.chunk_size,
-            "chunk_padding": row.chunk_padding,
-        }
-    raise ValueError(f"{prompt_id=} not found")
-
-
 def get_deep_dive_prompt_info(
-        session: Session, prompt_id: int) -> DeepDivePromptInfo:
+        session: Session,
+        prompt_ids: set[int]) -> dict[int, DeepDivePromptInfo]:
     stmt = sa.select(
+        DeepDivePrompt.id,
+        DeepDivePrompt.name,
         DeepDivePrompt.main_prompt,
         DeepDivePrompt.post_prompt,
         DeepDivePrompt.categories)
-    stmt = stmt.where(DeepDivePrompt.id == prompt_id)
-    stmt = stmt.limit(1)
+    stmt = stmt.where(DeepDivePrompt.id.in_(list(prompt_ids)))
+    res: dict[int, DeepDivePromptInfo] = {}
     for row in session.execute(stmt):
-        return {
+        res[int(row.id)] = {
+            "name": row.name,
             "main_prompt": row.main_prompt,
             "post_prompt": row.post_prompt,
-            "categories": row.categories,
+            "categories": f"{row.categories}".split(","),
         }
-    raise ValueError(f"{prompt_id=} not found")
+    return res
 
 
 def add_collection(
         db: DBConnector,
         user: UUID,
         name: str,
-        process_id: int) -> int:
+        deep_dive: str) -> int:
     with db.get_session() as session:
+        process_id = get_process_id(session, deep_dive)
         stmt = sa.insert(DeepDiveCollection).values(
             name=name,
             user=user,
@@ -216,18 +205,20 @@ def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
             DeepDiveCollection.id,
             DeepDiveCollection.user,
             DeepDiveCollection.name,
-            DeepDiveCollection.deep_dive_key,
-            DeepDiveCollection.is_public)
-        stmt = stmt.where(sa.or_(
-            DeepDiveCollection.user == user,
-            DeepDiveCollection.is_public))
+            DeepDiveCollection.is_public,
+            DeepDiveProcess.name.alias("ddname"))
+        stmt = stmt.where(sa.and_(
+            DeepDiveCollection.process == DeepDiveProcess.id,
+            sa.or_(
+                DeepDiveCollection.user == user,
+                DeepDiveCollection.is_public)))
         stmt = stmt.order_by(DeepDiveCollection.id)
         for row in session.execute(stmt):
             yield {
                 "id": int(row.id),
                 "user": row.user,
                 "name": row.name,
-                "deep_dive_key": row.deep_dive_key,
+                "deep_dive_name": row.ddname,
                 "is_public": row.is_public,
             }
 
@@ -349,11 +340,12 @@ def get_documents(
             DeepDiveElement.error,
             DeepDiveElement.tag,
             DeepDiveElement.tag_reason,
-            DeepDiveCollection.verify_key,
-            DeepDiveCollection.deep_dive_key)
+            DeepDiveProcess.chunk_size,
+            DeepDiveProcess.chunk_padding)
         stmt = stmt.where(sa.and_(
             DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
-            DeepDiveCollection.id == collection_id))
+            DeepDiveCollection.id == collection_id,
+            DeepDiveProcess.id == DeepDiveCollection.process))
         stmt = stmt.order_by(DeepDiveElement.id)
         docs: list[DocumentObj] = [
             {
@@ -362,8 +354,10 @@ def get_documents(
                 "url": row.url,
                 "title": row.title,
                 "deep_dive": row.deep_dive_id,
-                "verify_key": row.verify_key,
-                "deep_dive_key": row.deep_dive_key,
+                "segmentation": {
+                    "chunk_size": row.chunk_size,
+                    "chunk_padding": row.chunk_padding,
+                },
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
                 "deep_dive_result": convert_deep_dive_result(
@@ -528,9 +522,10 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
             DeepDiveElement.error,
             DeepDiveElement.tag,
             DeepDiveElement.tag_reason,
-            DeepDiveCollection.verify_key,
-            DeepDiveCollection.deep_dive_key)
+            DeepDiveProcess.chunk_size,
+            DeepDiveProcess.chunk_padding)
         stmt = stmt.where(sa.and_(
+            DeepDiveProcess.id == DeepDiveCollection.process,
             DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
             sa.or_(
                 DeepDiveElement.url.is_(None),
@@ -548,8 +543,10 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
                 "url": row.url,
                 "title": row.title,
                 "deep_dive": row.deep_dive_id,
-                "verify_key": row.verify_key,
-                "deep_dive_key": row.deep_dive_key,
+                "segmentation": {
+                    "chunk_size": row.chunk_size,
+                    "chunk_padding": row.chunk_padding,
+                },
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
                 "deep_dive_result": convert_deep_dive_result(
@@ -563,12 +560,12 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
 def add_segments(
         db: DBConnector,
         doc: DocumentObj,
-        full_text: str,
-        segmentation_info: DeepDiveSegmentationInfo) -> int:
+        full_text: str) -> int:
     page = 0
     with db.get_session() as session:
         collection_id = doc["deep_dive"]
         main_id = doc["main_id"]
+        segmentation_info = doc["segmentation"]
         remove_segments(session, collection_id, [main_id])
         for content, _ in snippify_text(
                 full_text,
@@ -596,9 +593,10 @@ def get_segments_in_queue(db: DBConnector) -> Iterable[SegmentObj]:
             DeepDiveSegment.verify_reason,
             DeepDiveSegment.deep_dive_result,
             DeepDiveSegment.error,
-            DeepDiveCollection.verify_key,
-            DeepDiveCollection.deep_dive_key)
+            DeepDiveProcess.verify_id,
+            DeepDiveProcess.categories_id)
         stmt = stmt.where(sa.and_(
+            DeepDiveProcess.id == DeepDiveCollection.process,
             DeepDiveSegment.deep_dive_id == DeepDiveCollection.id,
             sa.or_(
                 DeepDiveSegment.is_valid.is_(None),
@@ -619,8 +617,8 @@ def get_segments_in_queue(db: DBConnector) -> Iterable[SegmentObj]:
                 "main_id": row.main_id,
                 "page": row.page,
                 "deep_dive": row.deep_dive_id,
-                "verify_key": row.verify_key,
-                "deep_dive_key": row.deep_dive_key,
+                "verify_id": row.verify_id,
+                "categories_id": row.categories_id,
                 "content": row.content,
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
@@ -644,9 +642,10 @@ def get_segments(
         DeepDiveSegment.verify_reason,
         DeepDiveSegment.deep_dive_result,
         DeepDiveSegment.error,
-        DeepDiveCollection.verify_key,
-        DeepDiveCollection.deep_dive_key)
+        DeepDiveProcess.verify_id,
+        DeepDiveProcess.categories_id)
     stmt = stmt.where(sa.and_(
+        DeepDiveProcess.id == DeepDiveCollection.process,
         DeepDiveSegment.deep_dive_id == DeepDiveCollection.id,
         DeepDiveSegment.deep_dive_id == collection_id,
         DeepDiveSegment.main_id == main_id))
@@ -657,8 +656,8 @@ def get_segments(
             "main_id": row.main_id,
             "page": row.page,
             "deep_dive": row.deep_dive_id,
-            "verify_key": row.verify_key,
-            "deep_dive_key": row.deep_dive_key,
+            "verify_id": row.verify_id,
+            "categories_id": row.categories_id,
             "content": row.content,
             "is_valid": row.is_valid,
             "verify_reason": row.verify_reason,
