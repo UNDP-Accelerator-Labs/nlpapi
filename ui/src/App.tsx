@@ -23,7 +23,6 @@ import ApiActions from './api/ApiActions';
 import { DBName, SearchState } from './api/types';
 import CollectionView from './collections/CollectionView';
 import { LOGIN_URL } from './misc/constants';
-import Swagger from './misc/Swagger';
 import Search from './search/Search';
 import { setSearch } from './search/SearchStateSlice';
 import { RootState } from './store';
@@ -313,10 +312,10 @@ class App extends PureComponent<AppProps, AppState> {
                 />
               }
             />
-            <Route
+            {/* <Route
               path="/api-docs"
               element={<Swagger />}
-            />
+            /> */}
           </Routes>
         </BrowserRouter>
         <UserDiv>
