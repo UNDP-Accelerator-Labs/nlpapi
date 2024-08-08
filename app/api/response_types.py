@@ -16,11 +16,7 @@
 from typing import TypedDict
 
 from app.system.autotag.autotag import TagClusterEntry
-from app.system.deepdive.collection import (
-    DeepDiveName,
-    DocumentObj,
-    SegmentStats,
-)
+from app.system.deepdive.collection import DocumentObj, SegmentStats
 from app.system.smind.api import QueueStat
 from app.system.smind.vec import DBName, VecDBStat
 from app.system.workqueues.queue import ProcessError, ProcessQueueStats
@@ -46,7 +42,7 @@ VersionResponse = TypedDict('VersionResponse', {
     "has_llm": bool,
     "vecdb_ready": bool,
     "vecdbs": list[DBName],
-    "deepdives": list[DeepDiveName],
+    "deepdives": list[str],
     "error": list[str] | None,
 })
 StatsResponse = TypedDict('StatsResponse', {
@@ -82,7 +78,7 @@ CollectionJSON = TypedDict('CollectionJSON', {
     "id": int,
     "user": str,
     "name": str,
-    "deep_dive_key": str,
+    "deep_dive_name": str,
     "is_public": bool,
 })
 CollectionListResponse = TypedDict('CollectionListResponse', {

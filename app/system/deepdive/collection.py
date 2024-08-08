@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from collections.abc import Iterable
-from typing import cast, get_args, Literal, TypedDict
+from typing import cast, Literal, overload, TypedDict
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -24,31 +24,39 @@ from sqlalchemy.orm import Session
 from app.system.db.base import (
     DeepDiveCollection,
     DeepDiveElement,
+    DeepDiveProcess,
+    DeepDivePrompt,
     DeepDiveSegment,
 )
 from app.system.db.db import DBConnector
 from app.system.prep.snippify import snippify_text
 
 
-DeepDiveName = Literal["circular_economy", "circular_economy_undp"]
-DEEP_DIVE_NAMES: tuple[DeepDiveName] = get_args(DeepDiveName)
+DeepDiveProcessRow = TypedDict('DeepDiveProcessRow', {
+    "verify": int,
+    "categories": int,
+})
 
 
-LLM_CHUNK_SIZE = 4000
-LLM_CHUNK_PADDING = 2000
+DeepDiveSegmentationInfo = TypedDict('DeepDiveSegmentationInfo', {
+    "chunk_size": int,
+    "chunk_padding": int,
+})
 
 
-def get_deep_dive_name(name: str) -> DeepDiveName:
-    if name not in DEEP_DIVE_NAMES:
-        raise ValueError(f"{name} is not a deep dive ({DEEP_DIVE_NAMES})")
-    return cast(DeepDiveName, name)
+DeepDivePromptInfo = TypedDict('DeepDivePromptInfo', {
+    "name": str,
+    "main_prompt": str,
+    "post_prompt": str | None,
+    "categories": list[str] | None,
+})
 
 
 CollectionObj = TypedDict('CollectionObj', {
     "id": int,
     "user": UUID,
     "name": str,
-    "deep_dive_key": str,
+    "deep_dive_name": str,
     "is_public": bool,
 })
 
@@ -65,13 +73,7 @@ VerifyResult = TypedDict('VerifyResult', {
 
 DeepDiveResult = TypedDict('DeepDiveResult', {
     "reason": str,
-    "cultural": int,
-    "economic": int,
-    "educational": int,
-    "institutional": int,
-    "legal": int,
-    "political": int,
-    "technological": int,
+    "values": dict[str, int],
 })
 
 
@@ -81,8 +83,7 @@ DocumentObj = TypedDict('DocumentObj', {
     "url": str | None,
     "title": str | None,
     "deep_dive": int,
-    "verify_key": str,
-    "deep_dive_key": str,
+    "segmentation": DeepDiveSegmentationInfo,
     "is_valid": bool | None,
     "verify_reason": str | None,
     "deep_dive_result": DeepDiveResult | None,
@@ -97,8 +98,8 @@ SegmentObj = TypedDict('SegmentObj', {
     "main_id": str,
     "page": int,
     "deep_dive": int,
-    "verify_key": str,
-    "deep_dive_key": str,
+    "verify_id": int,
+    "categories_id": int,
     "content": str,
     "is_valid": bool | None,
     "verify_reason": str | None,
@@ -116,26 +117,67 @@ SegmentStats = TypedDict('SegmentStats', {
 })
 
 
-def get_deep_dive_keys(deep_dive: DeepDiveName) -> tuple[str, str]:
-    if deep_dive == "circular_economy":
-        return ("verify_circular_economy", "rate_circular_economy")
-    if deep_dive == "circular_economy_undp":
-        return ("verify_circular_economy_no_acclab", "rate_circular_economy")
-    raise ValueError(f"unknown {deep_dive=}")
+def get_deep_dives(db: DBConnector) -> list[str]:
+    with db.get_session() as session:
+        stmt = sa.select(DeepDiveProcess.name)
+        return [row.name for row in session.execute(stmt)]
+
+
+def get_process_id(session: Session, name: str) -> int:
+    stmt = sa.select(DeepDiveProcess.id)
+    stmt = stmt.where(DeepDiveProcess.name == name)
+    stmt = stmt.limit(1)
+    process_id = session.execute(stmt).scalar()
+    if process_id is None:
+        raise ValueError(f"could not find deep dive for {name=}")
+    return int(process_id)
+
+
+def get_deep_dive_process(
+        session: Session, process_id: int) -> DeepDiveProcessRow:
+    stmt = sa.select(DeepDiveProcess.verify_id, DeepDiveProcess.categories_id)
+    stmt = stmt.where(DeepDiveProcess.id == process_id)
+    stmt = stmt.limit(1)
+    for row in session.execute(stmt):
+        return {
+            "verify": int(row.verify_id),
+            "categories": int(row.categories_id),
+        }
+    raise ValueError(f"{process_id=} not found")
+
+
+def get_deep_dive_prompt_info(
+        session: Session,
+        prompt_ids: set[int]) -> dict[int, DeepDivePromptInfo]:
+    stmt = sa.select(
+        DeepDivePrompt.id,
+        DeepDivePrompt.name,
+        DeepDivePrompt.main_prompt,
+        DeepDivePrompt.post_prompt,
+        DeepDivePrompt.categories)
+    stmt = stmt.where(DeepDivePrompt.id.in_(list(prompt_ids)))
+    res: dict[int, DeepDivePromptInfo] = {}
+    for row in session.execute(stmt):
+        res[int(row.id)] = {
+            "name": row.name,
+            "main_prompt": row.main_prompt,
+            "post_prompt": row.post_prompt,
+            "categories": f"{row.categories}".split(","),
+        }
+    return res
 
 
 def add_collection(
         db: DBConnector,
         user: UUID,
         name: str,
-        deep_dive: DeepDiveName) -> int:
-    verify_key, deep_dive_key = get_deep_dive_keys(deep_dive)
+        deep_dive: str) -> int:
     with db.get_session() as session:
+        process_id = get_process_id(session, deep_dive)
         stmt = sa.insert(DeepDiveCollection).values(
             name=name,
             user=user,
-            verify_key=verify_key,
-            deep_dive_key=deep_dive_key)
+            process=process_id)
         stmt = stmt.returning(DeepDiveCollection.id)
         row_id = session.execute(stmt).scalar()
         if row_id is None:
@@ -163,18 +205,20 @@ def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
             DeepDiveCollection.id,
             DeepDiveCollection.user,
             DeepDiveCollection.name,
-            DeepDiveCollection.deep_dive_key,
-            DeepDiveCollection.is_public)
-        stmt = stmt.where(sa.or_(
-            DeepDiveCollection.user == user,
-            DeepDiveCollection.is_public))
+            DeepDiveCollection.is_public,
+            DeepDiveProcess.name.label("ddname"))
+        stmt = stmt.where(sa.and_(
+            DeepDiveCollection.process == DeepDiveProcess.id,
+            sa.or_(
+                DeepDiveCollection.user == user,
+                DeepDiveCollection.is_public)))
         stmt = stmt.order_by(DeepDiveCollection.id)
         for row in session.execute(stmt):
             yield {
                 "id": int(row.id),
                 "user": row.user,
                 "name": row.name,
-                "deep_dive_key": row.deep_dive_key,
+                "deep_dive_name": row.ddname,
                 "is_public": row.is_public,
             }
 
@@ -227,6 +271,54 @@ def add_documents(
     return res
 
 
+@overload
+def convert_deep_dive_result(
+        ddr: dict[str, int | str],
+        *,
+        categories: list[str] | None) -> DeepDiveResult:
+    ...
+
+
+@overload
+def convert_deep_dive_result(
+        ddr: None, *, categories: list[str] | None) -> None:
+    ...
+
+
+def convert_deep_dive_result(
+        ddr: dict[str, int | str] | None,
+        *,
+        categories: list[str] | None) -> DeepDiveResult | None:
+    if ddr is None:
+        return None
+    if "values" not in ddr:
+        if categories is not None:
+            if "reason" in categories:
+                raise ValueError(
+                    "must use 'values' key when 'reason' is a category")
+            return {
+                "reason": cast(str, ddr["reason"]),
+                "values": {
+                    cat: int(ddr[cat])
+                    for cat in categories
+                },
+            }
+        return {
+            "reason": cast(str, ddr["reason"]),
+            "values": {
+                key: int(value)
+                for key, value in ddr.items()
+                if key != "reason"
+            },
+        }
+    res = cast(DeepDiveResult, ddr)
+    if categories is not None:
+        missing = set(categories).difference(res["values"].keys())
+        if missing:
+            raise ValueError(f"categories {missing} are missing in {ddr}")
+    return res
+
+
 def get_documents(
         db: DBConnector,
         collection_id: int,
@@ -248,11 +340,12 @@ def get_documents(
             DeepDiveElement.error,
             DeepDiveElement.tag,
             DeepDiveElement.tag_reason,
-            DeepDiveCollection.verify_key,
-            DeepDiveCollection.deep_dive_key)
+            DeepDiveProcess.chunk_size,
+            DeepDiveProcess.chunk_padding)
         stmt = stmt.where(sa.and_(
             DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
-            DeepDiveCollection.id == collection_id))
+            DeepDiveCollection.id == collection_id,
+            DeepDiveProcess.id == DeepDiveCollection.process))
         stmt = stmt.order_by(DeepDiveElement.id)
         docs: list[DocumentObj] = [
             {
@@ -261,11 +354,14 @@ def get_documents(
                 "url": row.url,
                 "title": row.title,
                 "deep_dive": row.deep_dive_id,
-                "verify_key": row.verify_key,
-                "deep_dive_key": row.deep_dive_key,
+                "segmentation": {
+                    "chunk_size": row.chunk_size,
+                    "chunk_padding": row.chunk_padding,
+                },
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
-                "deep_dive_result": row.deep_dive_result,
+                "deep_dive_result": convert_deep_dive_result(
+                    row.deep_dive_result, categories=None),
                 "error": row.error,
                 "tag": row.tag,
                 "tag_reason": row.tag_reason,
@@ -426,9 +522,10 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
             DeepDiveElement.error,
             DeepDiveElement.tag,
             DeepDiveElement.tag_reason,
-            DeepDiveCollection.verify_key,
-            DeepDiveCollection.deep_dive_key)
+            DeepDiveProcess.chunk_size,
+            DeepDiveProcess.chunk_padding)
         stmt = stmt.where(sa.and_(
+            DeepDiveProcess.id == DeepDiveCollection.process,
             DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
             sa.or_(
                 DeepDiveElement.url.is_(None),
@@ -446,27 +543,34 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
                 "url": row.url,
                 "title": row.title,
                 "deep_dive": row.deep_dive_id,
-                "verify_key": row.verify_key,
-                "deep_dive_key": row.deep_dive_key,
+                "segmentation": {
+                    "chunk_size": row.chunk_size,
+                    "chunk_padding": row.chunk_padding,
+                },
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
-                "deep_dive_result": row.deep_dive_result,
+                "deep_dive_result": convert_deep_dive_result(
+                    row.deep_dive_result, categories=None),
                 "error": row.error,
                 "tag": row.tag,
                 "tag_reason": row.tag_reason,
             }
 
 
-def add_segments(db: DBConnector, doc: DocumentObj, full_text: str) -> int:
+def add_segments(
+        db: DBConnector,
+        doc: DocumentObj,
+        full_text: str) -> int:
     page = 0
     with db.get_session() as session:
         collection_id = doc["deep_dive"]
         main_id = doc["main_id"]
+        segmentation_info = doc["segmentation"]
         remove_segments(session, collection_id, [main_id])
         for content, _ in snippify_text(
                 full_text,
-                chunk_size=LLM_CHUNK_SIZE,
-                chunk_padding=LLM_CHUNK_PADDING):
+                chunk_size=segmentation_info["chunk_size"],
+                chunk_padding=segmentation_info["chunk_padding"]):
             stmt = sa.insert(DeepDiveSegment).values(
                 main_id=main_id,
                 page=page,
@@ -489,9 +593,10 @@ def get_segments_in_queue(db: DBConnector) -> Iterable[SegmentObj]:
             DeepDiveSegment.verify_reason,
             DeepDiveSegment.deep_dive_result,
             DeepDiveSegment.error,
-            DeepDiveCollection.verify_key,
-            DeepDiveCollection.deep_dive_key)
+            DeepDiveProcess.verify_id,
+            DeepDiveProcess.categories_id)
         stmt = stmt.where(sa.and_(
+            DeepDiveProcess.id == DeepDiveCollection.process,
             DeepDiveSegment.deep_dive_id == DeepDiveCollection.id,
             sa.or_(
                 DeepDiveSegment.is_valid.is_(None),
@@ -512,12 +617,13 @@ def get_segments_in_queue(db: DBConnector) -> Iterable[SegmentObj]:
                 "main_id": row.main_id,
                 "page": row.page,
                 "deep_dive": row.deep_dive_id,
-                "verify_key": row.verify_key,
-                "deep_dive_key": row.deep_dive_key,
+                "verify_id": row.verify_id,
+                "categories_id": row.categories_id,
                 "content": row.content,
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
-                "deep_dive_result": row.deep_dive_result,
+                "deep_dive_result": convert_deep_dive_result(
+                    row.deep_dive_result, categories=None),
                 "error": row.error,
             }
 
@@ -536,9 +642,10 @@ def get_segments(
         DeepDiveSegment.verify_reason,
         DeepDiveSegment.deep_dive_result,
         DeepDiveSegment.error,
-        DeepDiveCollection.verify_key,
-        DeepDiveCollection.deep_dive_key)
+        DeepDiveProcess.verify_id,
+        DeepDiveProcess.categories_id)
     stmt = stmt.where(sa.and_(
+        DeepDiveProcess.id == DeepDiveCollection.process,
         DeepDiveSegment.deep_dive_id == DeepDiveCollection.id,
         DeepDiveSegment.deep_dive_id == collection_id,
         DeepDiveSegment.main_id == main_id))
@@ -549,12 +656,13 @@ def get_segments(
             "main_id": row.main_id,
             "page": row.page,
             "deep_dive": row.deep_dive_id,
-            "verify_key": row.verify_key,
-            "deep_dive_key": row.deep_dive_key,
+            "verify_id": row.verify_id,
+            "categories_id": row.categories_id,
             "content": row.content,
             "is_valid": row.is_valid,
             "verify_reason": row.verify_reason,
-            "deep_dive_result": row.deep_dive_result,
+            "deep_dive_result": convert_deep_dive_result(
+                row.deep_dive_result, categories=None),
             "error": row.error,
         }
 
@@ -602,7 +710,9 @@ def remove_segments(
 
 def combine_segments(
         db: DBConnector,
-        doc: DocumentObj) -> Literal["empty", "incomplete", "done"]:
+        doc: DocumentObj,
+        categories: list[str],
+        ) -> Literal["empty", "incomplete", "done"]:
     with db.get_session() as session:
         collection_id = doc["deep_dive"]
         main_id = doc["main_id"]
@@ -615,13 +725,10 @@ def combine_segments(
         verify_msg = ""
         results: DeepDiveResult = {
             "reason": "",
-            "cultural": 0,
-            "economic": 0,
-            "educational": 0,
-            "institutional": 0,
-            "legal": 0,
-            "political": 0,
-            "technological": 0,
+            "values": {
+                cat: 0
+                for cat in categories
+            },
         }
         for segment in get_segments(session, collection_id, main_id):
             no_segments = False
@@ -651,13 +758,11 @@ def combine_segments(
             p_reason = results["reason"]
             results["reason"] = (
                 f"{p_reason}\n\n[{page=}]:\n{verify_reason}".lstrip())
-            for key, prev in results.items():
-                if key == "reason":
-                    continue
-                prev_val: int = int(prev)  # type: ignore
-                incoming_val: int = int(deep_dive_result[key])  # type: ignore
+            for key, prev in results["values"].items():
+                prev_val: int = int(prev)
+                incoming_val: int = int(deep_dive_result["values"][key])
                 next_val = max(prev_val, incoming_val)
-                results[key] = next_val  # type: ignore
+                results["values"][key] = next_val
         if no_segments:
             return "empty"
         if is_incomplete:
@@ -674,13 +779,10 @@ def combine_segments(
                     "reason": (
                         "Document did not pass filter! "
                         "No interpretation performed!"),
-                    "cultural": 0,
-                    "economic": 0,
-                    "educational": 0,
-                    "institutional": 0,
-                    "legal": 0,
-                    "political": 0,
-                    "technological": 0,
+                    "values": {
+                        cat: 0
+                        for cat in categories
+                    },
                 }
             set_deep_dive(session, doc_id, results)
         if not is_error:
@@ -712,4 +814,10 @@ def segment_stats(db: DBConnector) -> Iterable[SegmentStats]:
 
 
 def create_deep_dive_tables(db: DBConnector) -> None:
-    db.create_tables([DeepDiveCollection, DeepDiveElement, DeepDiveSegment])
+    db.create_tables([
+        DeepDivePrompt,
+        DeepDiveProcess,
+        DeepDiveCollection,
+        DeepDiveElement,
+        DeepDiveSegment,
+    ])

@@ -153,11 +153,15 @@ class QueryLog(Base):  # pylint: disable=too-few-public-methods
 # deep dives
 
 
+LLM_CHUNK_SIZE = 4000
+LLM_CHUNK_PADDING = 1000
+
+
 class DeepDivePrompt(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "deep_dive_prompt"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    name = sa.Column(sa.Text(), nullable=False)
+    name = sa.Column(sa.Text(), nullable=False, unique=True)
     main_prompt = sa.Column(sa.Text(), nullable=False)
     post_prompt = sa.Column(sa.Text(), nullable=True)
     categories = sa.Column(sa.Text(), nullable=True)
@@ -167,7 +171,7 @@ class DeepDiveProcess(Base):  # pylint: disable=too-few-public-methods
     __tablename__ = "deep_dive_process"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
-    name = sa.Column(sa.Text(), nullable=False)
+    name = sa.Column(sa.Text(), nullable=False, unique=True)
     verify_id = sa.Column(
         sa.Integer,
         sa.ForeignKey(
@@ -182,6 +186,10 @@ class DeepDiveProcess(Base):  # pylint: disable=too-few-public-methods
             onupdate="CASCADE",
             ondelete="CASCADE"),
         nullable=False)
+    chunk_size = sa.Column(
+        sa.Integer, nullable=False, default=LLM_CHUNK_SIZE)
+    chunk_padding = sa.Column(
+        sa.Integer, nullable=False, default=LLM_CHUNK_PADDING)
 
 
 class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
@@ -280,6 +288,7 @@ class TagGroupTable(Base):  # pylint: disable=too-few-public-methods
         nullable=False,
         server_default=sa.func.now())  # pylint: disable=not-callable
     is_updating = sa.Column(sa.Boolean, nullable=False, default=True)
+    cluster_args = sa.Column(sa.Text(), nullable=True, default=None)
 
 
 class TagGroupMembers(Base):  # pylint: disable=too-few-public-methods

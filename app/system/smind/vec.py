@@ -78,7 +78,9 @@ META_PREFIX = f"meta{META_CAT}"
 
 
 DBName: TypeAlias = Literal["main", "test", "rave_ce"]
+"""Denotes the external name of a vector database."""
 DBS: tuple[DBName] = get_args(DBName)
+"""All possible external names for vector databases."""
 
 
 DBQName: TypeAlias = str
@@ -131,6 +133,8 @@ StatEmbed = TypedDict('StatEmbed', {
     "doc_count": int,
     "fields": dict[MetaKey, dict[str, int]],
 })
+"""Vector database document counts. "doc_count" is the total number of
+documents and fields maps field types to field values to their frequency."""
 
 
 VecDBStat = TypedDict('VecDBStat', {

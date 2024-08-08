@@ -18,8 +18,10 @@ import re
 import threading
 import time
 import traceback
+from typing import Literal
 
 from scattermind.api.api import ScattermindAPI
+from scattermind.system.names import GNamespace
 from scattermind.system.response import TASK_COMPLETE
 from scattermind.system.torch_util import tensor_to_str
 
@@ -28,8 +30,11 @@ from app.system.db.db import DBConnector
 from app.system.deepdive.collection import (
     add_segments,
     combine_segments,
+    convert_deep_dive_result,
+    DeepDivePromptInfo,
     DeepDiveResult,
     DocumentObj,
+    get_deep_dive_prompt_info,
     get_documents_in_queue,
     get_segments_in_queue,
     set_deep_dive_segment,
@@ -166,24 +171,33 @@ def process_segments(
     segments = list(retry_err(get_segments_in_queue, db))
     ns = graph_llama.get_ns()
     for queue_counts in smind.get_queue_stats(ns):
-        queue_length = queue_counts['queue_length']
+        queue_length = queue_counts["queue_length"]
         sleep_time = LLM_TIMEOUT // 2 * queue_length
         if queue_length > 0 and sleep_time > 0:
             log_diver(
                 "current queue: "
                 f"{queue_counts['name']}={queue_length} sleep={sleep_time}s")
             time.sleep(sleep_time)
+    prompt_ids = {
+        prompt_id
+        for segment in segments
+        for prompt_id in [segment["verify_id"], segment["categories_id"]]
+    }
+    with db.get_session() as session:
+        prompt_infos = get_deep_dive_prompt_info(session, prompt_ids)
     for segment in segments:
         seg_id = segment["id"]
         main_id = segment["main_id"]
         page = segment["page"]
         full_text = segment["content"]
         is_verify = segment["is_valid"] is None
-        if is_verify:
-            sp_key = segment["verify_key"]
-        elif segment["is_valid"] is True:
-            sp_key = segment["deep_dive_key"]
-        else:
+        prompt_id = (
+            segment["verify_id"] if is_verify else segment["categories_id"])
+        prompt_info = prompt_infos[prompt_id]
+        category_prompt_info = prompt_infos[segment["categories_id"]]
+        categories = category_prompt_info["categories"]
+        assert categories is not None
+        if not is_verify and segment["is_valid"] is False:
             log_diver(f"processing segment {main_id}@{page}: skip invalid")
             retry_err(
                 set_deep_dive_segment,
@@ -193,88 +207,101 @@ def process_segments(
                     "reason": (
                         "Segment did not pass filter! "
                         "No interpretation performed!"),
-                    "cultural": 0,
-                    "economic": 0,
-                    "educational": 0,
-                    "institutional": 0,
-                    "legal": 0,
-                    "political": 0,
-                    "technological": 0,
+                    "values": {
+                        cat: 0
+                        for cat in categories
+                    },
                 })
-            sp_key = None
-        if sp_key is None:
             continue
         log_diver(
             f"processing segment {main_id}@{page} ({seg_id}): "
-            f"llm ({sp_key}) size={len(full_text)}")
-        task_id = smind.enqueue_task(
-            ns,
-            {
-                "prompt": full_text,
-                "system_prompt_key": sp_key,
-            })
-        try:
-            for _, result in smind.wait_for([task_id], timeout=LLM_TIMEOUT):
-                if result["status"] not in TASK_COMPLETE:
-                    log_diver(
-                        f"processing segment {main_id}@{page}: "
-                        f"llm timed out ({sp_key})")
+            f"llm ({prompt_info['name']}) size={len(full_text)}")
+        llm_out, llm_error = llm_response(smind, ns, full_text, prompt_info)
+        if llm_out is not None:
+            error_msg = (
+                f"ERROR: could not interpret model output:\n{llm_out}")
+            # prompt_info["categories"] is None  is_verify
+            if is_verify:
+                vres, verror = interpret_verify(llm_out)
+                if vres is None:
+                    verror = (
+                        ""
+                        if verror is None
+                        else f"\nSTACKTRACE: {verror}")
                     retry_err(
                         set_error_segment,
                         db,
                         seg_id,
-                        f"llm timed out for {main_id}@{page}")
-                    continue
-                res = result["result"]
-                if res is None:
-                    log_diver(
-                        f"processing segment {main_id}@{page}: "
-                        f"llm error ({sp_key})")
-                    retry_err(
-                        set_error_segment,
-                        db,
-                        seg_id,
-                        f"error in task: {result}")
-                    continue
-                text = tensor_to_str(res["response"])
-                error_msg = (
-                    f"ERROR: could not interpret model output:\n{text}")
-                if is_verify:
-                    vres, verror = interpret_verify(text)
-                    if vres is None:
-                        verror = (
-                            ""
-                            if verror is None
-                            else f"\nSTACKTRACE: {verror}")
-                        retry_err(
-                            set_error_segment,
-                            db,
-                            seg_id,
-                            f"{error_msg}{verror}")
-                    else:
-                        retry_err(
-                            set_verify_segment,
-                            db,
-                            seg_id,
-                            vres["is_hit"],
-                            vres["reason"])
+                        f"{error_msg}{verror}")
                 else:
-                    ddres, derror = interpret_deep_dive(text)
-                    if ddres is None:
-                        derror = (
-                            ""
-                            if derror is None
-                            else f"\nSTACKTRACE: {derror}")
-                        retry_err(
-                            set_error_segment,
-                            db,
-                            seg_id,
-                            f"{error_msg}{derror}")
-                    else:
-                        retry_err(set_deep_dive_segment, db, seg_id, ddres)
-        finally:
-            smind.clear_task(task_id)
+                    retry_err(
+                        set_verify_segment,
+                        db,
+                        seg_id,
+                        vres["is_hit"],
+                        vres["reason"])
+            else:
+                ddres, derror = interpret_deep_dive(llm_out, categories)
+                if ddres is None:
+                    derror = (
+                        ""
+                        if derror is None
+                        else f"\nSTACKTRACE: {derror}")
+                    retry_err(
+                        set_error_segment,
+                        db,
+                        seg_id,
+                        f"{error_msg}{derror}")
+                else:
+                    retry_err(set_deep_dive_segment, db, seg_id, ddres)
+        elif llm_error == "timeout":
+            log_diver(
+                f"processing segment {main_id}@{page}: "
+                f"llm timed out ({prompt_info['name']})")
+            retry_err(
+                set_error_segment,
+                db,
+                seg_id,
+                f"llm timed out for {main_id}@{page}")
+        elif llm_error == "missing":
+            log_diver(
+                f"processing segment {main_id}@{page}: "
+                f"llm error ({prompt_info['name']})")
+            retry_err(
+                set_error_segment,
+                db,
+                seg_id,
+                f"error in task: {llm_out}")
+        else:
+            raise ValueError(f"unexpected error: {llm_out=} {llm_error=}")
     return len(segments)
+
+
+def llm_response(
+        smind: ScattermindAPI,
+        ns: GNamespace,
+        full_text: str,
+        prompt_info: DeepDivePromptInfo,
+        ) -> tuple[str | None, Literal["timeout", "missing", "okay"]]:
+    post_prompt = prompt_info["post_prompt"]
+    if post_prompt is None:
+        post_prompt = " "
+    task_id = smind.enqueue_task(
+        ns,
+        {
+            "prompt": full_text,
+            "main_prompt": prompt_info["main_prompt"],
+            "post_prompt": post_prompt,
+        })
+    for _, result in smind.wait_for(
+            [task_id], timeout=LLM_TIMEOUT, auto_clear=True):
+        if result["status"] not in TASK_COMPLETE:
+            return (None, "timeout")
+        res = result["result"]
+        if res is None:
+            return (None, "missing")
+        return (tensor_to_str(res["response"]), "okay")
+    return (None, "missing")
 
 
 LP = r"{"
@@ -331,23 +358,13 @@ def interpret_verify(text: str) -> tuple[VerifyResult | None, str | None]:
         return (None, traceback.format_exc())
 
 
-def interpret_deep_dive(text: str) -> tuple[DeepDiveResult | None, str | None]:
+def interpret_deep_dive(
+        text: str,
+        categories: list[str]) -> tuple[DeepDiveResult | None, str | None]:
     obj, error = parse_json(text)
     if obj is None:
         return (None, error)
     try:
-        return (
-            {
-                "reason": f"{obj['reason']}",
-                "cultural": int(obj["cultural"]),
-                "economic": int(obj["economic"]),
-                "educational": int(obj["educational"]),
-                "institutional": int(obj["institutional"]),
-                "legal": int(obj["legal"]),
-                "political": int(obj["political"]),
-                "technological": int(obj["technological"]),
-            },
-            None,
-        )
-    except KeyError:
+        return (convert_deep_dive_result(obj, categories=categories), None)
+    except (KeyError, ValueError):
         return (None, traceback.format_exc())

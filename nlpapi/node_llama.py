@@ -16,7 +16,11 @@
 import os
 from typing import cast
 
-from llama_cpp import CreateChatCompletionStreamResponse, Llama
+from llama_cpp import (
+    ChatCompletionRequestMessage,
+    CreateChatCompletionStreamResponse,
+    Llama,
+)
 from scattermind.system.base import GraphId, NodeId
 from scattermind.system.client.client import ComputeTask
 from scattermind.system.graph.graph import Graph
@@ -27,10 +31,8 @@ from scattermind.system.queue.queue import QueuePool
 from scattermind.system.readonly.access import ReadonlyAccess
 from scattermind.system.torch_util import str_to_tensor, tensor_to_str
 
-from nlpapi.default_prompts import PROMPT_REMINDER
 from nlpapi.llama import (
     append_new_message,
-    load_system_prompt,
     ROLE_ASSISTANT,
     ROLE_SYSTEM,
     ROLE_USER,
@@ -53,7 +55,8 @@ class LlamaNode(Node):
     def get_input_format(self) -> DataFormatJSON:
         return {
             "prompt": STRING_INFO,
-            "system_prompt_key": STRING_INFO,
+            "main_prompt": STRING_INFO,
+            "post_prompt": STRING_INFO,
         }
 
     def get_output_format(self) -> dict[str, DataFormatJSON]:
@@ -104,10 +107,11 @@ class LlamaNode(Node):
     def _execute_prompt(
             self,
             model: Llama,
-            prompt: str,
+            _cache_dir: str,
             *,
-            system_prompt_key: str,
-            cache_dir: str,
+            prompt: str,
+            main_prompt: str,
+            post_prompt: str,
             task: ComputeTask) -> str:
         if not task.is_valid():
             return ""
@@ -117,15 +121,15 @@ class LlamaNode(Node):
         add_reminder = True
         if set_seed:
             model.set_seed(123)
-        messages = load_system_prompt(
-            cache_dir=cache_dir,
-            system_prompt_key=system_prompt_key)
-        print(f"SYSTEM PROMPT:\n\n\"\"\"{messages[0]['content']}\"\"\"\n")
+        messages: list[ChatCompletionRequestMessage] = []
+        if main_prompt:
+            append_new_message(messages, text=main_prompt, role=ROLE_SYSTEM)
+        # print(f"SYSTEM PROMPT:\n\n\"\"\"{messages[0]['content']}\"\"\"\n")
         if prompt:
             append_new_message(messages, text=prompt, role=ROLE_USER)
-        if add_reminder:
+        if add_reminder and post_prompt:
             append_new_message(
-                messages, text=PROMPT_REMINDER, role=ROLE_SYSTEM)
+                messages, text=post_prompt, role=ROLE_SYSTEM)
         response: list[str] = []
 
         try:
@@ -165,23 +169,27 @@ class LlamaNode(Node):
         cache_dir = self._cache_dir
         inputs = state.get_values()
         prompts = inputs.get_data("prompt")
-        system_prompt_keys = inputs.get_data("system_prompt_key")
+        main_prompts = inputs.get_data("main_prompt")
+        post_prompts = inputs.get_data("post_prompt")
         tasks = inputs.get_current_tasks()
 
         # NOTE: disk cache performs poorly as the cache grows
         # model.set_cache(llama_cpp.llama_cache.LlamaDiskCache(
         #     os.path.join(cache_dir, self.get_id().to_parseable())))
-        for prompt, system_prompt_key, task in zip(
+        for prompt, main_prompt, post_prompt, task in zip(
                 prompts.iter_values(),
-                system_prompt_keys.iter_values(),
+                main_prompts.iter_values(),
+                post_prompts.iter_values(),
                 tasks):
             prompt_str = tensor_to_str(prompt)
-            system_prompt_key_str = tensor_to_str(system_prompt_key)
+            main_prompt_str = tensor_to_str(main_prompt)
+            post_prompt_str = tensor_to_str(post_prompt)
             response_str = self._execute_prompt(
                 model,
-                prompt_str.strip(),
-                system_prompt_key=system_prompt_key_str.strip(),
-                cache_dir=cache_dir,
+                cache_dir,
+                prompt=prompt_str.strip(),
+                main_prompt=main_prompt_str.strip(),
+                post_prompt=post_prompt_str.strip(),
                 task=task)
             response = str_to_tensor(response_str)
             state.push_results(

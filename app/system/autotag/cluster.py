@@ -23,7 +23,14 @@ from sklearn.cluster import AgglomerativeClustering  # type: ignore
 from sklearn.preprocessing import normalize  # type: ignore
 
 from app.misc.math import dot_order_np
-from app.misc.util import CHUNK_PADDING, CHUNK_SIZE, NL, only
+from app.misc.util import (
+    CHUNK_PADDING,
+    CHUNK_SIZE,
+    json_compact_str,
+    json_read_str,
+    NL,
+    only,
+)
 from app.system.autotag.autotag import (
     add_tag_members,
     clear_clusters,
@@ -31,6 +38,7 @@ from app.system.autotag.autotag import (
     create_tag_group,
     get_incomplete,
     get_keywords,
+    get_tag_group_cluster_args,
     get_tags_for_main_id,
     is_ready,
     is_updating_tag_group,
@@ -50,7 +58,8 @@ class TaggerProcessor(Protocol):  # pylint: disable=too-few-public-methods
             *,
             name: str | None,
             bases: list[str],
-            is_updating: bool) -> None:
+            is_updating: bool,
+            cluster_args: dict) -> None:
         ...
 
 
@@ -58,6 +67,7 @@ InitTaggerPayload = TypedDict('InitTaggerPayload', {
     "stage": Literal["init"],
     "name": str | None,
     "is_updating": bool,
+    "cluster_args": dict,
     "bases": list[str],
 })
 TagTaggerPayload = TypedDict('TagTaggerPayload', {
@@ -101,6 +111,7 @@ def register_tagger(
                 "name": "" if entry["name"] is None else entry["name"],
                 "bases": ",".join(entry["bases"]),
                 "is_updating": f"{int(entry['is_updating'])}",
+                "cluster_args": json_compact_str(entry["cluster_args"]),
             }
         if entry["stage"] == "tag":
             return {
@@ -125,6 +136,7 @@ def register_tagger(
                 "name": payload["name"] if payload["name"] else None,
                 "bases": payload["bases"].split(","),
                 "is_updating": bool(int(payload["is_updating"])),
+                "cluster_args": json_read_str(payload["cluster_args"]),
             }
         if payload["stage"] == "tag":
             return {
@@ -181,7 +193,11 @@ def register_tagger(
         tagger_compute)
 
     def tagger_processor(
-            *, name: str | None, bases: list[str], is_updating: bool) -> None:
+            *,
+            name: str | None,
+            bases: list[str],
+            is_updating: bool,
+            cluster_args: dict) -> None:
         process_enqueue(
             process_queue_redis,
             {
@@ -189,6 +205,7 @@ def register_tagger(
                 "name": name,
                 "bases": bases,
                 "is_updating": is_updating,
+                "cluster_args": cluster_args,
             })
 
     return tagger_processor
@@ -271,7 +288,10 @@ def tagger_init(
     total = 0
     with db.get_session() as session:
         cur_tag_group = create_tag_group(
-            session, entry["name"], is_updating=entry["is_updating"])
+            session,
+            entry["name"],
+            is_updating=entry["is_updating"],
+            cluster_args=entry["cluster_args"])
         for base in entry["bases"]:
             cur_main_ids: list[str] = []
             for cur_main_id in get_all_docs(base):
@@ -359,9 +379,10 @@ def tagger_cluster(
         articles_graph: GraphProfile,
         process_enqueue: ProcessEnqueue[TaggerPayload]) -> str:
 
-    def get_embeds() -> tuple[list[str], np.ndarray]:
+    def get_embeds() -> tuple[list[str], np.ndarray, dict]:
         with db.get_session() as session:
             keywords = sorted(get_keywords(session, tag_group))
+            cluster_args = get_tag_group_cluster_args(session, tag_group)
         all_embeds = get_text_results_immediate(
             keywords,
             graph_profile=articles_graph,
@@ -374,14 +395,17 @@ def tagger_cluster(
             final_kw.append(keyword)
             embeds.append(embed)
         final_embeds = normalize(embeds)
-        return final_kw, final_embeds
+        return final_kw, final_embeds, cluster_args
 
-    def do_cluster(embeds: np.ndarray) -> list[list[int]]:
-        cmodel = AgglomerativeClustering(
-            n_clusters=None,
-            distance_threshold=0.75,
-            metric="cosine",
-            linkage="average")
+    def do_cluster(embeds: np.ndarray, cluster_args: dict) -> list[list[int]]:
+        kwargs = {
+            "n_clusters": None,
+            "distance_threshold": 0.75,
+            "metric": "cosine",
+            "linkage": "average",
+            **cluster_args,
+        }
+        cmodel = AgglomerativeClustering(**kwargs)
         cmodel.fit(embeds)
         labels = cmodel.labels_
         ckwords: collections.defaultdict[str, list[int]] = \
@@ -396,8 +420,8 @@ def tagger_cluster(
         ixs = dot_order_np(cvec, cembeds)
         return cluster[ixs[0]]
 
-    kws, kwembeds = get_embeds()
-    clusters = do_cluster(kwembeds)
+    kws, kwembeds, cluster_args = get_embeds()
+    clusters = do_cluster(kwembeds, cluster_args)
     representatives: list[int] = [
         centroid(kwembeds, cluster)
         for cluster in clusters

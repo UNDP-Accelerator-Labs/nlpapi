@@ -19,7 +19,7 @@ from typing import TypedDict
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from app.misc.util import get_time_str
+from app.misc.util import get_time_str, json_compact_str, json_read_str
 from app.system.db.base import (
     TagCluster,
     TagClusterMember,
@@ -53,10 +53,14 @@ def create_tag_group(
         session: Session,
         name: str | None,
         *,
-        is_updating: bool) -> int:
+        is_updating: bool,
+        cluster_args: dict) -> int:
     if name is None:
         name = f"tag {get_time_str()}"
-    stmt = sa.insert(TagGroupTable).values(name=name, is_updating=is_updating)
+    stmt = sa.insert(TagGroupTable).values(
+        name=name,
+        is_updating=is_updating,
+        cluster_args=json_compact_str(cluster_args))
     stmt = stmt.returning(TagGroupTable.id)
     row_id = session.execute(stmt).scalar()
     if row_id is None:
@@ -68,6 +72,8 @@ def get_tag_group(session: Session, name: str | None) -> int:
     stmt = sa.select(TagGroupTable.id)
     if name is not None:
         stmt = stmt.where(TagGroupTable.name == name)
+    else:
+        stmt = stmt.where(TagGroupTable.is_updating.is_(True))
     stmt = stmt.order_by(TagGroupTable.id.desc())
     stmt = stmt.limit(1)
     tag_group = session.execute(stmt).scalar()
@@ -83,6 +89,15 @@ def is_updating_tag_group(session: Session, tag_group: int) -> bool:
     if tag_group_is_updating is None:
         return False
     return bool(tag_group_is_updating)
+
+
+def get_tag_group_cluster_args(session: Session, tag_group: int) -> dict:
+    stmt = sa.select(TagGroupTable.cluster_args)
+    stmt = stmt.where(TagGroupTable.id == tag_group)
+    tag_group_cluster_args = session.execute(stmt).scalar()
+    if tag_group_cluster_args is None:
+        return {}
+    return json_read_str(tag_group_cluster_args)
 
 
 def add_tag_members(
