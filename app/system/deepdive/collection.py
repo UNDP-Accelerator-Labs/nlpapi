@@ -206,7 +206,7 @@ def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
             DeepDiveCollection.user,
             DeepDiveCollection.name,
             DeepDiveCollection.is_public,
-            DeepDiveProcess.name.alias("ddname"))
+            DeepDiveProcess.name.label("ddname"))
         stmt = stmt.where(sa.and_(
             DeepDiveCollection.process == DeepDiveProcess.id,
             sa.or_(
