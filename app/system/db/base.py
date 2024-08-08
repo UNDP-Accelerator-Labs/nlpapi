@@ -200,8 +200,8 @@ class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
     user: sa.Column[sa.Uuid] = sa.Column(
         sa.Uuid, nullable=False, primary_key=True)  # type: ignore
     name = sa.Column(sa.Text(), nullable=False, primary_key=True)
-    # verify_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
-    # deep_dive_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
+    verify_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
+    deep_dive_key = sa.Column(sa.Text(), nullable=False)  # TODO: remove
     is_public = sa.Column(sa.Boolean, nullable=False, default=False)
     process = sa.Column(
         sa.Integer,
