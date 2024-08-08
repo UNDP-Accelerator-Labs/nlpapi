@@ -23,9 +23,12 @@ import ApiActions from './api/ApiActions';
 import { DBName, SearchState } from './api/types';
 import CollectionView from './collections/CollectionView';
 import { LOGIN_URL } from './misc/constants';
+import Swagger from './misc/Swagger';
 import Search from './search/Search';
 import { setSearch } from './search/SearchStateSlice';
 import { RootState } from './store';
+
+const ENABLE_API_DOCS = false;
 
 const HMain = styled.div`
   display: flex;
@@ -312,10 +315,12 @@ class App extends PureComponent<AppProps, AppState> {
                 />
               }
             />
-            {/* <Route
-              path="/api-docs"
-              element={<Swagger />}
-            /> */}
+            {ENABLE_API_DOCS ? (
+              <Route
+                path="/api-docs"
+                element={<Swagger />}
+              />
+            ) : null}
           </Routes>
         </BrowserRouter>
         <UserDiv>
