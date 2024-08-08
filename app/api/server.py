@@ -306,6 +306,13 @@ def add_vec_features(
     articles_dict: dict[DBName, str] = {}
 
     def init_vec_db() -> None:
+        """
+        Asynchronously initializes the vector databases. This can be really
+        slow and it could happen that qdrant is not available for a while.
+        If any call times out this function will repeat trying to access the
+        databases. Once everything is connected properly, the process queue
+        is started.
+        """
         time.sleep(60.0)  # NOTE: give qdrant plenty of time...
         try:
             tstart = time.monotonic()
@@ -358,11 +365,38 @@ def add_vec_features(
     th.start()
 
     def parse_vdb(vdb_str: str) -> DBName:
+        """
+        Converts a string into the external database name type.
+
+        Args:
+            vdb_str (str): The string.
+
+        Raises:
+            ValueError: If the string is not a valid external vector database
+                name.
+
+        Returns:
+            DBName: The external vector database name.
+        """
         if vdb_str not in DBS:
             raise ValueError(f"db ({vdb_str}) must be one of {DBS}")
         return cast(DBName, vdb_str)
 
     def get_articles(vdb_str: str) -> str:
+        """
+        Converts an external vector database name into an internal vector
+        database name.
+
+        Args:
+            vdb_str (str): The external database name.
+
+        Raises:
+            ValueError: If the string is not a valid external vector database
+                name or the databases have not been loaded yet.
+
+        Returns:
+            str: The internal name for the given vector database.
+        """
         vdb = parse_vdb(vdb_str)
         res = articles_dict.get(vdb)
         if res:
@@ -374,12 +408,41 @@ def add_vec_features(
         raise ValueError("vector database is not ready yet!")
 
     def get_articles_dict() -> dict[DBName, str]:
+        """
+        Retrieve all loaded vector databases.
+
+        Returns:
+            dict[DBName, str]: The external name mapped to the internal name.
+        """
         return dict(articles_dict)
 
     @server.json_post(f"{prefix}/stats")
     @server.middleware(verify_readonly)
     @server.middleware(maybe_session)
     def _post_stats(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
+        """
+        The `/api/stats` endpoint provides document counts for semantic search
+        queries. If the session cookie is not provided or invalid only public
+        documents are considered for the stats.
+
+        @readonly
+        @cookie (optional)
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "fields": A set of field types expected to be returned.
+                    "filters": A dictionary of field types to lists of filter
+                        values. The date field, if given, expects a list of
+                        exactly two values, the start and end date
+                        (both inclusive). If the session cookie is missing or
+                        invalid the "status" filter gets overwritten to
+                        include "public" documents only.
+                    "vecdb": The vector database.
+        Returns:
+            StatEmbed: Vector database document counts.
+        """
         session: SessionInfo | None = rargs["meta"].get("session")
         args = rargs["post"]
         fields = set(args["fields"])
@@ -1031,7 +1094,12 @@ def setup(
             name: str | None = args.get("name")
             bases: list[str] = list(args["bases"])
             is_updating = to_bool(args.get("is_updating", True))
-            tag_processor(name=name, bases=bases, is_updating=is_updating)
+            cluster_args = args.get("cluster_args", {})
+            tag_processor(
+                name=name,
+                bases=bases,
+                is_updating=is_updating,
+                cluster_args=cluster_args)
             return {
                 "enqueued": True,
             }

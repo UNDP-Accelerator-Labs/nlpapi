@@ -280,6 +280,7 @@ class TagGroupTable(Base):  # pylint: disable=too-few-public-methods
         nullable=False,
         server_default=sa.func.now())  # pylint: disable=not-callable
     is_updating = sa.Column(sa.Boolean, nullable=False, default=True)
+    cluster_args = sa.Column(sa.Text(), nullable=True, default=None)
 
 
 class TagGroupMembers(Base):  # pylint: disable=too-few-public-methods

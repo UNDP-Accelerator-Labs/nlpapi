@@ -13,6 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""I/O helper functions that handle a slow disk (or network disk) gracefully.
+"""
 import contextlib
 import errno
 import io
@@ -26,11 +28,23 @@ from typing import Any, cast, IO, Literal, overload
 
 
 MAIN_LOCK = threading.RLock()
+"""Lock for coordinating the wait on start when the (network) disk is not
+ready yet. Network disks can take a bit to get ready after a container is
+started."""
 STALE_FILE_RETRIES: list[float] = [0.1, 0.2, 0.5, 0.8, 1, 1.2, 1.5, 2, 3, 5]
+"""Wait times for retrying reads on stale files."""
 TMP_POSTFIX = ".~tmp"
+"""Postfix for temporary files."""
 
 
 def when_ready(fun: Callable[[], None]) -> None:
+    """
+    Executes an I/O operation, retrying if the disk is not ready. After 120
+    retries (~2min) the function gives up and lets the error go through.
+
+    Args:
+        fun (Callable[[], None]): The I/O operation.
+    """
     with MAIN_LOCK:
         counter = 0
         while True:
@@ -46,6 +60,13 @@ def when_ready(fun: Callable[[], None]) -> None:
 
 
 def fastrename(src: str, dst: str) -> None:
+    """
+    Moves a file or folder. Source and destination cannot be the same.
+
+    Args:
+        src (str): The source file or folder.
+        dst (str): The destination file or folder.
+    """
     src = os.path.abspath(src)
     dst = os.path.abspath(dst)
     if src == dst:
@@ -71,10 +92,26 @@ def fastrename(src: str, dst: str) -> None:
 
 
 def copy_file(from_file: str, to_file: str) -> None:
+    """
+    Copies a file to a new destination.
+
+    Args:
+        from_file (str): The source file.
+        to_file (str): The destination file.
+    """
     shutil.copy(from_file, to_file)
 
 
 def normalize_folder(folder: str) -> str:
+    """
+    Makes the path absolute and ensures that the folder exists.
+
+    Args:
+        folder (str): The folder.
+
+    Returns:
+        str: The absolute path.
+    """
     res = os.path.abspath(folder)
     when_ready(lambda: os.makedirs(res, mode=0o777, exist_ok=True))
     if not os.path.isdir(res):
@@ -83,16 +120,44 @@ def normalize_folder(folder: str) -> str:
 
 
 def normalize_file(fname: str) -> str:
+    """
+    Makes the path absolute and ensures that the parent folder exists.
+
+    Args:
+        fname (str): The file.
+
+    Returns:
+        str: The absolute path.
+    """
     res = os.path.abspath(fname)
     normalize_folder(os.path.dirname(res))
     return res
 
 
 def get_mode(base: str, text: bool) -> str:
+    """
+    Creates a mode string for the `open` function.
+
+    Args:
+        base (str): The base mode string.
+        text (bool): Whether it is a text file.
+
+    Returns:
+        str: The mode string.
+    """
     return f"{base}{'' if text else 'b'}"
 
 
 def is_empty_file(fin: IO[Any]) -> bool:
+    """
+    Cheecks whether the given file is empty.
+
+    Args:
+        fin (IO[Any]): The file handle.
+
+    Returns:
+        bool: True, if the file is empty.
+    """
     pos = fin.seek(0, io.SEEK_CUR)
     size = fin.seek(0, io.SEEK_END) - pos
     fin.seek(pos, io.SEEK_SET)
@@ -110,6 +175,15 @@ def ensure_folder(folder: None) -> None:
 
 
 def ensure_folder(folder: str | None) -> str | None:
+    """
+    Ensures that the given folder exists.
+
+    Args:
+        folder (str | None): The folder name or None.
+
+    Returns:
+        str | None: The folder name or None.
+    """
     if folder is not None and not os.path.exists(folder):
         a_folder: str = folder
         when_ready(lambda: os.makedirs(a_folder, mode=0o777, exist_ok=True))

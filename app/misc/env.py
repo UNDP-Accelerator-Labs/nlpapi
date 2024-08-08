@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Handling environment variables."""
 import os
 from typing import Literal
 
@@ -25,6 +26,7 @@ EnvPath = Literal[
     "SMIND_CFG",
     "UI_PATH",
 ]
+"""Environment variables representing a file path or folder."""
 EnvStr = Literal[
     "APP_SECRET",
     "BLOGS_DB_DIALECT",
@@ -50,6 +52,7 @@ EnvStr = Literal[
     "TANUKI",
     "WRITE_TOKEN",
 ]
+"""Environment variables representing a string."""
 EnvInt = Literal[
     "BLOGS_DB_PORT",
     "LOGIN_DB_PORT",
@@ -57,10 +60,12 @@ EnvInt = Literal[
     "QDRANT_GRPC_PORT",
     "QDRANT_REST_PORT",
 ]
+"""Environment variables representing an integer."""
 EnvBool = Literal[
     "NO_QDRANT",
     "HAS_LLAMA",
 ]
+"""Environment variables representing a boolean value (true, false, 0, 1)."""
 
 
 def _envload(key: str, default: str | None) -> str:
@@ -73,16 +78,60 @@ def _envload(key: str, default: str | None) -> str:
 
 
 def envload_str(key: EnvStr, *, default: str | None = None) -> str:
+    """
+    Loads a string environment variable.
+
+    Args:
+        key (EnvStr): The variable name.
+        default (str | None, optional): The default value. If None, the
+            environment variable is mandatory. Defaults to None.
+
+    Returns:
+        str: The value.
+    """
     return _envload(key, default)
 
 
 def envload_path(key: EnvPath, *, default: str | None = None) -> str:
+    """
+    Loads a path or folder environment variable.
+
+    Args:
+        key (EnvPath): The variable name.
+        default (str | None, optional): The default value. If None, the
+            environment variable is mandatory. Defaults to None.
+
+    Returns:
+        str: The value.
+    """
     return _envload(key, default)
 
 
 def envload_int(key: EnvInt, *, default: int | None = None) -> int:
+    """
+    Loads an integer environment variable.
+
+    Args:
+        key (EnvInt): The variable name.
+        default (int | None, optional): The default value. If None, the
+            environment variable is mandatory. Defaults to None.
+
+    Returns:
+        int: The value.
+    """
     return int(_envload(key, f"{default}"))
 
 
 def envload_bool(key: EnvBool, *, default: bool | None = None) -> bool:
+    """
+    Loads a boolean environment variable (0, 1, true, false).
+
+    Args:
+        key (EnvBool): The variable name.
+        default (bool | None, optional): The default value. If None, the
+            environment variable is mandatory. Defaults to None.
+
+    Returns:
+        bool: The value.
+    """
     return to_bool(_envload(key, f"{default}"))
