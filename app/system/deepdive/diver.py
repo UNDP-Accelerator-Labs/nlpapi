@@ -221,7 +221,6 @@ def process_segments(
         if llm_out is not None:
             error_msg = (
                 f"ERROR: could not interpret model output:\n{llm_out}")
-            # prompt_info["categories"] is None  is_verify
             if is_verify:
                 vres, verror = interpret_verify(llm_out)
                 if vres is None:
