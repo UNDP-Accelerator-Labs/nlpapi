@@ -111,7 +111,7 @@ def process_pending(
         get_tag: TagFn) -> None:
     if not docs:
         return
-    for _ in range(20):
+    for _ in range(3):
         count = process_segments(db, smind, graph_llama)
         if count <= 0:
             break
@@ -138,7 +138,8 @@ def process_pending(
             continue
         if doc["error"] is not None:
             continue
-        combined = retry_err(combine_segments, db, doc)
+        categories = doc["segmentation"]["categories"]
+        combined = retry_err(combine_segments, db, doc, categories)
         if combined == "empty":
             log_diver(f"processing {main_id}: getting full text")
             full_text, error_msg = get_full_text(main_id)

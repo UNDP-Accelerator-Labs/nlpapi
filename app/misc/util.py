@@ -25,7 +25,16 @@ import time
 import uuid
 from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timezone
-from typing import Any, get_args, IO, Literal, NoReturn, TypeAlias, TypeVar
+from typing import (
+    Any,
+    get_args,
+    IO,
+    Literal,
+    NoReturn,
+    ParamSpec,
+    TypeAlias,
+    TypeVar,
+)
 
 import numpy as np
 import pandas as pd
@@ -40,6 +49,7 @@ from app.misc.io import open_read
 ET = TypeVar('ET')
 CT = TypeVar('CT')
 RT = TypeVar('RT')
+AT = TypeVar('AT')
 VT = TypeVar('VT')
 DT = TypeVar('DT', bound=pd.DataFrame | pd.Series)
 
@@ -633,15 +643,26 @@ EXCEPTIONS: tuple[type[BaseException]] = (  # type: ignore
 )
 
 
+P = ParamSpec("P")
+
+
 def retry_err(
-        call: Callable[..., RT],
-        *args: Any,
-        max_retry: int = 3,
-        sleep: float = 3.0) -> RT:
+        fn: Callable[P, RT],
+        *fn_args: P.args,
+        **fn_kwargs: P.kwargs) -> RT:
+    return retry_err_config(fn, 3, 3.0, *fn_args, **fn_kwargs)
+
+
+def retry_err_config(
+        fn: Callable[P, RT],
+        max_retry: int,
+        sleep: float,
+        *fn_args: P.args,
+        **fn_kwargs: P.kwargs) -> RT:
     error = 0
     while True:
         try:
-            return call(*args)
+            return fn(*fn_args, **fn_kwargs)
         except EXCEPTIONS:
             error += 1
             if error > max_retry:

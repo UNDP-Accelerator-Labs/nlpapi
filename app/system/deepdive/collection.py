@@ -41,6 +41,7 @@ DeepDiveProcessRow = TypedDict('DeepDiveProcessRow', {
 DeepDiveSegmentationInfo = TypedDict('DeepDiveSegmentationInfo', {
     "chunk_size": int,
     "chunk_padding": int,
+    "categories": list[str],
 })
 
 
@@ -341,12 +342,19 @@ def get_documents(
             DeepDiveElement.tag,
             DeepDiveElement.tag_reason,
             DeepDiveProcess.chunk_size,
-            DeepDiveProcess.chunk_padding)
+            DeepDiveProcess.chunk_padding,
+            DeepDivePrompt.categories)
         stmt = stmt.where(sa.and_(
             DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
             DeepDiveCollection.id == collection_id,
-            DeepDiveProcess.id == DeepDiveCollection.process))
+            DeepDiveProcess.id == DeepDiveCollection.process,
+            DeepDivePrompt.id == DeepDiveProcess.categories_id))
         stmt = stmt.order_by(DeepDiveElement.id)
+
+        def get_categories(categories_str: str | None) -> list[str]:
+            assert categories_str is not None
+            return categories_str.split(",")
+
         docs: list[DocumentObj] = [
             {
                 "id": row.id,
@@ -357,6 +365,7 @@ def get_documents(
                 "segmentation": {
                     "chunk_size": row.chunk_size,
                     "chunk_padding": row.chunk_padding,
+                    "categories": get_categories(row.categories),
                 },
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
@@ -523,8 +532,10 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
             DeepDiveElement.tag,
             DeepDiveElement.tag_reason,
             DeepDiveProcess.chunk_size,
-            DeepDiveProcess.chunk_padding)
+            DeepDiveProcess.chunk_padding,
+            DeepDivePrompt.categories)
         stmt = stmt.where(sa.and_(
+            DeepDivePrompt.id == DeepDiveProcess.categories_id,
             DeepDiveProcess.id == DeepDiveCollection.process,
             DeepDiveElement.deep_dive_id == DeepDiveCollection.id,
             sa.or_(
@@ -536,6 +547,11 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
             DeepDiveElement.error.is_(None)))
         stmt = stmt.order_by(
             DeepDiveElement.deep_dive_id, DeepDiveElement.main_id)
+
+        def get_categories(categories_str: str) -> list[str]:
+            assert categories_str is not None
+            return categories_str.split(",")
+
         for row in session.execute(stmt):
             yield {
                 "id": row.id,
@@ -546,6 +562,7 @@ def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
                 "segmentation": {
                     "chunk_size": row.chunk_size,
                     "chunk_padding": row.chunk_padding,
+                    "categories": get_categories(row.categories),
                 },
                 "is_valid": row.is_valid,
                 "verify_reason": row.verify_reason,
