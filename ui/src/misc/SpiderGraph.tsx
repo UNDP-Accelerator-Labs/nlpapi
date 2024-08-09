@@ -21,6 +21,7 @@ import { StatFinal, StatFull } from '../api/types';
 
 const MAX_STAT_VALUE = 4;
 
+// FIXME: for now the order is only for known categories could use the db order
 const ORDER = [
   'cultural',
   'educational',

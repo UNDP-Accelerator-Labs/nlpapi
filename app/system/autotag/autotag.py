@@ -72,6 +72,8 @@ def get_tag_group(session: Session, name: str | None) -> int:
     stmt = sa.select(TagGroupTable.id)
     if name is not None:
         stmt = stmt.where(TagGroupTable.name == name)
+    else:
+        stmt = stmt.where(TagGroupTable.is_updating.is_(True))
     stmt = stmt.order_by(TagGroupTable.id.desc())
     stmt = stmt.limit(1)
     tag_group = session.execute(stmt).scalar()

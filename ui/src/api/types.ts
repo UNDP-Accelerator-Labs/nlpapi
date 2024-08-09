@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-export type DBName = 'main' | 'test' | 'rave_ce';
-export type DeepDiveName = 'circular_economy' | 'circular_economy_undp';
+export type DBName = string & { _dbName: void };
+export type DeepDiveName = string & { _deepDiveName: void };
 
 export type VersionResponse = {
   app_name: string;
@@ -110,7 +110,7 @@ export type Collection = {
   id: number;
   user: string;
   name: string;
-  deepDiveKey: string;
+  deepDiveName: DeepDiveName;
   isPublic: boolean;
 };
 
@@ -118,7 +118,7 @@ type ApiCollection = {
   id: number;
   user: string;
   name: string;
-  deep_dive_key: string;
+  deep_dive_name: string;
   is_public: boolean;
 };
 
@@ -128,13 +128,7 @@ export type CollectionOptions = {
 
 type DeepDiveResult = {
   reason: string;
-  cultural: number;
-  economic: number;
-  educational: number;
-  institutional: number;
-  legal: number;
-  political: number;
-  technological: number;
+  values: { [key: string]: number };
 };
 
 type ApiDocumentObj = {
@@ -143,8 +137,6 @@ type ApiDocumentObj = {
   url: string;
   title: string;
   deep_dive: number;
-  verify_key: string;
-  deep_dive_key: string;
   is_valid: boolean | undefined;
   verify_reason: string | undefined;
   deep_dive_result: DeepDiveResult | undefined;
@@ -167,8 +159,6 @@ export type DocumentObj = {
   url: string;
   title: string;
   collectionId: number;
-  verifyKey: string;
-  deepDiveKey: string;
   isValid: boolean | undefined;
   verifyReason: string | undefined;
   scores: StatNumbers;

@@ -27,6 +27,8 @@ import Search from './search/Search';
 import { setSearch } from './search/SearchStateSlice';
 import { RootState } from './store';
 
+const ENABLE_API_DOCS = false;
+
 const HMain = styled.div`
   display: flex;
   justify-content: center;
@@ -146,7 +148,7 @@ class App extends PureComponent<AppProps, AppState> {
       userId: undefined,
       userName: undefined,
       isCollapsed: +(localStorage.getItem('menuCollapse') ?? 0) > 0,
-      dbs: ['main', 'test', 'rave_ce'],
+      dbs: [],
     };
     this.apiActions = new ApiActions(undefined);
 
@@ -193,9 +195,11 @@ class App extends PureComponent<AppProps, AppState> {
       this.setState(
         {
           dbStart: true,
+          dbs: JSON.parse(localStorage.getItem('pageLoadDbs') ?? '[]'),
         },
         () => {
           this.apiActions.vecDBs((vecdbs) => {
+            localStorage.setItem('pageLoadDbs', JSON.stringify(vecdbs));
             this.setState({ dbReady: true, dbs: vecdbs });
           });
         },
@@ -310,10 +314,12 @@ class App extends PureComponent<AppProps, AppState> {
                 />
               }
             />
-            {/* <Route
-              path="/api-docs"
-              element={<Swagger />}
-            /> */}
+            {ENABLE_API_DOCS ? (
+              <Route
+                path="/api-docs"
+                element={<Swagger />}
+              />
+            ) : null}
           </Routes>
         </BrowserRouter>
         <UserDiv>

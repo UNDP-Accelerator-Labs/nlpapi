@@ -62,7 +62,13 @@ from qdrant_client.models import (
     WithLookup,
 )
 
-from app.misc.util import DocStatus, get_time_str, parse_time_str, retry_err
+from app.misc.util import (
+    DocStatus,
+    get_time_str,
+    parse_time_str,
+    retry_err,
+    retry_err_config,
+)
 from app.system.config import Config
 
 
@@ -386,10 +392,10 @@ def build_db_name(
     if not force_clear and not force_index:
         vec_name_read = get_db_name(name, is_vec=True)
         data_name_read = get_db_name(name, is_vec=False)
-        if retry_err(
+        if retry_err_config(
                 lambda: db.collection_exists(vec_name_read),
-                max_retry=60,
-                sleep=5.0):
+                60,  # max_retry
+                5.0):  # sleep
             vec_status = retry_err(
                 lambda: db.get_collection(vec_name_read))
             print(f"load {vec_name_read}: {vec_status.status}")

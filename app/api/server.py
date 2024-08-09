@@ -87,9 +87,8 @@ from app.system.deepdive.collection import (
     add_collection,
     add_documents,
     CollectionOptions,
-    DEEP_DIVE_NAMES,
     get_collections,
-    get_deep_dive_name,
+    get_deep_dives,
     get_documents,
     requeue,
     requeue_error,
@@ -985,7 +984,7 @@ def setup(
             "has_llm": graph_llama is not None,
             "vecdb_ready": bool(articles_dbs),
             "vecdbs": articles_dbs,
-            "deepdives": sorted(DEEP_DIVE_NAMES),
+            "deepdives": sorted(get_deep_dives(db)),
             "error": None,
         }
 
@@ -1291,7 +1290,7 @@ def setup(
                 _req: QSRH, rargs: ReqArgs) -> CollectionResponse:
             args = rargs["post"]
             name: str = args["name"]
-            deep_dive = get_deep_dive_name(args["deep_dive"])
+            deep_dive = args["deep_dive"]
             session: SessionInfo = rargs["meta"]["session"]
             res = add_collection(db, session["uuid"], name, deep_dive)
             return {
@@ -1308,7 +1307,7 @@ def setup(
                         "id": obj["id"],
                         "user": obj["user"].hex,
                         "name": obj["name"],
-                        "deep_dive_key": obj["deep_dive_key"],
+                        "deep_dive_name": obj["deep_dive_name"],
                         "is_public": obj["is_public"],
                     }
                     for obj in get_collections(db, session["uuid"])
