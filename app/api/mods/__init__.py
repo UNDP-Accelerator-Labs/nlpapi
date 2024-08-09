@@ -13,3 +13,4 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Implements the module system for the language and location apis."""
