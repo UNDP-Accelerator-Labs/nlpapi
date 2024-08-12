@@ -30,6 +30,7 @@ from app.system.smind.api import GraphProfile
 
 
 class LocationModule(Module):
+    """The location module."""
     def __init__(
             self,
             db: DBConnector,

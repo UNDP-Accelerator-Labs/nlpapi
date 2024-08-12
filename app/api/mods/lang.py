@@ -24,6 +24,7 @@ from app.system.language.pipeline import extract_language
 
 
 class LanguageModule(Module):
+    """The language module."""
     def __init__(self, db: DBConnector) -> None:
         self._db = db
 

@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""General utility functions."""
 import contextlib
 import hashlib
 import inspect
@@ -58,26 +59,50 @@ NL = "\n"
 
 
 TEST_SALT_LOCK = threading.RLock()
+"""Lock for salt generation of unit tests."""
 TEST_SALT: dict[str, str] = {}
+"""Cache for unit test salts."""
 
 
 DocStatus: TypeAlias = Literal["public", "preview"]
+"""The status of a document. `public` means anybody can access the document and
+`preview` means only logged in users can access the document."""
 DOC_STATUS: tuple[DocStatus] = get_args(DocStatus)
+"""The status of a document. `public` means anybody can access the document and
+`preview` means only logged in users can access the document."""
 
 
 CHUNK_SIZE = 600
+"""Chunk size for vector database embeddings."""
 SMALL_CHUNK_SIZE = 150
+"""Chunk size for small hit snippets."""
 TITLE_CHUNK_SIZE = 60
+"""Chunk size for titles."""
 CHUNK_PADDING = 20
+"""General padding of embedding chunks."""
 DEFAULT_HIT_LIMIT = 1
+"""Default hit limit. At the moment only the top hit is returned by default."""
 
 
 def is_test() -> bool:
+    """
+    Whether the program is run in a test environment.
+
+    Returns:
+        bool: Whether we are executing a unit test.
+    """
     test_id = os.getenv("PYTEST_CURRENT_TEST")
     return test_id is not None
 
 
 def get_test_salt() -> str | None:
+    """
+    Get the salt for the current unit test.
+
+    Returns:
+        str | None: The salt or None if we are not currently running a unit
+            test.
+    """
     test_id = os.getenv("PYTEST_CURRENT_TEST")
     if test_id is None:
         return None
@@ -92,29 +117,72 @@ def get_test_salt() -> str | None:
 
 
 def get_text_hash(text: str) -> str:
+    """
+    Get the hash of the given text. The length of the hash in characters is
+    provided by `text_hash_size`.
+
+    Args:
+        text (str): The text.
+
+    Returns:
+        str: The hash.
+    """
     blake = hashlib.blake2b(digest_size=32)
     blake.update(text.encode("utf-8"))
     return blake.hexdigest()
 
 
 def text_hash_size() -> int:
+    """
+    The size of the hash produced by `get_text_hash`.
+
+    Returns:
+        int: The number of characters in the hash.
+    """
     return 64
 
 
 def get_short_hash(text: str) -> str:
+    """
+    Computes a short hash for the given text. The length of the hash in
+    characters is provided by `short_hash_size`.
+
+    Args:
+        text (str): The text.
+
+    Returns:
+        str: The hash.
+    """
     blake = hashlib.blake2b(digest_size=4)
     blake.update(text.encode("utf-8"))
     return blake.hexdigest()
 
 
 def short_hash_size() -> int:
+    """
+    The size of the short hash produced by `get_short_hash`.
+
+    Returns:
+        int: The number of characters in the hash.
+    """
     return 8
 
 
 BUFF_SIZE = 65536  # 64KiB
+"""Buffer size of file operations. Namely hashing."""
 
 
 def get_file_hash(fname: str) -> str:
+    """
+    Computes the hash of the given file. The length of the hash in characters
+    is provided by `file_hash_size`.
+
+    Args:
+        fname (str): The file name.
+
+    Returns:
+        str: The hash of the file's contents.
+    """
     blake = hashlib.blake2b(digest_size=32)
     with open_read(fname, text=False) as fin:
         while True:
@@ -126,23 +194,69 @@ def get_file_hash(fname: str) -> str:
 
 
 def file_hash_size() -> int:
+    """
+    The size of the hash produced by `get_file_hash`.
+
+    Returns:
+        int: The number of characters in the hash.
+    """
     return 64
 
 
 def is_hex(text: str) -> bool:
+    """
+    Whether a given text denotes a hex number.
+
+    Args:
+        text (str): The text.
+
+    Returns:
+        bool: True, if it is a hex number.
+    """
     hex_digits = set(string.hexdigits)
     return all(char in hex_digits for char in text)
 
 
 def as_df(series: pd.Series) -> pd.DataFrame:
+    """
+    Convert a series into a dataframe.
+
+    Args:
+        series (pd.Series): The series.
+
+    Returns:
+        pd.DataFrame: The one row dataframe.
+    """
     return series.to_frame().T
 
 
 def fillnonnum(df: DT, val: float) -> DT:
+    """
+    Fill in all non-numerical values (Inf or NaN) with the given number.
+
+    Args:
+        df (DT): The dataframe.
+        val (float): The value to fill in.
+
+    Returns:
+        DT: The new dataframe.
+    """
     return df.replace([-np.inf, np.inf], np.nan).fillna(val)  # type: ignore
 
 
 def only(arr: list[RT]) -> RT:
+    """
+    Returns the only value of the given array.
+
+    Args:
+        arr (list[RT]): The array.
+
+    Raises:
+        ValueError: If the array length is not exactly 1.
+
+    Returns:
+        RT: The only value in the array.
+    """
     if len(arr) != 1:
         raise ValueError(f"array must have exactly one element: {arr}")
     return arr[0]
@@ -155,10 +269,19 @@ ELAPSED_UNITS: list[tuple[int, str]] = [
     (60*60, "h"),
     (60*60*24, "d"),
 ]
+"""Units for pretty time delta formatting."""
 
 
 def elapsed_time_string(elapsed: float) -> str:
-    """Convert elapsed time into a readable string."""
+    """
+    Convert elapsed time into a readable string.
+
+    Args:
+        elapsed (float): The elapsed time in seconds.
+
+    Returns:
+        str: A human readable string.
+    """
     cur = ""
     for (conv, unit) in ELAPSED_UNITS:
         if elapsed / conv >= 1 or not cur:
@@ -169,6 +292,18 @@ def elapsed_time_string(elapsed: float) -> str:
 
 
 def to_bool(value: bool | float | int | str) -> bool:
+    """
+    Interprets the given value as boolean.
+
+    Args:
+        value (bool | float | int | str): The value.
+
+    Raises:
+        ValueError: If the value cannot be converted to a boolean.
+
+    Returns:
+        bool: The boolean value.
+    """
     value = f"{value}".lower()
     if value in ("true", "yes", "y"):
         return True
@@ -182,18 +317,48 @@ def to_bool(value: bool | float | int | str) -> bool:
 
 
 def to_list(value: Any) -> list[Any]:
+    """
+    Ensures that the provided value is a list.
+
+    Args:
+        value (Any): The value.
+
+    Raises:
+        ValueError: If it is not a list.
+
+    Returns:
+        list[Any]: The value properly typed as list.
+    """
     if not isinstance(value, list):
         raise ValueError(f"{value} is not a list")
     return value
 
 
 def maybe_list(value: Any) -> list[Any] | None:
+    """
+    Ensures that the provided value is a list or None.
+
+    Args:
+        value (Any): The value.
+
+    Returns:
+        list[Any] | None: The value properly typed as list or None.
+    """
     if value is None:
         return None
     return to_list(value)
 
 
 def is_int(value: Any) -> bool:
+    """
+    Determines whether the given value is / can be converted to an integer.
+
+    Args:
+        value (Any): The value.
+
+    Returns:
+        bool: Whether the value can be converted to an integer.
+    """
     try:
         int(value)
         return True
