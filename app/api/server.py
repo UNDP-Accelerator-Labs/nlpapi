@@ -992,7 +992,8 @@ def setup(
     """
     Sets up all api endpoints for the app server. If any exception is raised
     during server setup `fallback_server` is called to provide only the
-    `api/version` endpoint which details the error.
+    `api/version` endpoint which details the error (this is not done by this
+    function! use `setup_server`).
 
     Args:
         server (QuickServer): The server to add the api endpoints to.
@@ -2024,9 +2025,26 @@ def setup(
         @server.json_post(f"{prefix}/collection/add")
         def _post_collection_add(
                 _req: QSRH, rargs: ReqArgs) -> CollectionResponse:
+            """
+            The `/api/collection/add` endpoint creates a new collection for the
+            current user.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "name": The name of the new collection.
+                        "deep_dive": The name of the deep dive process.
+
+            Returns:
+                CollectionResponse: The id of the new collection.
+            """
             args = rargs["post"]
             name: str = args["name"]
-            deep_dive = args["deep_dive"]
+            deep_dive: str = args["deep_dive"]
             session: SessionInfo = rargs["meta"]["session"]
             res = add_collection(db, session["uuid"], name, deep_dive)
             return {
@@ -2036,6 +2054,20 @@ def setup(
         @server.json_post(f"{prefix}/collection/list")
         def _post_collection_list(
                 _req: QSRH, rargs: ReqArgs) -> CollectionListResponse:
+            """
+            The `/api/collection/list` endpoint lists all collections of the
+            current user (and publicly available collections).
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request
+                rargs (ReqArgs): The arguments. POST
+
+            Returns:
+                CollectionListResponse: A list of all visible collections.
+            """
             session: SessionInfo = rargs["meta"]["session"]
             return {
                 "collections": [
@@ -2053,6 +2085,27 @@ def setup(
         @server.json_post(f"{prefix}/collection/options")
         def _post_collection_options(
                 _req: QSRH, rargs: ReqArgs) -> CollectionOptionsResponse:
+            """
+            The `/api/collection/options` endpoint sets the options for a given
+            collection.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "collection_id": The id of the collection.
+                        "options": An option containing the fields to update.
+                            The only field currently is the boolean field
+                            `is_public` which determines whether a collection
+                            is visible to everyone.
+
+            Returns:
+                CollectionOptionsResponse: Whether the record was successfully
+                    updated.
+            """
             args = rargs["post"]
             collection_id = int(args["collection_id"])
             options: CollectionOptions = args["options"]
@@ -2065,6 +2118,24 @@ def setup(
         @server.json_post(f"{prefix}/documents/add")
         def _post_documents_add(
                 _req: QSRH, rargs: ReqArgs) -> DocumentResponse:
+            """
+            The `/api/documents/add` endpoint adds documents to a collection.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "collection_id": The id of the collection.
+                        "main_ids": A list of main ids to add to the
+                            collection.
+
+            Returns:
+                DocumentResponse: The ids of the newly added documents. The
+                    size of the list equals the number of new documents.
+            """
             args = rargs["post"]
             collection_id = int(args["collection_id"])
             main_ids: list[str] = args["main_ids"]
@@ -2078,6 +2149,24 @@ def setup(
         @server.json_post(f"{prefix}/documents/list")
         def _post_documents_list(
                 _req: QSRH, rargs: ReqArgs) -> DocumentListResponse:
+            """
+            The `/api/documents/list` endpoint retrieves all documents in the
+            given collection.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "collection_id": The id of the collection.
+
+            Returns:
+                DocumentListResponse: The documents in the current collection
+                    and whether the current user is allowed to modify the
+                    collection.
+            """
             args = rargs["post"]
             collection_id = int(args["collection_id"])
             session: SessionInfo = rargs["meta"]["session"]
@@ -2091,6 +2180,23 @@ def setup(
         @server.json_post(f"{prefix}/documents/fulltext")
         def _post_documents_fulltext(
                 _req: QSRH, rargs: ReqArgs) -> FulltextResponse:
+            """
+            The `/api/documents/fulltext` endpoint retrieves the fulltext of
+            a given document.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "main_id": The main id of the requested document.
+
+            Returns:
+                FulltextResponse: The fulltext of the document or the error
+                    message if the operation failed.
+            """
             args = rargs["post"]
             main_id: str = args["main_id"]
             content, error_msg = get_full_text(main_id)
@@ -2102,6 +2208,29 @@ def setup(
         @server.json_post(f"{prefix}/documents/requeue")
         def _post_documents_requeue(
                 _req: QSRH, rargs: ReqArgs) -> RequeueResponse:
+            """
+            The `/api/documents/requeue` endpoint requeues some documents of a
+            collection for reprocessing.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "collection_id": The id of the collection.
+                        "main_ids": The list of main ids to process again.
+                        "meta_only": `true` if only the meta data (e.g.,
+                            country information) should be recomputed. Defaults
+                            to `false`.
+                        "error_only": `true` if only previously failed segments
+                            should be recomputed. Defaults to `false`.
+
+            Returns:
+                RequeueResponse: Whether the documents were successfully queued
+                    up.
+            """
             args = rargs["post"]
             collection_id = int(args["collection_id"])
             main_ids: list[str] = args["main_ids"]
@@ -2128,6 +2257,22 @@ def setup_server(
         addr: str | None,
         port: int | None,
         versions: VersionDict) -> tuple[QuickServer, str]:
+    """
+    Fully sets up the server and guarantees that some api is provided even if
+    an error occurred.
+
+    Args:
+        deploy (bool): Whether the server should start in deployment mode. That
+            is, no command line loop is started.
+        addr (str | None): The address of the server or `None` for reading the
+            value from the env.
+        port (int | None): The port of the server or `None` for reading the
+            value from the env.
+        versions (VersionDict): The version info.
+
+    Returns:
+        tuple[QuickServer, str]: The server and the api prefix.
+    """
     if addr is None:
         addr = envload_str("HOST", default="127.0.0.1")
     if port is None:
@@ -2159,6 +2304,26 @@ def fallback_server(
         port: int | None,
         versions: VersionDict,
         exc_strs: list[str]) -> tuple[QuickServer, str]:
+    """
+    Creates the fallback server if any error happened during creation of the
+    actual server. This server only provides the `/api/version` endpoint to
+    ensure that the healthcheck succeeds. If the healthcheck wouldn't succeed
+    Azure would not correctly write out the logs and it would be extremely
+    difficult to debug *why* the server didn't start. It is better to just fake
+    a healthy heatbeat and provide the error that prevented the proper start in
+    the api endpoint.
+
+    Args:
+        deploy (bool): Whether the server should provide a command loop.
+        addr (str | None): The address. If `None` the value is read from the
+            env.
+        port (int | None): The port. If `None` the value is read from the env.
+        versions (VersionDict): The version info.
+        exc_strs (list[str]): The exception output.
+
+    Returns:
+        tuple[QuickServer, str]: The server and the api prefix.
+    """
     if addr is None:
         addr = envload_str("HOST", default="127.0.0.1")
     if port is None:
@@ -2188,6 +2353,8 @@ def fallback_server(
 
     @server.json_get(f"{prefix}/version")
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
+        # NOTE: this endpoint is identical to the one above except that it
+        # also indicates the error. no duplicate documentation is provided
         return {
             "app_name": versions["app_version"],
             "app_commit": versions["commit"],
@@ -2206,6 +2373,13 @@ def fallback_server(
 
 
 def start(server: QuickServer, prefix: str) -> None:
+    """
+    Starts the server.
+
+    Args:
+        server (QuickServer): The server.
+        prefix (str): The api prefix.
+    """
     addr, port = server.server_address
     if not isinstance(addr, str):
         addr = addr.decode("utf-8")
