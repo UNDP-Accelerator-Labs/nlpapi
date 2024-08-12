@@ -1631,6 +1631,24 @@ def setup(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _get_geoforward(_req: QSRH, rargs: ReqArgs) -> OpenCageFormat:
+            """
+            The `api/geoforward` endpoint extract a location from a given text.
+            The output format is the same as if the call was made directly to
+            open cage.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    GET
+                        "q": The input text.
+
+            Returns:
+                OpenCageFormat: The detected location in open cage format.
+            """
             meta = rargs["meta"]
             input_str: str = meta["input"]
             user: uuid.UUID = meta["user"]
@@ -1640,6 +1658,38 @@ def setup(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _post_locations(_req: QSRH, rargs: ReqArgs) -> GeoOutput:
+            """
+            The `/api/locations` endpoint extracts locations from a given input
+            text.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The text to analyze.
+                        "return_input": Whether to return the original input.
+                            Defaults to `false`.
+                        "return_context": Whether to return the context around
+                            hits. Defaults to `true`.
+                        "strategy": Which strategy to use for determining the
+                            main location. Can be `top` or `frequency`.
+                            Defaults to `top`.
+                        "language": Which language the input text is in. Can
+                            be `en` for english or `xx` for multi-lingual.
+                            Defaults to `en`.
+                        "max_requests": The maximum number of location requests
+                            to be made for the full document. If set to
+                            `null` the number is unrestricted. Defaults to
+                            `null`.
+
+            Returns:
+                GeoOutput: The detected locations and the estimate of the main
+                    location.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             input_str: str = meta["input"]
@@ -1660,6 +1710,22 @@ def setup(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _post_language(_req: QSRH, rargs: ReqArgs) -> LangResponse:
+            """
+            The `/api/language` endpoint detects the language of a given text.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The text to analyze.
+
+            Returns:
+                LangResponse: The result of the language analysis.
+            """
             meta = rargs["meta"]
             input_str: str = meta["input"]
             user: uuid.UUID = meta["user"]
@@ -1670,6 +1736,24 @@ def setup(
         @server.json_post(f"{prefix}/inspect")
         @server.middleware(verify_readonly)
         def _post_inspect(_req: QSRH, rargs: ReqArgs) -> URLInspectResponse:
+            """
+            The `/api/inspect` endpoint determines the country from a given
+            url.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "url": The url to inspect.
+
+            Returns:
+                URLInspectResponse: The url and detected iso3. If no country
+                    was detected `null` is returned.
+            """
             args = rargs["post"]
             url = args["url"]
             iso3 = inspect_url(url)
@@ -1681,6 +1765,29 @@ def setup(
         @server.json_post(f"{prefix}/date")
         @server.middleware(verify_readonly)
         def _post_date(_req: QSRH, rargs: ReqArgs) -> DateResponse:
+            """
+            The `/api/date` endpoint extracts the date of a given article from
+            the text.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "raw_html": The raw html to analyze.
+                        "posted_date_str": An optional previously detected
+                            date string. Defaults to `null`.
+                        "language": The known language of the text. If unknown
+                            `null` can be passed. Defaults to `null`.
+                        "use_date_str": If `true`, use the provided date string
+                            if given. Defaults to `true`.
+
+            Returns:
+                DateResponse: The detected date or `null`.
+            """
             args = rargs["post"]
             raw_html = args["raw_html"]
             posted_date_str = args.get("posted_date_str")
@@ -1701,6 +1808,33 @@ def setup(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _post_snippify(_req: QSRH, rargs: ReqArgs) -> SnippyResponse:
+            """
+            The `/api/snippify` endpoint breaks a given text into snippets
+            / chunks.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The text to analyze.
+                        "chunk_size": The target chunk size. Can be `null` to
+                            use default values. Defaults to `null`.
+                        "chunk_padding": The target overlap between chunks. Can
+                            be `null` to use default values. Defaults to
+                            `null`.
+                        "small_snippets": If `true` and `chunk_size` or
+                            `chunk_padding` is not set the default values for
+                            small snippets are chosen instead of the default
+                            values for large snippets. Defaults to `false`.
+
+            Returns:
+                SnippyResponse: Provides a list of snippets and the number of
+                    snippets.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             input_str: str = meta["input"]
@@ -1740,6 +1874,31 @@ def setup(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _post_extract(_req: QSRH, rargs: ReqArgs) -> dict[str, Any]:
+            """
+            The `/api/extract` endpoint provides some text api endpoints in a
+            unified way. This allows to send the full text only once instead
+            of each time for each individual endpoint.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The text to analyze.
+                        "modules": A list of modules. Each element is an object
+                            with the `name` of the module (`location` or
+                            `language`) and the arguments `args`. The arguments
+                            can be found at the respective endpoints for those
+                            modules.
+
+            Returns:
+                dict[str, Any]: A dictionary with a key for each requested
+                    module. The contents of each response matches the output of
+                    their respective endpoints.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             input_str: str = meta["input"]
@@ -1756,6 +1915,19 @@ def setup(
 
     @server.json_get(f"{prefix}/collection/stats")
     def _get_collection_stats(_req: QSRH, _rargs: ReqArgs) -> CollectionStats:
+        """
+        The `/api/collection/stats` endpoint provides information about
+        (pending) segments for the collection processing.
+
+        @api
+
+        Args:
+            _req (QSRH): The request.
+            _rargs (ReqArgs): The arguments. GET
+
+        Returns:
+            CollectionStats: The information about segment groups.
+        """
         stats = list(segment_stats(db))
         return {
             "segments": stats,
@@ -1763,6 +1935,16 @@ def setup(
 
     # # # SESSION # # #
     def get_doc_info(main_id: str, *, is_logged_in: bool) -> TitleResponse:
+        """
+        Convenience function for retrieving document information.
+
+        Args:
+            main_id (str): The main id of the document.
+            is_logged_in (bool): Whether the results are for a logged in user.
+
+        Returns:
+            TitleResponse: Document information if available.
+        """
         url_title, error_msg = get_url_title(
             main_id, is_logged_in=is_logged_in)
         if url_title is None:
@@ -1782,6 +1964,22 @@ def setup(
     @server.middleware(maybe_session)
     def _post_documents_info(
             _req: QSRH, rargs: ReqArgs) -> TitleResponse:
+        """
+        The `/api/documents/info` endpoint provides information about a single
+        document specified via main id.
+
+        @api
+        @cookie (optional)
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "main_id": The main id of the document to analyze.
+
+        Returns:
+            TitleResponse: The title and url of the document requested.
+        """
         session: SessionInfo | None = rargs["meta"].get("session")
         args = rargs["post"]
         main_id: str = args["main_id"]
@@ -1792,6 +1990,22 @@ def setup(
     @server.middleware(maybe_session)
     def _post_documents_infos(
             _req: QSRH, rargs: ReqArgs) -> TitlesResponse:
+        """
+        The `/api/documents/infos` endpoint provides information about multiple
+        document specified via main id.
+
+        @api
+        @cookie (optional)
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "main_ids": A list of main ids of the documents to analyze.
+
+        Returns:
+            TitlesResponse: The titles and urls of the requested documents.
+        """
         session: SessionInfo | None = rargs["meta"].get("session")
         args = rargs["post"]
         main_ids: list[str] = args["main_ids"]
