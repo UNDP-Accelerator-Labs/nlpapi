@@ -710,6 +710,42 @@ def add_vec_features(
         @server.json_post(f"{prefix}/embed/add")
         @server.middleware(verify_write)
         def _post_embed_add(_req: QSRH, rargs: ReqArgs) -> AddQueue:
+            """
+            The `/api/embed/add` endpoint adds (or removes) a document or a
+            collection of documents to the vector database. Elements are
+            added to the processing queue. Use `/api/queue/error` to check
+            if there are any errors. Sometimes connection errors happen and the
+            translate api runs out of quota every now and then. In that case
+            `/api/queue/requeue` is enough to fix the issues. In the case of
+            translate api quota errors make sure to wait a day for the quota
+            to reset.
+
+            @api
+            @token
+            @write_token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "main_id": Specifies the document to add, e.g.,
+                            `solution:1234` or `blog:42`. If a document does
+                            not exist or otherwise wouldn't be included anymore
+                            the document is removed from vector database if it
+                            was added previously. Must be unset or `null` if
+                            `bases` is set.
+                        "bases": Specifies a list of document collections to
+                            add. Bases can be `blog`, `solution`, `actionplan`,
+                            `experiment`, or `race_ce`. All possible documents
+                            of each collection are added to the queue to ensure
+                            that unpublished documents will be properly
+                            removed.
+                        "db": The target vector database. Can be `main`,
+                            `test`, or `rave_ce`.
+
+            Returns:
+                AddQueue: Whether the items got queued successfully.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             main_id = args.get("main_id")
@@ -730,6 +766,40 @@ def add_vec_features(
         @server.middleware(verify_write)
         @server.middleware(verify_input)
         def _post_add_embed(_req: QSRH, rargs: ReqArgs) -> AddEmbed:
+            """
+            The `/api/add_embed` endpoint adds (or removes) text to the vector
+            database. Elements are processed immediately. This can lead to
+            timeouts for large documents. This method is deprecated by
+            `/api/embed/add` because it allows to add arbitrary text with
+            arbitrary settings and can time out. But it can be useful to test
+            parameters on the `test` database.
+
+            @deprecated
+            @api
+            @token
+            @write_token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The text to add. If the text is empty the
+                            id is removed from the database.
+                        "db": The target vector database. Can be `main`,
+                            `test`, or `rave_ce`.
+                        "base": The base. Can be `blog`, `solution`,
+                            `actionplan`, `experiment`, or `race_ce`.
+                        "doc_id": The id that identifies the document in the
+                            base. The base and the doc_id together form the
+                            main_id via `<base>:<doc_id>`.
+                        "url": The url of the document.
+                        "title": The title of the document.
+                        "meta": The document meta data. Any expected field that
+                            is not set will be inferred from the provided text.
+
+            Returns:
+                AddEmbed: Whether the text was added successfully.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             input_str: str = meta["input"]
@@ -765,6 +835,27 @@ def add_vec_features(
         @server.middleware(verify_write)
         def _post_build_index(
                 _req: QSRH, rargs: ReqArgs) -> BuildIndexResponse:
+            """
+            The `/api/build_index` endpoint updates the indices of the vector
+            database. This method is deprecated as this step is not necessary
+            anymore since adding a document can automatically detect which
+            indices need updating.
+
+            @deprecated
+            @api
+            @token
+            @write_token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "db": The target vector database. Can be `main`,
+                            `test`, or `rave_ce`.
+
+            Returns:
+                BuildIndexResponse: Number of new indices.
+            """
             args = rargs["post"]
             vdb_str = args["db"]
             articles = get_articles(vdb_str)
@@ -776,6 +867,29 @@ def add_vec_features(
         @server.json_post(f"{prefix}/stat_embed")
         @server.middleware(verify_readonly)
         def _post_stat_embed(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
+            """
+            The `/api/stat_embed` endpoint provides document counts for
+            semantic search queries. This method is the same as `/api/stats`
+            with the only difference being that it requires an api token
+            instead of a cookie.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "fields": A set of field types expected to be returned.
+                        "filters": A dictionary of field types to lists of
+                            filter values. The date field, if given, expects a
+                            list of exactly two values, the start and end date
+                            (both inclusive).
+                        "db": The vector database.
+            Returns:
+                StatEmbed: Vector database document counts.
+            """
             args = rargs["post"]
             vdb_str = args["db"]
             articles = get_articles(vdb_str)
@@ -792,6 +906,49 @@ def add_vec_features(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _post_query_embed(_req: QSRH, rargs: ReqArgs) -> QueryEmbed:
+            """
+            The `/api/query_embed` endpoint provides document results for
+            semantic search queries.  This method is the same as `/api/search`
+            with the only difference being that it requires an api token
+            instead of a cookie.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The search query. If empty, the latest
+                            documents will get returned and no hit snippets are
+                            generated. If the search query is `=` followed by a
+                            main id, the results are the neighbors of the
+                            specified document. No hit snippets are generated
+                            for this type of query either.
+                        "filters": A dictionary of field types to lists of
+                            filter values. The date field, if given, expects a
+                            list of exactly two values, the start and end date
+                            (both inclusive). If the session cookie is missing
+                            or invalid the "status" filter gets overwritten to
+                            include "public" documents only. Defaults to the
+                            empty filter.
+                        "db": The vector database.
+                        "offset": The offset of the returned results. Defaults
+                            to 0.
+                        "limit": The maximum number of returned results.
+                        "hit_limit": The maximum number of hit snippets
+                            generated per result. Defaults to 1.
+                        "score_threshold": Allows to limit the number of
+                            results further by cutting off at a given score
+                            threshold. Default is `null` which does not limit
+                            by score.
+                        "short_snippets": Whether hit snippets should be
+                            further refined to give more precise and relevant
+                            snippets. Defaults to `true`.
+            Returns:
+                QueryEmbed: Vector database search results.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             input_str: str = meta["input"]
@@ -828,6 +985,20 @@ def setup(
         *,
         deploy: bool,
         versions: VersionDict) -> tuple[QuickServer, str]:
+    """
+    Sets up all api endpoints for the app server. If any exception is raised
+    during server setup `fallback_server` is called to provide only the
+    `api/version` endpoint which details the error.
+
+    Args:
+        server (QuickServer): The server to add the api endpoints to.
+        deploy (bool): If False, the server provides a command loop for
+            commands, like `restart`, `quit`, and `help`.
+        versions (VersionDict): The version object.
+
+    Returns:
+        tuple[QuickServer, str]: The server object and the api prefix.
+    """
     prefix = "/api"
 
     server.suppress_noise = True
@@ -987,6 +1158,17 @@ def setup(
         force_user = None
 
     def maybe_session(_req: QSRH, rargs: ReqArgs, okay: ReqNext) -> ReqNext:
+        """
+        Adds the session info to the meta argument if the appropriate cookie
+        is present.
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            ReqNext: The response or continuation.
+        """
         if force_user is not None:
             session: SessionInfo | None = {
                 "name": "ADMIN",
@@ -1008,6 +1190,18 @@ def setup(
 
     def verify_session(
             req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Adds the session info to the meta argument. Requires the appropriate
+        cookie to be present.
+
+        Args:
+            req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         inner = maybe_session(req, rargs, okay)
         if inner is not okay:
             return inner
@@ -1018,6 +1212,16 @@ def setup(
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Requires the api token to be present.
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         token = rargs.get("post", {}).get("token")
         if token is None:
             token = rargs.get("query", {}).get("token")
@@ -1031,6 +1235,17 @@ def setup(
 
     def verify_readonly(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Ensures that the api call is read only. That is if the `write_access`
+        token is present the call is rejected.
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         token = rargs.get("post", {}).get("write_access")
         if token is not None:
             raise ValueError(
@@ -1040,6 +1255,16 @@ def setup(
 
     def verify_write(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Ensures that the `write_access` token is present.
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         token = rargs.get("post", {}).get("write_access")
         if token is None:
             raise KeyError("'write_access' not set")
@@ -1049,6 +1274,16 @@ def setup(
 
     def verify_tanuki(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Ensures that the `tanuki` token is present.
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         req_tanuki = rargs.get("post", {}).get("tanuki")
         if req_tanuki is None:
             raise KeyError("'tanuki' not set")
@@ -1058,6 +1293,19 @@ def setup(
 
     def verify_input(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Ensures that an input field is provided. It also checks the size of the
+        input, rejecting inputs that are too long. Finally, it normalizes the
+        input by removing redundant white space etc. and checks against error
+        inputs (`undefined`, `null`, `None`, etc. are rejected).
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         args = rargs.get("post", {})
         text = args.get("input")
         if text is None:
@@ -1106,6 +1354,22 @@ def setup(
     @server.json_get(f"{prefix}/version")
     @server.middleware(verify_readonly)
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
+        """
+        The `/api/version` endpoint provides basic information about the
+        server. This api endpoint always exists (even if the app failed during
+        startup in which case the endpoint outputs the error) and can be used
+        as heartbeat indicator.
+
+        @api
+        @readonly
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments. GET
+
+        Returns:
+            VersionResponse: The version info.
+        """
         articles_dbs = sorted(get_articles_dict().keys())
         return {
             "app_name": versions["app_version"],
@@ -1124,6 +1388,20 @@ def setup(
     @server.json_post(f"{prefix}/user")
     @server.middleware(maybe_session)
     def _post_user(_req: QSRH, rargs: ReqArgs) -> UserResponse:
+        """
+        The `/api/user` endpoint provides information about the current user
+        determined by the session cookie. If no session cookie is set the
+        method returns `null` values.
+
+        @api
+        @cookie (optional)
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments. POST
+        Returns:
+            UserResponse: The user uuid and display name if available.
+        """
         session: SessionInfo | None = rargs["meta"].get("session")
         return {
             "uuid": None if session is None else session["uuid"].hex,
