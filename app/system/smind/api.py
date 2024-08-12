@@ -27,7 +27,7 @@ from scattermind.system.config.loader import ConfigJSON
 from scattermind.system.names import GNamespace
 from scattermind.system.torch_util import tensor_to_str
 
-from app.misc.util import single
+from app.misc.util import only
 from app.system.config import Config
 
 
@@ -195,7 +195,7 @@ def get_text_results_immediate(
         return []
     smind = graph_profile.get_api()
     ns = graph_profile.get_ns()
-    input_field = single(graph_profile.get_input_fields())
+    input_field = only(graph_profile.get_input_fields())
     output_field = graph_profile.get_output_field()
     lookup: dict[TaskId, int] = {}
     for ix, text in enumerate(texts):
@@ -249,7 +249,7 @@ def get_ner_results_immediate(
         return []
     smind = graph_profile.get_api()
     ns = graph_profile.get_ns()
-    input_field = single(graph_profile.get_input_fields())
+    input_field = only(graph_profile.get_input_fields())
     lookup: dict[TaskId, int] = {}
     for ix, text in enumerate(texts):
         task_id = smind.enqueue_task(

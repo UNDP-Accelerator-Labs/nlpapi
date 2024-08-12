@@ -84,6 +84,7 @@
         "bad-docstring-quotes",
         "docstring-first-line-empty",
         "fixme",
+        "import-outside-toplevel",
         "too-many-arguments",
         "too-many-branches",
         "too-many-instance-attributes",
