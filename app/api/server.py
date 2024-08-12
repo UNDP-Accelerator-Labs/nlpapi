@@ -440,6 +440,7 @@ def add_vec_features(
                         invalid the "status" filter gets overwritten to
                         include "public" documents only.
                     "vecdb": The vector database.
+
         Returns:
             StatEmbed: Vector database document counts.
         """
@@ -500,6 +501,7 @@ def add_vec_features(
                     "short_snippets": Whether hit snippets should be further
                         refined to give more precise and relevant snippets.
                         Defaults to `true`.
+
         Returns:
             QueryEmbed: Vector database search results.
         """
@@ -887,6 +889,7 @@ def add_vec_features(
                             list of exactly two values, the start and end date
                             (both inclusive).
                         "db": The vector database.
+
             Returns:
                 StatEmbed: Vector database document counts.
             """
@@ -946,6 +949,7 @@ def add_vec_features(
                         "short_snippets": Whether hit snippets should be
                             further refined to give more precise and relevant
                             snippets. Defaults to `true`.
+
             Returns:
                 QueryEmbed: Vector database search results.
             """
@@ -1386,6 +1390,7 @@ def setup(
         }
 
     @server.json_post(f"{prefix}/user")
+    @server.middleware(verify_readonly)
     @server.middleware(maybe_session)
     def _post_user(_req: QSRH, rargs: ReqArgs) -> UserResponse:
         """
@@ -1394,6 +1399,7 @@ def setup(
         method returns `null` values.
 
         @api
+        @readonly
         @cookie (optional)
 
         Args:
@@ -1411,6 +1417,20 @@ def setup(
     @server.json_get(f"{prefix}/info")
     @server.middleware(verify_readonly)
     def _get_info(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
+        """
+        The `/api/info` endpoint provides statistics about the processing
+        queue, scattermind queues, and the vector databases.
+
+        @api
+        @readonly
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments. GET
+
+        Returns:
+            StatsResponse: The statistics.
+        """
         vecdbs: list[VecDBStat] = []
         if vec_db is not None:
             for ext_name, article in get_articles_dict().items():
@@ -1428,6 +1448,24 @@ def setup(
 
     @server.json_post(f"{prefix}/tags/clusters")
     def _post_tags_clusters(_req: QSRH, rargs: ReqArgs) -> TagClustersResponse:
+        """
+        The `/api/tags/clusters` endpoint lists all clusters of a tag group.
+
+        @api
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "tag_group": The tag group to list. Must be `null` if
+                        `name` is set. If both are `null` the latest
+                        non-updating tag group is returned.
+                    "name": The name of a tag group to list. Must be `null` if
+                        `tag_group` is set.
+
+        Returns:
+            TagClustersResponse: The list of clusters and the tag group.
+        """
         args = rargs["post"]
         tag_group: int | None = maybe_int(args.get("tag_group"))
         name: str | None = args.get("name")
@@ -1444,6 +1482,27 @@ def setup(
 
     @server.json_post(f"{prefix}/tags/docs")
     def _post_tags_docs(_req: QSRH, rargs: ReqArgs) -> TagDocsResponse:
+        """
+        The `/api/tags/docs` endpoint lists all documents of a cluster of a tag
+        group.
+
+        @api
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "tag_group": The tag group.
+                    "cluster": The cluster keyword. Must be `null` if
+                        `cluster_id` is specified.
+                    "cluster_id": The cluster id. Must be `null` if `cluster`
+                        is specified. This is the preferred method to specify
+                        a cluster as it is unambiguous.
+
+        Returns:
+            TagDocsResponse: The main ids of the cluster members, tag group,
+                and cluster id.
+        """
         args = rargs["post"]
         tag_group: int = int(args["tag_group"])
         cluster: str | None = args.get("cluster")
@@ -1465,6 +1524,27 @@ def setup(
 
     @server.json_post(f"{prefix}/tags/list")
     def _post_tags_list(_req: QSRH, rargs: ReqArgs) -> TagListResponse:
+        """
+        The `/api/tags/list` endpoint lists all tags (clusters) of a list of
+        documents (main ids).
+
+        @api
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "tag_group": The tag group to list. Must be `null` if
+                        `name` is set. If both are `null` the latest
+                        non-updating tag group is returned.
+                    "name": The name of a tag group to list. Must be `null` if
+                        `tag_group` is set.
+                    "main_ids": A list of main ids.
+
+        Returns:
+            TagListResponse: Lists the tags (clusters) of each provided main
+                id. Also, the tag group is returned.
+        """
         args = rargs["post"]
         tag_group: int | None = maybe_int(args.get("tag_group"))
         name: str | None = args.get("name")
@@ -1500,6 +1580,37 @@ def setup(
         @server.json_post(f"{prefix}/tags/create")
         @server.middleware(verify_write)
         def _post_tags_create(_req: QSRH, rargs: ReqArgs) -> AddQueue:
+            """
+            The `/api/tags/create` endpoint creates a new tag group. The
+            request is added to the processing queue. Use `/api/queue/error` to
+            check if there are any errors.
+
+            @api
+            @token
+            @write_token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "name": The name of the new tag group. If `null` the
+                            name is automatically set to the current time.
+                        "bases": A list of bases to create the clusters from.
+                            Bases can be `blog`, `solution`, `actionplan`,
+                            `experiment`, or `rave_ce`.
+                        "is_updating": Whether the tag group is updating, that
+                            is whether the results overwrite the `tagging`
+                            table of the platform databases.
+                        "cluster_args": Arguments provided to the clustering
+                            algorithm. By default `distance_threshold` is set
+                            so it needs to be set to `null` if you want to
+                            specify `n_clusters`.
+                            See https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AgglomerativeClustering.html  # noqa # pylint: disable=line-too-long
+                            for an explanation of each argument.
+
+            Returns:
+                AddQueue: Whether the task was successfully added to the queue.
+            """
             args = rargs["post"]
             name: str | None = args.get("name")
             bases: list[str] = list(args["bases"])
