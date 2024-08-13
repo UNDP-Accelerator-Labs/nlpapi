@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Database connector."""
 import contextlib
 import inspect
 import sys
@@ -31,6 +32,7 @@ if TYPE_CHECKING:
 
 
 VERBOSE = False
+"""Whether to be verbose about database operations."""
 
 
 DBConfig = TypedDict('DBConfig', {
@@ -42,12 +44,23 @@ DBConfig = TypedDict('DBConfig', {
     "dbname": str,
     "schema": str,
 })
+"""A database connection configuration."""
 
 
 EngineKey = tuple[str, str, int, str, str, str]
+"""A database connection configuration as tuple."""
 
 
 def get_engine_key(config: DBConfig) -> EngineKey:
+    """
+    Converts a database config to an engine key.
+
+    Args:
+        config (DBConfig): The config.
+
+    Returns:
+        EngineKey: The config tuple.
+    """
     return (
         config["dialect"],
         config["host"],
@@ -59,10 +72,21 @@ def get_engine_key(config: DBConfig) -> EngineKey:
 
 
 LOCK = threading.RLock()
+"""Lock for database engines."""
 ENGINES: dict[EngineKey, sa.engine.Engine] = {}
+"""The active database engines."""
 
 
 def get_engine(config: DBConfig) -> sa.engine.Engine:
+    """
+    Gets a database engine from a configuration. Engines are cached.
+
+    Args:
+        config (DBConfig): The database config.
+
+    Returns:
+        sa.engine.Engine: The engine.
+    """
     key = get_engine_key(config)
     res = ENGINES.get(key)
     if res is not None:
@@ -91,17 +115,40 @@ def get_engine(config: DBConfig) -> sa.engine.Engine:
 
 
 class DBConnector:
+    """Class for creating database connections and other database
+    functionality."""
     def __init__(self, config: DBConfig) -> None:
+        """
+        Create a database connector for a given configuration.
+
+        Args:
+            config (DBConfig): The database configuration.
+        """
         self._engine = get_engine(config)
         self._namespaces: dict[str, int] = {}
         self._modules: dict[str, int] = {}
         self._schema = config["schema"]
 
     def table_exists(self, table: type['Base']) -> bool:
+        """
+        Whether the given table exists in the database.
+
+        Args:
+            table (type[Base]): The table.
+
+        Returns:
+            bool: True, if the table exists.
+        """
         return sa.inspect(self._engine).has_table(
             table.__table__.name, schema=self._schema)
 
     def create_tables(self, tables: list[type['Base']]) -> None:
+        """
+        Creates the given tables.
+
+        Args:
+            tables (list[type[Base]]): The list of tables to create.
+        """
         from app.system.db.base import Base
 
         print(f"creating {tables=}")
@@ -112,6 +159,13 @@ class DBConnector:
 
     @staticmethod
     def all_tables() -> list[type['Base']]:
+        """
+        Lists all registered tables.
+
+        Returns:
+            list[type[Base]]: All tables. Note, that tables might belong to
+                different databases.
+        """
         from app.system.db.base import Base
 
         return [
@@ -122,23 +176,57 @@ class DBConnector:
         ]
 
     def is_init(self) -> bool:
+        """
+        Checks whether all tables exist. Don't use this function as the tables
+        are spread across multiple databases.
+
+        Returns:
+            bool: False (since not all tables can exist in the same database).
+        """
         return all((self.table_exists(clz) for clz in self.all_tables()))
 
     def init_db(self) -> None:
+        """
+        Initializes all tables. Don't use this function as it will create
+        tables that don't belong to the current database.
+        """
         if self.is_init():
             return
         self.create_tables(self.all_tables())
 
     def get_engine(self) -> sa.engine.Engine:
+        """
+        Gets the underlying engine for this connector.
+
+        Returns:
+            sa.engine.Engine: The engine.
+        """
         return self._engine
 
     @contextlib.contextmanager
     def get_connection(self) -> Iterator[sa.engine.Connection]:
+        """
+        Get a database connection. This is not a session. There are no
+        consistency guarantees for executing multiple queries.
+
+        Yields:
+            sa.engine.Connection: The connection.
+        """
         with self._engine.connect() as conn:
             yield conn
 
     @contextlib.contextmanager
     def get_session(self, autocommit: bool = True) -> Iterator[Session]:
+        """
+        Gets a database session.
+
+        Args:
+            autocommit (bool, optional): Whether to automatically commit the
+                session at the end. Defaults to True.
+
+        Yields:
+            Session: The session.
+        """
         success = False
         with Session(self._engine) as session:
             try:
@@ -152,4 +240,13 @@ class DBConnector:
                         session.rollback()
 
     def upsert(self, table: type['Base']) -> Any:
+        """
+        Create an upsert statement.
+
+        Args:
+            table (type[Base]): The table to upsert.
+
+        Returns:
+            Any: The statement.
+        """
         return pg_insert(table)

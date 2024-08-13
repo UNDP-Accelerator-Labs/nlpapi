@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""The processing queue for the auto tagging and clustering."""
 import collections
 from typing import Literal, Protocol, TypedDict
 
@@ -53,6 +54,7 @@ from app.system.workqueues.queue import ProcessEnqueue, register_process_queue
 
 
 class TaggerProcessor(Protocol):  # pylint: disable=too-few-public-methods
+    """Function to add a new tag group to the processing queue."""
     def __call__(
             self,
             *,
@@ -60,7 +62,18 @@ class TaggerProcessor(Protocol):  # pylint: disable=too-few-public-methods
             bases: list[str],
             is_updating: bool,
             cluster_args: dict) -> None:
-        ...
+        """
+        Adds a new tag group to the processing queue.
+
+        Args:
+            name (str | None): The name of the tag group. If None the current
+                time is used instead.
+            bases (list[str]): Which document bases to include. Valid bases are
+                `solution`, `experiment`, `actionplan`, `blog`, and `rave_ce`.
+            is_updating (bool): Whether the tag group should update the
+                platforms' tagging tables in the end.
+            cluster_args (dict): Arguments for the clustering algorithm.
+        """
 
 
 InitTaggerPayload = TypedDict('InitTaggerPayload', {
@@ -70,26 +83,34 @@ InitTaggerPayload = TypedDict('InitTaggerPayload', {
     "cluster_args": dict,
     "bases": list[str],
 })
+"""Initial payload for creating the tag group."""
 TagTaggerPayload = TypedDict('TagTaggerPayload', {
     "stage": Literal["tag"],
 })
+"""Indicates that there are some documents that need auto tagging."""
 CluterTaggerPayload = TypedDict('CluterTaggerPayload', {
     "stage": Literal["cluster"],
     "tag_group": int,
 })
+"""Performs a clustering for the given tag group."""
 UpdatePlatformPayload = TypedDict('UpdatePlatformPayload', {
     "stage": Literal["platform"],
     "tag_group": int,
 })
+"""Update the platforms' tagging tables with the clusters of the given tag
+group."""
 TaggerPayload = (
     InitTaggerPayload
     | TagTaggerPayload
     | CluterTaggerPayload
     | UpdatePlatformPayload)
+"""Processing queue payload for auto-tagging and clustering tasks."""
 
 
 BATCH_SIZE = 20
+"""How many documents to auto-tag in one step."""
 TOP_K = 10
+"""How many raw keywords to generate per document."""
 
 
 def register_tagger(
@@ -103,6 +124,26 @@ def register_tagger(
         get_all_docs: AllDocsFn,
         doc_is_remove: IsRemoveFn,
         get_full_text: FullTextFn) -> TaggerProcessor:
+    """
+    Registers the auto-tagging and clustering processing queue.
+
+    Args:
+        db (DBConnector): The nlpapi database connector.
+        global_db (DBConnector): The login database connector.
+        platforms (dict[str, DBConnector]): The platform database connectors.
+        process_queue_redis (Redis): The processing queue redis.
+        articles_graph (GraphProfile): Model to create document embeddings.
+        graph_tags (GraphProfile): Model to create document keywords.
+        get_all_docs (AllDocsFn): Retrieves all documents (as main ids) for
+            the given base.
+        doc_is_remove (IsRemoveFn): Whether a document (via main id) is not
+            visible (anymore).
+        get_full_text (FullTextFn): Retrieves the full text of a document
+            (via main id).
+
+    Returns:
+        TaggerProcessor: Function to enqueue tag groups.
+    """
 
     def tagger_payload_to_json(entry: TaggerPayload) -> dict[str, str]:
         if entry["stage"] == "init":
@@ -217,6 +258,19 @@ def tag_doc(
         graph_tags: GraphProfile,
         get_full_text: FullTextFn,
         top_k: int) -> tuple[set[str] | None, str | None]:
+    """
+    Creates auto-tags for the given document.
+
+    Args:
+        main_id (str): The document main id.
+        graph_tags (GraphProfile): Model for extracting document keywords.
+        get_full_text (FullTextFn): Retrieve the full text of a document via
+            main id.
+        top_k (int): How many keywords to generate per document.
+
+    Returns:
+        tuple[set[str] | None, str | None]: Set of keywords or error.
+    """
     full_text, error_ft = get_full_text(main_id)
     if full_text is None:
         return None, error_ft
@@ -284,6 +338,25 @@ def tagger_init(
         get_all_docs: AllDocsFn,
         doc_is_remove: IsRemoveFn,
         process_enqueue: ProcessEnqueue[TaggerPayload]) -> str:
+    """
+    Creates a new tag group and adds all documents to be processed.
+
+    Args:
+        db (DBConnector): The database connector.
+        entry (InitTaggerPayload): The payload for creating the tag group.
+        process_queue_redis (Redis): The processing queue redis.
+        get_all_docs (AllDocsFn): Retrieves all documents for the given base.
+        doc_is_remove (IsRemoveFn): Whether a document (via main id) has been
+            removed.
+        process_enqueue (ProcessEnqueue[TaggerPayload]): Enqueues the next
+            step.
+
+    Raises:
+        ValueError: If any error happens.
+
+    Returns:
+        str: Status update.
+    """
     errors: list[str] = []
     total = 0
     with db.get_session() as session:
@@ -323,6 +396,24 @@ def tagger_tag(
         graph_tags: GraphProfile,
         get_full_text: FullTextFn,
         process_enqueue: ProcessEnqueue[TaggerPayload]) -> str:
+    """
+    Computes the auto-tags for pending documents.
+
+    Args:
+        db (DBConnector): The database connector.
+        process_queue_redis (Redis): The processing queue redis.
+        graph_tags (GraphProfile): Model for extracting document keywords.
+        get_full_text (FullTextFn): Gets the full text of a document
+            (via main id).
+        process_enqueue (ProcessEnqueue[TaggerPayload]): Enqueues the next
+            step.
+
+    Raises:
+        ValueError: If any error happens.
+
+    Returns:
+        str: Status update.
+    """
     batch_size = BATCH_SIZE
     errors: list[str] = []
     with db.get_session() as session:
@@ -378,6 +469,20 @@ def tagger_cluster(
         process_queue_redis: Redis,
         articles_graph: GraphProfile,
         process_enqueue: ProcessEnqueue[TaggerPayload]) -> str:
+    """
+    Computes the clusters for a given tag group.
+
+    Args:
+        db (DBConnector): The database connector.
+        tag_group (int): The tag group.
+        process_queue_redis (Redis): The processing queue redis.
+        articles_graph (GraphProfile): Model for document embeddings.
+        process_enqueue (ProcessEnqueue[TaggerPayload]): Enqueues the next
+            step.
+
+    Returns:
+        str: Status update.
+    """
 
     def get_embeds() -> tuple[list[str], np.ndarray, dict]:
         with db.get_session() as session:
@@ -459,6 +564,20 @@ def tagger_update_platform(
         platforms: dict[str, DBConnector],
         tag_group: int,
         get_all_docs: AllDocsFn) -> str:
+    """
+    Updates the platforms' tagging tables with the clustering results of the
+    given tag group.
+
+    Args:
+        db (DBConnector): The nlpapi database connector.
+        global_db (DBConnector): The login database connector.
+        platforms (dict[str, DBConnector]): The platform database connectors.
+        tag_group (int): The tag group.
+        get_all_docs (AllDocsFn): Retrieves all documents of a given base.
+
+    Returns:
+        str: Status update.
+    """
     all_platforms: set[str] = set(platforms.keys())
     all_main_ids: list[str] = []
     for base in all_platforms:

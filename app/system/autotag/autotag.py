@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Database logic for auto-tags."""
 from collections.abc import Iterable
 from typing import TypedDict
 
@@ -34,6 +35,7 @@ TagElement = TypedDict('TagElement', {
     "tag_group": int,
     "main_id": str,
 })
+"""A document in a tag group. The document is identified by main id."""
 
 
 TagKeyword = TypedDict('TagKeyword', {
@@ -41,12 +43,17 @@ TagKeyword = TypedDict('TagKeyword', {
     "keyword": str,
     "tag_group_to": int | None,
 })
+"""A raw keyword of a document. The exclusive upper end of tag groups is
+given by `tag_group_to`. If its value is None it is valid to the latest tag
+group. Keywords don't change very often unless the document content changes.
+Therefore, the same keyword will appear in multiple tag groups."""
 
 
 TagClusterEntry = TypedDict('TagClusterEntry', {
     "id": int,
     "name": str,
 })
+"""A tag cluster. The `name` is the representative keyword."""
 
 
 def create_tag_group(
@@ -55,6 +62,20 @@ def create_tag_group(
         *,
         is_updating: bool,
         cluster_args: dict) -> int:
+    """
+    Creates a new tag group.
+
+    Args:
+        session (Session): The database session.
+        name (str | None): The optional name of the tag group. If unspecified
+            the current time is used.
+        is_updating (bool): Whether the tag group will update the platforms'
+            tagging tables.
+        cluster_args (dict): Arguments to the clustering algorithm.
+
+    Returns:
+        int: The tag group id.
+    """
     if name is None:
         name = f"tag {get_time_str()}"
     stmt = sa.insert(TagGroupTable).values(
@@ -69,6 +90,20 @@ def create_tag_group(
 
 
 def get_tag_group(session: Session, name: str | None) -> int:
+    """
+    Get a tag group by name.
+
+    Args:
+        session (Session): The database session.
+        name (str | None): The name of the tag group to retrieve. If the name
+            is None the latest updating tag group is returned.
+
+    Raises:
+        ValueError: If the tag group doesn't exist.
+
+    Returns:
+        int: The tag group id.
+    """
     stmt = sa.select(TagGroupTable.id)
     if name is not None:
         stmt = stmt.where(TagGroupTable.name == name)
@@ -83,6 +118,17 @@ def get_tag_group(session: Session, name: str | None) -> int:
 
 
 def is_updating_tag_group(session: Session, tag_group: int) -> bool:
+    """
+    Whether the tag group is updating. That is, whether it will update the
+    platforms' tagging tables.
+
+    Args:
+        session (Session): The database session.
+        tag_group (int): The tag group.
+
+    Returns:
+        bool: True, if the tag group is updating.
+    """
     stmt = sa.select(TagGroupTable.is_updating)
     stmt = stmt.where(TagGroupTable.id == tag_group)
     tag_group_is_updating = session.execute(stmt).scalar()
@@ -92,6 +138,16 @@ def is_updating_tag_group(session: Session, tag_group: int) -> bool:
 
 
 def get_tag_group_cluster_args(session: Session, tag_group: int) -> dict:
+    """
+    Get the clustering arguments for the given tag group.
+
+    Args:
+        session (Session): The database session.
+        tag_group (int): The tag group.
+
+    Returns:
+        dict: The clustering arguments.
+    """
     stmt = sa.select(TagGroupTable.cluster_args)
     stmt = stmt.where(TagGroupTable.id == tag_group)
     tag_group_cluster_args = session.execute(stmt).scalar()
@@ -105,6 +161,15 @@ def add_tag_members(
         session: Session,
         tag_group_id: int,
         main_ids: list[str]) -> None:
+    """
+    Add documents to a tag group.
+
+    Args:
+        db (DBConnector): The database connector.
+        session (Session): The database session.
+        tag_group_id (int): The tag group.
+        main_ids (list[str]): The list of documents as main ids.
+    """
     for main_id in main_ids:
         cstmt = db.upsert(TagGroupMembers).values(
             main_id=main_id,
@@ -114,6 +179,15 @@ def add_tag_members(
 
 
 def get_incomplete(session: Session) -> Iterable[TagElement]:
+    """
+    Retrieves all documents that still need to be processed.
+
+    Args:
+        session (Session): The database session.
+
+    Yields:
+        TagElement: The unprocessed document.
+    """
     stmt = sa.select(TagGroupMembers.tag_group, TagGroupMembers.main_id)
     stmt = stmt.where(TagGroupMembers.complete.is_(False))
     stmt = stmt.order_by(
@@ -131,6 +205,60 @@ def write_tag(
         tag_group: int,
         main_id: str,
         keywords: list[str]) -> None:
+    """
+    Sets the keywords for a given document of a tag group. Entries are updated
+    so that `tag_group_from` reflects the earliest tag group with the given
+    keywords and `tag_group_to` is the exclusive upper end or None if the
+    latest tag group contains the keywords. In most cases only the previous
+    keyword entries need to be updated (if at all). If an out of order tag
+    group is used a situation can happen where a hole needs to be punched into
+    a range. Example:
+    ```
+        "foo" 0, 4
+        "bar" 0, None
+        "baz" 1, 5
+        "blip" 0, None
+        "blap" 3, 5
+        "flop" 1, None
+    ```
+    setting `["blub", "blip", "blap", "flop"]` for tag group 2
+    (out of order tag group):
+    ```
+        "foo" 0, 2
+        "foo" 3, 4
+        "bar" 0, 2
+        "bar" 3, None
+        "baz" 1, 2
+        "baz" 3, 5
+        "blip" 0, None
+        "blap" 3, 5
+        "blub" 2, 3
+        "flop" 1, None
+    ```
+    setting `["foo", "blub", "blip", "bar", "baz"]` for tag group 6
+    ```
+        "foo" 0, 2
+        "foo" 3, 4
+        "foo" 6, None
+        "bar" 0, 2
+        "bar" 3, None
+        "baz" 1, 2
+        "baz" 3, 5
+        "baz" 6, None
+        "blip" 0, None
+        "blap" 3, 5
+        "blub" 2, 3
+        "blub" 6, None
+        "flop" 1, 6
+    ```
+
+    Args:
+        db (DBConnector): The database connector.
+        session (Session): The database session.
+        tag_group (int): The tag group.
+        main_id (str): The document main id.
+        keywords (list[str]): The full list of keywords for the given document.
+    """
 
     def get_previous_keywords() -> Iterable[TagKeyword]:
         stmt = sa.select(
@@ -204,6 +332,16 @@ def write_tag(
 
 
 def is_ready(session: Session, tag_group: int) -> bool:
+    """
+    Whether all raw keywords for a tag group are computed.
+
+    Args:
+        session (Session): The database session.
+        tag_group (int): The tag group.
+
+    Returns:
+        bool: True, if all raw keywords are computed for the given tag group.
+    """
     stmt = sa.select(TagGroupMembers.complete).where(sa.and_(
         TagGroupMembers.complete.is_(False),
         TagGroupMembers.tag_group == tag_group))
@@ -211,6 +349,16 @@ def is_ready(session: Session, tag_group: int) -> bool:
 
 
 def get_keywords(session: Session, tag_group: int) -> set[str]:
+    """
+    Get all distinct raw keywords in the given tag group.
+
+    Args:
+        session (Session): The database session.
+        tag_group (int): The tag group.
+
+    Returns:
+        set[str]: The set of raw keywords.
+    """
     main_ids = sa.select(TagGroupMembers.main_id)
     main_ids = main_ids.where(TagGroupMembers.tag_group == tag_group)
     stmt = sa.select(TagNamesTable.keyword)
@@ -228,6 +376,13 @@ def get_keywords(session: Session, tag_group: int) -> set[str]:
 
 
 def clear_clusters(session: Session, tag_group: int) -> None:
+    """
+    Delete all computed clusters for the given tag group.
+
+    Args:
+        session (Session): The database session.
+        tag_group (int): The tag group.
+    """
     stmt = sa.delete(TagCluster).where(TagCluster.tag_group == tag_group)
     session.execute(stmt)
 
@@ -238,6 +393,16 @@ def create_cluster(
         tag_group: int,
         representative: str,
         keywords: set[str]) -> None:
+    """
+    Create a new cluster for the given tag group.
+
+    Args:
+        db (DBConnector): The database connector.
+        session (Session): The database session.
+        tag_group (int): The tag group.
+        representative (str): The cluster representative.
+        keywords (set[str]): The keywords belonging to the cluster.
+    """
     stmt = sa.insert(TagCluster).values(
         tag_group=tag_group,
         name=representative)
@@ -255,6 +420,17 @@ def create_cluster(
 
 def get_tags_for_main_id(
         session: Session, tag_group: int, main_id: str) -> set[str]:
+    """
+    Retrieve all cluster representatives for the given document.
+
+    Args:
+        session (Session): The database session.
+        tag_group (int): The tag group.
+        main_id (str): The main id.
+
+    Returns:
+        set[str]: The cluster representatives.
+    """
     stmt = sa.select(TagCluster.name).where(sa.and_(
         TagNamesTable.main_id == main_id,
         TagNamesTable.tag_group_from <= tag_group,
@@ -267,6 +443,20 @@ def get_tags_for_main_id(
 
 
 def get_tag_cluster_id(session: Session, tag_group: int, tag: str) -> int:
+    """
+    Get the cluster id for the given cluster representative.
+
+    Args:
+        session (Session): The database session.
+        tag_group (int): The tag group.
+        tag (str): The cluster representative.
+
+    Raises:
+        ValueError: If no cluster with this representative exists.
+
+    Returns:
+        int: The cluster id.
+    """
     stmt = sa.select(TagCluster.id).where(sa.and_(
         TagCluster.tag_group == tag_group,
         TagCluster.name == tag))
@@ -279,6 +469,16 @@ def get_tag_cluster_id(session: Session, tag_group: int, tag: str) -> int:
 
 def get_tag_clusters(
         session: Session, tag_group: int) -> list[TagClusterEntry]:
+    """
+    Get all clusters for a given tag group.
+
+    Args:
+        session (Session): The database session.
+        tag_group (int): The tag group.
+
+    Returns:
+        list[TagClusterEntry]: All clusters.
+    """
     stmt = sa.select(TagCluster.id, TagCluster.name).where(
         TagCluster.tag_group == tag_group)
     return [
@@ -292,6 +492,17 @@ def get_tag_clusters(
 
 def get_main_ids_for_tag(
         session: Session, tag_group: int, tag_cluster: int) -> set[str]:
+    """
+    Gets all documents for a given cluster.
+
+    Args:
+        session (Session): The database session.
+        tag_group (int): The tag group.
+        tag_cluster (int): The cluster id.
+
+    Returns:
+        set[str]: The main ids that have the cluster as tag.
+    """
     stmt = sa.select(TagNamesTable.main_id).where(sa.and_(
         TagNamesTable.tag_group_from <= tag_group,
         sa.or_(
@@ -304,6 +515,12 @@ def get_main_ids_for_tag(
 
 
 def create_tag_tables(db: DBConnector) -> None:
+    """
+    Creates all tag related tables.
+
+    Args:
+        db (DBConnector): The database connector.
+    """
     db.create_tables(
         [
             TagGroupTable,
