@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""The semantic search document adder processing queue."""
 import uuid
 from collections.abc import Callable
 from typing import Literal, Protocol, TypedDict
