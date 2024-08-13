@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Forward geolocation lookup."""
 import time
 from datetime import datetime, timedelta
 from typing import cast, TypedDict
@@ -27,18 +28,21 @@ from app.system.location.response import GeoResponse, GeoResult
 
 
 GEOCODER: OpenCageGeocode | None = None
+"""The OpenCage api."""
 
 
 OpenCageGeometry = TypedDict('OpenCageGeometry', {
     "lat": float,
     "lng": float,
 })
+"""OpenCage location."""
 
 
 OpenCageComponents = TypedDict('OpenCageComponents', {
     "ISO_3166-1_alpha-3": str,
     "country_code": str,
 })
+"""OpenCage country information."""
 
 
 OpenCageResult = TypedDict('OpenCageResult', {
@@ -46,14 +50,22 @@ OpenCageResult = TypedDict('OpenCageResult', {
     "formatted": str,
     "geometry": OpenCageGeometry,
 })
+"""OpenCage result."""
 
 
 OpenCageFormat = TypedDict('OpenCageFormat', {
     "results": list[OpenCageResult],
 })
+"""OpenCage result list."""
 
 
 def get_geo() -> OpenCageGeocode:
+    """
+    Get the OpenCage api.
+
+    Returns:
+        OpenCageGeocode: The api object.
+    """
     global GEOCODER  # pylint: disable=global-statement
 
     if GEOCODER is None:
@@ -63,9 +75,19 @@ def get_geo() -> OpenCageGeocode:
 
 
 EXCEEDED_FOR_TODAY: datetime | None = None
+"""Date of exceeding the quota. None if the quota is fine."""
 
 
 def geo_result(query: str) -> GeoResult:
+    """
+    Query the OpenCage database.
+
+    Args:
+        query (str): The query.
+
+    Returns:
+        GeoResult: The geolocation result.
+    """
     # pylint: disable=global-statement
     global EXCEEDED_FOR_TODAY
 
@@ -118,6 +140,15 @@ def geo_result(query: str) -> GeoResult:
 
 
 def as_opencage_format(results: list[GeoResponse]) -> OpenCageFormat:
+    """
+    Convert a geolocation result into the OpenCage format.
+
+    Args:
+        results (list[GeoResponse]): The geolocation result.
+
+    Returns:
+        OpenCageFormat: The OpenCage result.
+    """
     return {
         "results": [
             {

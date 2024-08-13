@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Location NER."""
 import re
 from collections.abc import Iterable
 
@@ -22,15 +23,29 @@ from app.system.stats import LengthCounter
 
 
 MAX_PROCESSING_SIZE = 1000
+"""Processing chunk size."""
 PROCESSING_GRACE = 50
+"""Chunk overlap."""
 
 BOUNDARY = re.compile(r"\b")
+"""Regex for word boundaries."""
 
 
 def get_locations(
         graph_profile: GraphProfile,
         text: str,
         lnc: LengthCounter) -> Iterable[tuple[str, int, int]]:
+    """
+    Gets all detected locations in the given text.
+
+    Args:
+        graph_profile (GraphProfile): The NER model.
+        text (str): The text to process.
+        lnc (LengthCounter): The length counter.
+
+    Yields:
+        tuple[str, int, int]: Tuple of entity text and start and end index.
+    """
     overlap_ends: list[int] = [0]
 
     def get_overlap_end(chunk: Location) -> int:

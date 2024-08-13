@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Cleaning a text from unwanted characters and noise."""
 import re
 import unicodedata
 from html import unescape
@@ -20,6 +21,16 @@ from typing import overload
 
 
 def clean(text: str) -> str:
+    """
+    Remove redundant white-space, unescape characters, and normalize unicode
+    characters.
+
+    Args:
+        text (str): The raw text.
+
+    Returns:
+        str: The clean text.
+    """
     text = text.strip()
     while True:
         prev_text = text
@@ -37,6 +48,15 @@ def clean(text: str) -> str:
 
 
 def strip_html(text: str) -> str:
+    """
+    Remove html elements.
+
+    Args:
+        text (str): The raw text.
+
+    Returns:
+        str: The clean text.
+    """
     text = re.sub(r"<br\s*/?\s*>", "\n", text.strip())
     text = re.sub(r"<(?:\"[^\"]*\"['\"]*|'[^']*'['\"]*|[^'\">])+>", "", text)
     return text
@@ -53,20 +73,35 @@ def normalize_text(text: None) -> None:
 
 
 def normalize_text(text: str | None) -> str | None:
+    """
+    Removes redundant white-space, unescapes characters, normalizes unicode
+    characters, and removes html elements.
+
+    Args:
+        text (str | None): The raw text or None.
+
+    Returns:
+        str | None: The clean text or None if the input was None.
+    """
     if text is None:
         return None
     return clean(strip_html(text)).strip()
 
 
-BOP = "{"
-BCL = "}"
+BOP = r"{"
+"""Opening curly brace."""
+BCL = r"}"
+"""Closing curly brace."""
 RED_FLAGS: list[str] = ["null", "none", "undefined", "void", "0"]
+"""Suspicious strings."""
 RED_FLAG_VARIATIONS: set[str] = {
     rtext
     for red in RED_FLAGS
     for rtext in (red, f"({red})", f"{BOP}{red}{BCL}")
 }
+"""Variations of suspicious strings."""
 RED_LEN = max((len(red) for red in RED_FLAG_VARIATIONS))
+"""Maximum length of suspicious strings."""
 
 
 @overload
@@ -80,6 +115,20 @@ def sanity_check(text: None) -> None:
 
 
 def sanity_check(text: str | None) -> str | None:
+    """
+    Detects suspicious inputs. A suspicious input likely comes from an upstream
+    error, such as accidentally converting a `null` value into a string or
+    similar. Those inputs are rejected to fail fast on upstream errors.
+
+    Args:
+        text (str | None): The raw text or None.
+
+    Raises:
+        ValueError: If the input was suspicious.
+
+    Returns:
+        str | None: The raw text or None if the input was None.
+    """
     if text is None:
         return None
     text = f"{text}"

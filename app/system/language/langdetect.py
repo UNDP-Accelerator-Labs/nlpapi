@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Detecting the language of a text."""
 import collections
 import random
 from collections.abc import Iterable
@@ -25,10 +26,13 @@ from app.system.stats import LengthCounter
 
 
 MAX_PROCESSING_SIZE = 1000
+"""The maximum snippet size to process."""
 NUM_PROBES = 10
+"""The number of probes to generate for a document."""
 
 
 LangTuple = tuple[str, float]
+"""Language tuple. Iso language and score."""
 
 
 LangCandidate = TypedDict('LangCandidate', {
@@ -36,14 +40,30 @@ LangCandidate = TypedDict('LangCandidate', {
     "score": float,
     "count": int,
 })
+"""Language candidate. Iso language, score, and number of occurrences in the
+probes."""
 
 
 LangResponse = TypedDict('LangResponse', {
     "languages": list[LangCandidate],
 })
+"""Response for language extraction."""
 
 
 def get_raw_lang(text: str, lnc: LengthCounter) -> Iterable[LangTuple]:
+    """
+    Gets the languages of a text snippet.
+
+    Args:
+        text (str): The text snippet.
+        lnc (LengthCounter): The length counter.
+
+    Raises:
+        ValueError: If the text is too long.
+
+    Yields:
+        LangTuple: Language tuples.
+    """
     if len(text) > MAX_PROCESSING_SIZE:
         raise ValueError(f"text too long {len(text)} > {MAX_PROCESSING_SIZE}")
     try:
@@ -57,6 +77,17 @@ def probe(
         text: str,
         rng: random.Random | None,
         lnc: LengthCounter) -> Iterable[LangTuple]:
+    """
+    Generate a language probe for the text.
+
+    Args:
+        text (str): The full text.
+        rng (random.Random | None): Random number generator.
+        lnc (LengthCounter): The length counter.
+
+    Yields:
+        LangTuple: The language tuples.
+    """
     pos = 0
     if rng is not None:
         pos = rng.randint(0, max(0, len(text) - MAX_PROCESSING_SIZE))
@@ -68,6 +99,16 @@ def probe(
 
 
 def get_lang(text: str, lnc: LengthCounter) -> LangResponse:
+    """
+    Get the language of the given text.
+
+    Args:
+        text (str): The full text.
+        lnc (LengthCounter): The length counter.
+
+    Returns:
+        LangResponse: The language result.
+    """
     rng = random.Random()
     res: collections.defaultdict[str, float] = \
         collections.defaultdict(lambda: 0.0)

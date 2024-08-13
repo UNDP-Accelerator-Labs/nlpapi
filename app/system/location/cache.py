@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Caching location results."""
 import collections
 
 import sqlalchemy as sa
@@ -23,6 +24,17 @@ from app.system.location.response import GeoResponse, GeoResult
 
 
 def read_geo_cache(db: DBConnector, queries: set[str]) -> dict[str, GeoResult]:
+    """
+    Reads previously cached results for the given queries.
+
+    Args:
+        db (DBConnector): The database connector.
+        queries (set[str]): The queries.
+
+    Returns:
+        dict[str, GeoResult]: Mapping the queries to their cached results. If
+            a query was not cached its key won't appear in the dictionary.
+    """
     qins = sorted(query.strip() for query in queries)
     res: dict[str, GeoResult] = {}
     id_map: dict[int, str] = {}
@@ -81,6 +93,13 @@ def read_geo_cache(db: DBConnector, queries: set[str]) -> dict[str, GeoResult]:
 
 
 def write_geo_cache(db: DBConnector, results: dict[str, GeoResult]) -> None:
+    """
+    Writes query results to the cache.
+
+    Args:
+        db (DBConnector): The database connector.
+        results (dict[str, GeoResult]): The results.
+    """
     with db.get_session() as session:
         for res_query, result in results.items():
             if result[0] is None:
