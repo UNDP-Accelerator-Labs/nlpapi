@@ -22,7 +22,7 @@ import time
 import traceback
 import uuid
 from collections.abc import Callable
-from typing import Any, cast, Literal, TypedDict
+from typing import Any, cast, TypedDict
 
 from qdrant_client import QdrantClient
 from quick_server import create_server, MiddlewareF, QuickServer
@@ -537,7 +537,7 @@ def add_vec_features(
 
     def get_ctx_vec_db(
             *,
-            name: Literal["main", "test"],
+            name: DBName,
             force_clear: bool,
             force_index: bool) -> str:
         """
@@ -932,10 +932,7 @@ def add_vec_features(
                         "filters": A dictionary of field types to lists of
                             filter values. The date field, if given, expects a
                             list of exactly two values, the start and end date
-                            (both inclusive). If the session cookie is missing
-                            or invalid the "status" filter gets overwritten to
-                            include "public" documents only. Defaults to the
-                            empty filter.
+                            (both inclusive). Defaults to the empty filter.
                         "db": The vector database.
                         "offset": The offset of the returned results. Defaults
                             to 0.

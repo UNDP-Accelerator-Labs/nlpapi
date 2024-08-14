@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Logs semantic search queries."""
 import random
 from datetime import datetime
 
@@ -31,6 +32,16 @@ def log_query(
         db_name: str,
         text: str,
         filters: dict[MetaKey, list[str]] | None) -> None:
+    """
+    Logs a semantic search query.
+
+    Args:
+        db (DBConnector): The database connector.
+        db_name (str): The name of the vector database.
+        text (str): The query string.
+        filters (dict[MetaKey, list[str]] | None): Any filters applied to the
+            query. If None the empty filter is logged.
+    """
     if filters is None:
         filters_obj: dict[MetaKey, list[str]] = {}
     else:
@@ -61,17 +72,35 @@ def log_query(
 
 
 def create_query_log(db: DBConnector) -> None:
+    """
+    Create all logging tables.
+
+    Args:
+        db (DBConnector): The database connector.
+    """
     db.create_tables([QueryLog])
 
 
 QUERY_LOG_CACHE: list[str] | None = None
+"""Cache of log entries for sampling."""
 QUERY_LOG_DATE: str | None = None
+"""Date of log sampling."""
 
 
 def sample_query_log(
         db: DBConnector,
         *,
         db_name: str) -> str:
+    """
+    Samples a random query from the log.
+
+    Args:
+        db (DBConnector): The database connector.
+        db_name (str): The vector database name.
+
+    Returns:
+        str: A random search query.
+    """
     global QUERY_LOG_CACHE  # pylint: disable=global-statement
     global QUERY_LOG_DATE  # pylint: disable=global-statement
 

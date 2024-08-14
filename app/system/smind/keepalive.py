@@ -28,6 +28,7 @@ from app.system.smind.vec import MetaKey, QueryEmbed
 
 
 class VecSearch(Protocol):  # pylint: disable=too-few-public-methods
+    """Function for performing a semantic search."""
     def __call__(
             self,
             db: DBConnector,
@@ -44,18 +45,61 @@ class VecSearch(Protocol):  # pylint: disable=too-few-public-methods
             score_threshold: float | None,
             short_snippets: bool,
             no_log: bool) -> QueryEmbed:
-        ...
+        """
+        Searches for the given string in the vector database. If the search
+        query is empty the latest documents are returned instead. If the search
+        query starts with `=` followed by a main id (e.g., `=solution:1234`)
+        a nearest neighbor search to the given document is performed. Snippets
+        are only generated for regular searches.
+
+        Args:
+            db (DBConnector): The database connector.
+            vec_db (QdrantClient): The vector database client.
+            input_str (str): The search query.
+            articles (str): The vector database name.
+            articles_graph (GraphProfile): The embedding model.
+            filters (dict[MetaKey, list[str]] | None): Query filters. A mapping
+                of meta data fields to a list of included values. The date
+                field, if given, expects a list of exactly two values, the
+                start and end date (both inclusive). If None defaults to
+                the empty filter.
+            order_by (MetaKey | tuple[MetaKey, str] | None): Which way to order
+                non-search results.
+            offset (int | None): The offset of the returned results. If None
+                defaults to 0.
+            limit (int): The maximum number of returned results.
+            hit_limit (int): The maximum number of hit snippets generated per
+                result.
+            score_threshold (float | None): Allows to limit the number of
+                results further by cutting off at a given score threshold.
+                If None defaults to not limiting by score.
+            short_snippets (bool): Whether hit snippets should be further
+                refined to give more precise and relevant snippets.
+            no_log (bool): If True, no log entry is created for the query.
+
+        Returns:
+            QueryEmbed: Vector database search results.
+        """
 
 
 MAIN_DB: DBConnector | None = None
+"""The database connector for the keepalive query."""
 MAIN_VEC_DB: QdrantClient | None = None
+"""The vector database client for the keepalive query."""
 MAIN_ARTICLES: str | None = None
+"""The vector database name for the keepalive query."""
 MAIN_GRAPH: GraphProfile | None = None
+"""The embedding model for the keepalive query."""
 MAIN_FN: VecSearch | None = None
+"""The search function for the keepalive query."""
 LAST_QUERY: float = 0.0
+"""Time of any latest query."""
 KEEP_ALIVE_LOCK: 'threading.RLock | None' = None  # FIXME: type fixed in p3.13
+"""Lock for the keepalive query."""
 KEEP_ALIVE_TH: threading.Thread | None = None
+"""Thread performing the the keepalive query."""
 KEEP_ALIVE_FREQ: float = 60.0  # 1min
+"""The frequency of the keepalive query in seconds."""
 
 
 def set_main_articles(
@@ -65,6 +109,19 @@ def set_main_articles(
         articles: str,
         articles_graph: GraphProfile,
         vec_search_fn: VecSearch) -> None:
+    """
+    Initializes the keep alive query.
+
+    Args:
+        db (DBConnector): The database connector.
+        vec_db (QdrantClient): The vector database client.
+        articles (str): The vector database name.
+        articles_graph (GraphProfile): The embedding model.
+        vec_search_fn (VecSearch): The search function.
+
+    Raises:
+        ValueError: If the function is called more than once.
+    """
     global MAIN_DB  # pylint: disable=global-statement
     global MAIN_VEC_DB  # pylint: disable=global-statement
     global MAIN_ARTICLES  # pylint: disable=global-statement
@@ -86,6 +143,20 @@ def set_main_articles(
 
 
 def update_last_query(*, long_time: bool, update_time: bool = True) -> None:
+    """
+    Updates when any query is run. This pushes out the next keep alive query.
+    Starts the keep alive query if no thread is running.
+
+    Args:
+        long_time (bool): Push the next keep alive query out for an additional
+            600 seconds.
+        update_time (bool, optional): Whether to update the query time.
+            If set to False, this function only ensures that the keep alive
+            thread is running. Defaults to True.
+
+    Raises:
+        ValueError: If the keep alive query has not been properly set up yet.
+    """
     global LAST_QUERY  # pylint: disable=global-statement
     global KEEP_ALIVE_TH  # pylint: disable=global-statement
 
