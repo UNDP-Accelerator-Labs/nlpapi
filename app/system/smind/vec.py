@@ -13,6 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Vector database operations. All vector database client calls should go
+here."""
 import collections
 import hashlib
 import uuid
@@ -76,11 +78,15 @@ T = TypeVar('T')
 
 
 QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
+"""UUID namespace for uuids created for vector database items."""
 REF_KEY: Literal["main_uuid"] = "main_uuid"
+"""The name of the database key storing the item UUID."""
 
 
 META_CAT = "_"
+"""Meta field concatenation symbol."""
 META_PREFIX = f"meta{META_CAT}"
+"""Prefix for meta fields."""
 
 
 DBName: TypeAlias = Literal["main", "test", "rave_ce"]
@@ -90,11 +96,17 @@ DBS: tuple[DBName] = get_args(DBName)
 
 
 DBQName: TypeAlias = str
+"""Internal vector database name distinguishing snippets and documents.
+This is not the same as a regular internal vector database name which just
+indicates the corpus."""
 InternalDataKey: TypeAlias = str
+"""Internal vector database name for document data."""
 InternalSnippetKey: TypeAlias = str
+"""Internal vector database name for snippets."""
 
 
 HashTup: TypeAlias = tuple[str, int]
+"""Document hash. Combination of hash and number of snippets."""
 
 
 MetaObject = TypedDict('MetaObject', {
@@ -104,6 +116,7 @@ MetaObject = TypedDict('MetaObject', {
     "language": NotRequired[dict[str, float]],
     "iso3": NotRequired[dict[str, float]],
 })
+"""Meta data structure."""
 MetaObjectOpt = TypedDict('MetaObjectOpt', {
     "date": NotRequired[str],
     "status": DocStatus,
@@ -111,9 +124,13 @@ MetaObjectOpt = TypedDict('MetaObjectOpt', {
     "language": dict[str, float],
     "iso3": dict[str, float],
 }, total=False)
+"""Partial meta data structure."""
 MetaKey = Literal["date", "status", "doc_type", "language", "iso3"]
+"""Valid meta data keys."""
 META_KEYS: set[MetaKey] = set(get_args(MetaKey))
+"""Valid meta data keys."""
 META_SCALAR: set[Literal["language", "iso3"]] = {"language", "iso3"}
+"""Scalar meta data keys."""
 META_SNIPPET_INDEX: dict[MetaKey, PayloadSchemaType] = {
     "date": "datetime",
     "status": "keyword",
@@ -121,6 +138,7 @@ META_SNIPPET_INDEX: dict[MetaKey, PayloadSchemaType] = {
     "language": "keyword",
     "iso3": "keyword",
 }
+"""Schema of meta data fields."""
 
 
 KNOWN_DOC_TYPES: dict[str, set[str]] = {
@@ -128,11 +146,13 @@ KNOWN_DOC_TYPES: dict[str, set[str]] = {
     "experiment": {"experiment"},
     "solution": {"solution"},
 }
+"""Mapping from bases to human readable document types."""
 DOC_TYPE_TO_BASE: dict[str, str] = {
     doc_type: base
     for base, doc_types in KNOWN_DOC_TYPES.items()
     for doc_type in doc_types
 }
+"""Mapping from human readable document types to bases."""
 
 
 StatEmbed = TypedDict('StatEmbed', {
@@ -140,7 +160,7 @@ StatEmbed = TypedDict('StatEmbed', {
     "fields": dict[MetaKey, dict[str, int]],
 })
 """Vector database document counts. "doc_count" is the total number of
-documents and fields maps field types to field values to their frequency."""
+documents and "fields" maps field types to field values to their frequency."""
 
 
 VecDBStat = TypedDict('VecDBStat', {
@@ -150,6 +170,10 @@ VecDBStat = TypedDict('VecDBStat', {
     "status": str,
     "count": int,
 })
+"""Information about vector databases. `ext_name` is the external name, `name`
+is the internal name, and `db_name` is the internal distinguishin between
+document data and snippet storage. `count` is the number of items stored in
+the database."""
 
 
 VecDBConfig = TypedDict('VecDBConfig', {
@@ -158,6 +182,7 @@ VecDBConfig = TypedDict('VecDBConfig', {
     "grpc": int,
     "token": str | None,
 })
+"""Vector database connection configuration."""
 
 
 DistanceFn = Literal[
@@ -166,6 +191,7 @@ DistanceFn = Literal[
     "man",
     "euc",
 ]
+"""Possible embedding distance measures."""
 
 
 EmbedMain = TypedDict('EmbedMain', {
@@ -175,6 +201,7 @@ EmbedMain = TypedDict('EmbedMain', {
     "title": str,
     "meta": MetaObject,
 })
+"""Embedding payload for document data."""
 
 
 EmbedChunk = TypedDict('EmbedChunk', {
@@ -182,6 +209,7 @@ EmbedChunk = TypedDict('EmbedChunk', {
     "embed": list[float],
     "snippet": str,
 })
+"""Embedding payload for snippet data."""
 
 
 ResultChunk = TypedDict('ResultChunk', {
@@ -214,10 +242,25 @@ DocResult = TypedDict('DocResult', {
 
 
 FILE_PROTOCOL = "file://"
+"""Protocol section for file vector database storage. Useful for testing out
+vector database behavior locally."""
 
 
 def convert_meta_key_data(
         key: MetaKey, variant: str | None) -> InternalDataKey:
+    """
+    Convert a meta data key and value into the internal representation of meta
+    keys. Scalar meta data fields store the value as key instead of as value.
+
+    Args:
+        key (MetaKey): The meta data key.
+        variant (str | None): If the meta data field is scalar the value can
+            be provided to create the extended key.
+
+    Returns:
+        InternalDataKey: The internal key to be used in the document data
+            database.
+    """
     if key not in META_KEYS:
         raise ValueError(f"{key} is not a valid meta key")
     if key in META_SCALAR and variant is not None:
@@ -226,6 +269,16 @@ def convert_meta_key_data(
 
 
 def convert_meta_key_snippet(key: MetaKey) -> InternalSnippetKey:
+    """
+    Convert a meta data key into the internal representation of meta keys.
+
+    Args:
+        key (MetaKey): The meta data key.
+
+    Returns:
+        InternalSnippetKey: The internal key to be used in the snippet
+            database.
+    """
     if key not in META_KEYS:
         raise ValueError(f"{key} is not a valid meta key")
     return f"{META_PREFIX}{key}"
