@@ -100,9 +100,9 @@ DBQName: TypeAlias = str
 This is not the same as a regular internal vector database name which just
 indicates the corpus."""
 InternalDataKey: TypeAlias = str
-"""Internal vector database name for document data."""
+"""Internal vector database meta key for document data."""
 InternalSnippetKey: TypeAlias = str
-"""Internal vector database name for snippets."""
+"""Internal vector database meta key for snippets."""
 
 
 HashTup: TypeAlias = tuple[str, int]
@@ -286,6 +286,18 @@ def convert_meta_key_snippet(key: MetaKey) -> InternalSnippetKey:
 
 def unconvert_meta_key_data(
         key: InternalDataKey) -> tuple[MetaKey, str | None] | None:
+    """
+    Convert an internal meta data key used in the document data database into
+    a regular meta key.
+
+    Args:
+        key (InternalDataKey): The internal key.
+
+    Returns:
+        tuple[MetaKey, str | None] | None: The meta key and the optional
+            variant for if the meta key is scalar. If the key is not a meta
+            key None is returned.
+    """
     res = key.removeprefix(META_PREFIX)
     if res == key:
         return None
@@ -300,6 +312,16 @@ def unconvert_meta_key_data(
 
 
 def unconvert_meta_key_snippet(key: InternalSnippetKey) -> MetaKey | None:
+    """
+    Convert an internal meta data key used in the snippet database into a
+    regular meta key.
+
+    Args:
+        key (InternalSnippetKey): The internal key.
+
+    Returns:
+        MetaKey | None: The meta key or None if the key is not a meta key.
+    """
     res = key.removeprefix(META_PREFIX)
     if res == key:
         return None
@@ -309,12 +331,34 @@ def unconvert_meta_key_snippet(key: InternalSnippetKey) -> MetaKey | None:
 
 
 def ensure_valid_name(name: str) -> str:
+    """
+    Checks whether a database name is valid.
+
+    Args:
+        name (str): The database name.
+
+    Raises:
+        ValueError: If the name is not valid.
+
+    Returns:
+        str: The name.
+    """
     if "-" in name or ":" in name:
         raise ValueError(f"invalid name {name}")
     return name
 
 
 def get_vec_client(config: Config) -> QdrantClient | None:
+    """
+    Create a vector database client for the given configuration.
+
+    Args:
+        config (Config): The configuration.
+
+    Returns:
+        QdrantClient | None: The client or None if no vector database is
+            specified in the config.
+    """
     vec_db = config["vector"]
     if vec_db is None:
         return None
@@ -341,6 +385,12 @@ def get_vec_client(config: Config) -> QdrantClient | None:
 
 
 def vec_flushall(db: QdrantClient) -> None:
+    """
+    Deletes all vector databases.
+
+    Args:
+        db (QdrantClient): The vector database client.
+    """
     for collection in retry_err(lambda: db.get_collections().collections):
         retry_err(
             lambda name: db.delete_collection(name, timeout=600),
@@ -349,6 +399,18 @@ def vec_flushall(db: QdrantClient) -> None:
 
 def get_vec_stats(
         db: QdrantClient, name: str, *, is_vec: bool) -> VecDBStat | None:
+    """
+    Get information about a vector database.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        is_vec (bool): Whether to inspect the snippet database (True) or the
+            document data database (False),
+
+    Returns:
+        VecDBStat | None: The stats or None if the information is unavailable.
+    """
     try:
         db_name = get_db_name(name, is_vec=is_vec)
         if not retry_err(lambda: db.collection_exists(db_name)):
@@ -368,6 +430,18 @@ def get_vec_stats(
 
 
 def get_db_name(name: str, *, is_vec: bool) -> DBQName:
+    """
+    Get the internal database name distinguishing the document data and snippet
+    database.
+
+    Args:
+        name (str): The database name.
+        is_vec (bool): Whether to return the snippet database (True) or the
+            document data database (False),
+
+    Returns:
+        DBQName: The name.
+    """
     return f"{name}_vec" if is_vec else f"{name}_data"
 
 
@@ -379,6 +453,20 @@ def build_db_name(
         db: QdrantClient,
         force_clear: bool,
         force_index: bool) -> str:
+    """
+    Ensures the database with the given name exists.
+
+    Args:
+        name (str): The vector database name.
+        distance_fn (DistanceFn): The distance function to be used.
+        embed_size (int): The length of embeddings.
+        db (QdrantClient): The vector database client.
+        force_clear (bool): Whether to delete the database first.
+        force_index (bool): Whether to force indexing the database.
+
+    Returns:
+        str: The internal database name.
+    """
     name = f"{ensure_valid_name(name)}_{distance_fn}"
     if distance_fn == "dot":
         distance: Distance = Distance.DOT
