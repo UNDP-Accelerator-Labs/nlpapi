@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Definitions for the scattermind API."""
 import json
 import os
 import traceback
@@ -35,6 +36,7 @@ T = TypeVar('T')
 
 
 PseudoRedisName = Literal["rmain", "rdata", "rcache", "rbody", "rworker"]
+"""The redis databases needed by scattermind."""
 
 
 QueueStat = TypedDict('QueueStat', {
@@ -43,12 +45,14 @@ QueueStat = TypedDict('QueueStat', {
     "queue_length": int,
     "listeners": int,
 })
+"""Stats about a scattermind node queue."""
 
 
 NERResponse = TypedDict('NERResponse', {
     "ranges": list[tuple[int, int]],
     "text": list[str],
 })
+"""Response of a NER (Named Entity Recognition) run."""
 
 
 def get_redis(
@@ -56,6 +60,18 @@ def get_redis(
         *,
         redis_name: PseudoRedisName,
         overwrite_prefix: str | None) -> Redis:
+    """
+    Get the redis for the given specification.
+
+    Args:
+        config_fname (str): The config file name.
+        redis_name (PseudoRedisName): The name of the redis database.
+        overwrite_prefix (str | None): If set, overwrite the prefix value of
+            the Redis instance.
+
+    Returns:
+        Redis: The redis connection.
+    """
     with open(config_fname, "rb") as fin:
         config_obj = cast(ConfigJSON, json.load(fin))
     if redis_name == "rmain":
@@ -101,19 +117,44 @@ def get_redis(
 
 
 def clear_redis(config_fname: str, redis_name: PseudoRedisName) -> None:
+    """
+    Clears the given redis database.
+
+    Args:
+        config_fname (str): The config file name.
+        redis_name (PseudoRedisName): The redis database name.
+    """
     redis = get_redis(
         config_fname, redis_name=redis_name, overwrite_prefix=None)
     redis.flushall()
 
 
 def load_smind(config_fname: str) -> ScattermindAPI:
+    """
+    Load the scattermind API.
+
+    Args:
+        config_fname (str): The scattermind config file.
+
+    Returns:
+        ScattermindAPI: The API.
+    """
     with open(config_fname, "rb") as fin:
         config_obj = json.load(fin)
     return load_api(config_obj)
 
 
 class GraphProfile:
+    """Provides convenience functions to access a scattermind model."""
     def __init__(self, smind: ScattermindAPI, ns: GNamespace) -> None:
+        """
+        Creates a provider of convenience functions to access a scattermind
+        model.
+
+        Args:
+            smind (ScattermindAPI): The scattermind API.
+            ns (GNamespace): The model namespace / graph.
+        """
         self._smind = smind
         self._ns = ns
         inputs = list(smind.main_inputs(ns))
@@ -125,18 +166,51 @@ class GraphProfile:
         self._output_size: int | None = None
 
     def get_api(self) -> ScattermindAPI:
+        """
+        Get the scattermind API.
+
+        Returns:
+            ScattermindAPI: The API.
+        """
         return self._smind
 
     def get_ns(self) -> GNamespace:
+        """
+        Get the namespace.
+
+        Returns:
+            GNamespace: The model namespace / graph.
+        """
         return self._ns
 
     def get_input_fields(self) -> list[str]:
+        """
+        Get the input fields of the model.
+
+        Returns:
+            list[str]: The input field names.
+        """
         return self._inputs
 
     def get_outputs(self) -> list[str]:
+        """
+        Get the output fields of the model.
+
+        Returns:
+            list[str]: The output field names.
+        """
         return self._outputs
 
     def get_output_field(self) -> str:
+        """
+        Returns the single output field if the model only has one output field.
+
+        Raises:
+            ValueError: If the model has more than one output field.
+
+        Returns:
+            str: The single output field name.
+        """
         output_field = self._output_field
         if output_field is None:
             outputs = self._outputs
@@ -147,6 +221,18 @@ class GraphProfile:
         return output_field
 
     def get_output_size(self) -> int:
+        """
+        The size of the output. This requires the model to have only one output
+        field and that output field must be a one dimensional tensor with a
+        defined size. This is the case for embedding models.
+
+        Raises:
+            ValueError: If the model has more than one output or the output
+                shape is invalid or insufficiently specified.
+
+        Returns:
+            int: The expected size of the output.
+        """
         output_size = self._output_size
         if output_size is None:
             _, output_shape = self._smind.output_format(
@@ -164,6 +250,17 @@ def load_graph(
         config: Config,
         smind: ScattermindAPI,
         graph_fname: str) -> GraphProfile:
+    """
+    Load a model graph.
+
+    Args:
+        config (Config): The config file.
+        smind (ScattermindAPI): The scattermind API.
+        graph_fname (str): The graph name.
+
+    Returns:
+        GraphProfile: The model.
+    """
     with open(os.path.join(config["graphs"], graph_fname), "rb") as fin:
         graph_def_obj = json.load(fin)
     ns: GNamespace = smind.load_graph(graph_def_obj)
@@ -171,6 +268,15 @@ def load_graph(
 
 
 def get_queue_stats(smind: ScattermindAPI) -> list[QueueStat]:
+    """
+    Provide statistics about current model node queues.
+
+    Args:
+        smind (ScattermindAPI): The scattermind API.
+
+    Returns:
+        list[QueueStat]: The stats.
+    """
     try:
         return [
             {
@@ -191,6 +297,24 @@ def get_text_results_immediate(
         *,
         graph_profile: GraphProfile,
         output_sample: T) -> list[T | None]:
+    """
+    Computes a model for a set of inputs. This requires the model to have a
+    single input field, a single output field with defined one dimensional
+    size, and a numerical output type. This is the case for embedding models.
+
+    Args:
+        texts (list[str]): The input texts.
+        graph_profile (GraphProfile): The model.
+        output_sample (T): A sample of the output needed for typing. For an
+            embedding model `[1.0]` is sufficient to define the type. Note,
+            the size of the output does not need to be specified here. Only
+            the type (in the example above it is `list[float]`).
+
+    Returns:
+        list[T | None]: The outputs for each text. If an output could not be
+            retrieved for a given input text the corresponding value in the
+            list is None.
+    """
     if not texts:
         return []
     smind = graph_profile.get_api()
@@ -245,6 +369,18 @@ def get_ner_results_immediate(
         texts: list[str],
         *,
         graph_profile: GraphProfile) -> list[NERResponse | None]:
+    """
+    Computes NER (Named Entity Recognition) results.
+
+    Args:
+        texts (list[str]): The input texts.
+        graph_profile (GraphProfile): The NER model.
+
+    Returns:
+        list[NERResponse | None]: The NER responses for each input text. If an
+            output could not be retrieved for a given input text the
+            corresponding value in the list is None.
+    """
     if not texts:
         return []
     smind = graph_profile.get_api()

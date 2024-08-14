@@ -45,14 +45,30 @@ AddDoc = TypedDict('AddDoc', {
 
 
 class AdderProcessor(Protocol):  # pylint: disable=too-few-public-methods
+    """Enqueues a main id for adding to semantic search."""
     def __call__(self, *, vdb_str: str, main_id: str, user: uuid.UUID) -> None:
-        ...
+        """
+        Enqueues a main id for adding to semantic search.
+
+        Args:
+            vdb_str (str): The vector database name.
+            main_id (str): The main id to add.
+            user (uuid.UUID): The user uuid.
+        """
 
 
 class BaseProcessor(Protocol):  # pylint: disable=too-few-public-methods
+    """Enqueues bases for adding all of their documents to semantic search."""
     def __call__(
             self, *, vdb_str: str, bases: list[str], user: uuid.UUID) -> None:
-        ...
+        """
+        Enqueues bases for adding all of their documents to semantic search.
+
+        Args:
+            vdb_str (str): The vector database name.
+            bases (list[str]): The list of bases to add.
+            user (uuid.UUID): The user uuid.
+        """
 
 
 AdderAddBasePayload = TypedDict('AdderAddBasePayload', {
@@ -61,13 +77,16 @@ AdderAddBasePayload = TypedDict('AdderAddBasePayload', {
     "base": str,
     "user": uuid.UUID,
 })
+"""Adding a base to the given vector database."""
 AdderUpdateDocPayload = TypedDict('AdderUpdateDocPayload', {
     "stage": Literal["doc"],
     "db": str,
     "main_id": str,
     "user": uuid.UUID,
 })
+"""Adding a main id to the given vector database."""
 AdderPayload = AdderUpdateDocPayload | AdderAddBasePayload
+"""Adding documents to a vector database."""
 
 
 def register_adder(
@@ -86,6 +105,34 @@ def register_adder(
         get_tag: TagFn,
         get_status_date_type: StatusDateTypeFn,
         ) -> tuple[BaseProcessor, AdderProcessor]:
+    """
+    Registers the document adder for the processing queue. The document adder
+    adds documents to vector databases.
+
+    Args:
+        db (DBConnector): The database connector.
+        vec_db (QdrantClient): The vector database client.
+        process_queue_redis (Redis): The processing queue redis.
+        qdrant_cache (Redis): The cache for the vector database.
+        graph_embed (GraphProfile): The embedding model.
+        ner_graphs (dict[LanguageStr, GraphProfile]): Models for NER.
+        get_articles (Callable[[str], str]): Get the internal vector database
+            name from an external vector database name.
+        get_all_docs (AllDocsFn): Gets all documents (main ids) of a given
+            base.
+        doc_is_remove (IsRemoveFn): Whether a document (via main id) has been
+            removed.
+        get_full_text (FullTextFn): Get the full text of a document
+            (via main id).
+        get_url_title (UrlTitleFn): Get the URL and title of a document
+            (via main id).
+        get_tag (TagFn): Get the tag (i.e., country) of a document via main id.
+        get_status_date_type (StatusDateTypeFn): Get the status, date, and
+            document type of a document via main id.
+
+    Returns:
+        tuple[BaseProcessor, AdderProcessor]: Adders for bases and documents.
+    """
 
     def adder_payload_to_json(entry: AdderPayload) -> dict[str, str]:
         if "stage" not in entry:

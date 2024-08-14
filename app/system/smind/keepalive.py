@@ -13,6 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Keep the vector database alive and in cache by periodically querying a
+random search term."""
 import threading
 import time
 from typing import Protocol

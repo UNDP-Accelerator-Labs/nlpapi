@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Location NER."""
+"""Location NER (Named Entity Recognition)."""
 import re
 from collections.abc import Iterable
 
