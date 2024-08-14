@@ -498,6 +498,19 @@ def vec_filter_total(
         qdrant_cache: Redis,
         articles: str,
         filters: dict[MetaKey, list[str]] | None) -> int:
+    """
+    Computes how many documents in total are retained after using the given
+    filter.
+
+    Args:
+        vec_db (QdrantClient): The vector database client.
+        qdrant_cache (Redis): The vector database cache redis
+        articles (str): The internal vector database name.
+        filters (dict[MetaKey, list[str]] | None): The filter.
+
+    Returns:
+        int: Number of documents after applying the filter.
+    """
     if filters is not None:
         filters = {
             key: to_list(value)
@@ -521,6 +534,20 @@ def vec_filter_field(
         qdrant_cache: Redis,
         articles: str,
         filters: dict[MetaKey, list[str]] | None) -> dict[str, int]:
+    """
+    Return the number of documents for each field value after applying the
+    filter.
+
+    Args:
+        vec_db (QdrantClient): The vector database client.
+        field (MetaKey): The field to retrieve information for.
+        qdrant_cache (Redis): The vector database cache redis.
+        articles (str): The internal vector database name.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+
+    Returns:
+        dict[str, int]: Field values mapped to counts.
+    """
     if filters is not None:
         filters = {
             key: to_list(value)
@@ -545,6 +572,20 @@ def vec_filter(
         articles: str,
         fields: set[MetaKey],
         filters: dict[MetaKey, list[str]] | None) -> StatEmbed:
+    """
+    Provide full information about document counts after applying a filter.
+
+    Args:
+        vec_db (QdrantClient): The vector database client.
+        qdrant_cache (Redis): The vector database cache redis.
+        articles (str): The internal vector database name.
+        fields (set[MetaKey]): The fields to retrieve detailed information.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+
+    Returns:
+        StatEmbed: Statistics about total document counts and requested field
+            document counts.
+    """
     return {
         "doc_count": vec_filter_total(
             vec_db,
@@ -566,6 +607,17 @@ def vec_filter(
 def apply_snippets(
         hits: list[ResultChunk],
         fn: Callable[[int], list[str]]) -> list[ResultChunk]:
+    """
+    Applies a function to snippets.
+
+    Args:
+        hits (list[ResultChunk]): The query results.
+        fn (Callable[[int], list[str]]): Function to apply. Gets provided the
+            hit index and should return snippets as list.
+
+    Returns:
+        list[ResultChunk]: _description_
+    """
 
     def apply(ix: int, hit: ResultChunk) -> ResultChunk:
         res = hit.copy()
@@ -582,6 +634,22 @@ def snippet_post(
         articles_graph: GraphProfile,
         short_snippets: bool,
         hit_limit: int) -> tuple[list[ResultChunk], int]:
+    """
+    Performs snippet refinement for the given query results.
+
+    Args:
+        hits (list[ResultChunk]): The query results.
+        embed (list[float]): Query embedding.
+        articles_graph (GraphProfile): The embedding model.
+        short_snippets (bool): Whether to return short snippets. That is the
+            hit snippets get further refined to more precisely match the search
+            query.
+        hit_limit (int): The number of hits to return per result.
+
+    Returns:
+        tuple[list[ResultChunk], int]: The results and the number of short
+            snippets generated.
+    """
 
     def process_snippets(ix: int) -> list[str]:
         return [
