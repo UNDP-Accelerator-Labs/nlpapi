@@ -565,6 +565,22 @@ def create_index(
         *,
         db_schema: dict[str, PayloadIndexInfo],
         force_recreate: bool) -> int:
+    """
+    Creates an index for the given field name.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        db_name (DBQName): The internal database name distinguishing document
+            data and snippets.
+        field_name (str): The internal field name. This might be a field and
+            value for scalar fields.
+        field_schema (PayloadSchemaType): The index schema type.
+        db_schema (dict[str, PayloadIndexInfo]): Existing index schemas.
+        force_recreate (bool): Forces creation of a new index from scratch.
+
+    Returns:
+        int: 1 if the index was created and 0 if it existed already.
+    """
     if force_recreate:
         retry_err(
             lambda key: db.delete_payload_index(db_name, key), field_name)
@@ -578,6 +594,19 @@ def create_index(
 
 def recreate_index(
         db: QdrantClient, name: str, *, force_recreate: bool) -> int:
+    """
+    Creates all missing indexes.
+
+    Args:
+        db (QdrantClient): The vetor database client.
+        name (str): The database name.
+        force_recreate (bool): Forces recreation of all indexes. This is only
+            recommended if the database is still small or empty. For big
+            databases creating a new index will almost certainly time out.
+
+    Returns:
+        int: The number of new indices created.
+    """
     count = 0
     # * vec keys *
     vec_name = get_db_name(name, is_vec=True)
@@ -638,6 +667,23 @@ def build_scalar_index(
         *,
         full_stats: dict[MetaKey, dict[str, int] | dict[str, float]] | None,
         ) -> int:
+    """
+    Builds the index of a scalar type. Scalar types have one field and thus
+    one index for each variant (i.e., possible value).
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The database name.
+        full_stats (dict[MetaKey, dict[str, int] | dict[str, float]] | None):
+            Full (non-indexed nor cached) statistics about the meta fields.
+            If None, the stats are computed from scratch. It is important to
+            not use pre-indexed or cached value here as that will not reveal
+            any new variants that might exist in the database but haven't been
+            indexed yet.
+
+    Returns:
+        int: Number of newly created indices.
+    """
     count = 0
     if full_stats is None:
         count += recreate_index(db, name, force_recreate=False)
@@ -669,6 +715,22 @@ def full_scroll(
         scroll_filter: Filter | None,
         with_vectors: bool,
         with_payload: bool | Sequence[str]) -> list[Record]:
+    """
+    Performs a full scroll through the vector database. This operation can take
+    a while since it has to look at every row in the database (except for
+    using filters leveraging indices) so it is advised to cache the results.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The database name.
+        scroll_filter (Filter | None): The filter or None for no filter.
+        with_vectors (bool): Whether to return the rows with their embeddings.
+        with_payload (bool | Sequence[str]): Whether to return the rows with
+            their meta data.
+
+    Returns:
+        list[Record]: The results of the scan.
+    """
     offset = None
     cur_limit = 10
     res: list[Record] = []
@@ -692,6 +754,15 @@ def full_scroll(
 
 
 def compute_chunk_hash(chunks: list[EmbedChunk]) -> HashTup:
+    """
+    Computes the hash of chunk snippets.
+
+    Args:
+        chunks (list[EmbedChunk]): The snippets.
+
+    Returns:
+        HashTup: The hash and the number of chunks.
+    """
     blake = hashlib.blake2b(digest_size=32)
     blake.update(f"{len(chunks)}:".encode("utf-8"))
     for chunk in chunks:
@@ -703,6 +774,16 @@ def compute_chunk_hash(chunks: list[EmbedChunk]) -> HashTup:
 
 def compute_doc_embedding(
         embed_size: int, chunks: list[EmbedChunk]) -> list[float]:
+    """
+    Compute the document embedding by averaging the snippet embeddings.
+
+    Args:
+        embed_size (int): The dimensionality of the embeddings.
+        chunks (list[EmbedChunk]): The actual chunk embeddings.
+
+    Returns:
+        list[float]: The document embedding.
+    """
     # we can use the average. see here:
     # https://datascience.stackexchange.com/a/110506
     if not chunks:
@@ -711,10 +792,28 @@ def compute_doc_embedding(
 
 
 def get_main_id(data: EmbedMain) -> str:
+    """
+    Compute the main id from the meta data and row info.
+
+    Args:
+        data (EmbedMain): The meta data and row info.
+
+    Returns:
+        str: The main id.
+    """
     return f"{data['base']}:{data['doc_id']}"
 
 
 def get_main_uuid(data: EmbedMain) -> str:
+    """
+    Create a UUID that uniquely identifies a document.
+
+    Args:
+        data (EmbedMain): The meta data and row info.
+
+    Returns:
+        str: The UUID.
+    """
     return f"{uuid.uuid5(QDRANT_UUID, get_main_id(data))}"
 
 
@@ -722,6 +821,17 @@ def to_data_payload(
         data: EmbedMain,
         chunk_hash: HashTup,
         ) -> dict[InternalDataKey, list[str] | str | float | int]:
+    """
+    Converts meta data and row information into a vector database document
+    data payload.
+
+    Args:
+        data (EmbedMain): The meta data and row info.
+        chunk_hash (HashTup): The hashes and quantity of the chunk snippets.
+
+    Returns:
+        dict[InternalDataKey, list[str] | str | float | int]: The payload.
+    """
     hash_str, count = chunk_hash
     res: dict[InternalDataKey, list[str] | str | float | int] = {
         "main_id": get_main_id(data),
@@ -755,6 +865,16 @@ def to_data_payload(
 def to_snippet_payload_template(
         data: EmbedMain,
         ) -> dict[InternalSnippetKey, list[str] | str | int]:
+    """
+    Converts meta data and row information into a vector database snippet
+    payload.
+
+    Args:
+        data (EmbedMain): The meta data and row info.
+
+    Returns:
+        dict[InternalSnippetKey, list[str] | str | int]: The payload.
+    """
     res: dict[InternalSnippetKey, list[str] | str | int] = {
         REF_KEY: get_main_uuid(data),
     }
@@ -781,6 +901,19 @@ def add_embed(
         data: EmbedMain,
         embed_size: int,
         chunks: list[EmbedChunk]) -> tuple[int, int]:
+    """
+    Adds an embedding to the vector database.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The database name.
+        data (EmbedMain): The meta data and row info.
+        embed_size (int): The dimensionality of the embeddings.
+        chunks (list[EmbedChunk]): The snippet chunks.
+
+    Returns:
+        tuple[int, int]: The previous snippet count and the new snippet count.
+    """
     chunk_hash = compute_chunk_hash(chunks)
     doc_embed = compute_doc_embedding(embed_size, chunks)
     cur_hash, new_count = chunk_hash
@@ -911,6 +1044,18 @@ def stat_total(
         name: str,
         *,
         filters: dict[MetaKey, list[str]] | None) -> int:
+    """
+    Counts the total number of documents for a given filter.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The database name.
+        filters (dict[MetaKey, list[str]] | None): The filter or None for no
+            filter.
+
+    Returns:
+        int: The number of documents.
+    """
     query_filter = get_filter(
         filters, for_vec=False, skip_fields=None, exclude_main_id=None)
     data_name = get_db_name(name, is_vec=False)
