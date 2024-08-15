@@ -178,6 +178,24 @@ def add_tag_members(
         session.execute(cstmt)
 
 
+def remove_tag_member(
+        session: Session,
+        tag_group_id: int,
+        main_id: str) -> None:
+    """
+    Remove a document from a tag group.
+
+    Args:
+        session (Session): The database session.
+        tag_group_id (int): The tag group.
+        main_id (str): The documents as main id.
+    """
+    stmt = sa.delete(TagGroupMembers).where(sa.and_(
+        TagGroupMembers.main_id == main_id,
+        TagGroupMembers.tag_group == tag_group_id))
+    session.execute(stmt)
+
+
 def get_incomplete(session: Session) -> Iterable[TagElement]:
     """
     Retrieves all documents that still need to be processed.
