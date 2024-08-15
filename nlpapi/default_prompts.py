@@ -13,7 +13,23 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Construction of the system prompts for the circular economy rave analysis.
+The prompts have been moved to the database but the creation methods are kept
+here for reference."""
+
+
 def replacer(text: str, mapping: dict[str, str]) -> str:
+    """
+    Replaces the keys of the dictionary in the provided text with their values.
+
+    Args:
+        text (str): The text.
+        mapping (dict[str, str]): The replacement mapping. Keys will be
+            surrounded by `<key>` for replacement.
+
+    Returns:
+        str: The substituted string.
+    """
     for key, value in mapping.items():
         text = text.replace(f"<{key}>", value)
     return text.strip()

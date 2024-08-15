@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""A custom tagging model."""
 import logging
 from typing import Literal, TypedDict
 
@@ -44,6 +45,7 @@ ModelConfig = TypedDict('ModelConfig', {
 
 
 class TagModel(nn.Module):
+    """Custom tagging model using an encoder transformer architecture."""
     def __init__(
             self,
             *,
@@ -82,16 +84,45 @@ class TagModel(nn.Module):
             self,
             input_ids: torch.Tensor,
             attention_mask: torch.Tensor) -> torch.Tensor:
+        """
+        The forward pass.
+
+        Args:
+            input_ids (torch.Tensor): The input.
+            attention_mask (torch.Tensor): The attention mask.
+
+        Returns:
+            torch.Tensor: The output.
+        """
         return self._embed(
             input_ids=input_ids,
             attention_mask=attention_mask)
 
 
 def create_model(config: ModelConfig) -> TagModel:
+    """
+    Create the model.
+
+    Args:
+        config (ModelConfig): The model configuration.
+
+    Returns:
+        TagModel: The model.
+    """
     return TagModel(agg=config["agg"], ignore_pretrained_warning=True)
 
 
 def batch_dot(batch_a: torch.Tensor, batch_b: torch.Tensor) -> torch.Tensor:
+    """
+    Batch dot product.
+
+    Args:
+        batch_a (torch.Tensor): Left batch.
+        batch_b (torch.Tensor): Right batch.
+
+    Returns:
+        torch.Tensor: All dot products between the batches.
+    """
     batch_size = batch_a.shape[0]
     return torch.bmm(
         batch_a.reshape([batch_size, 1, -1]),
@@ -99,6 +130,7 @@ def batch_dot(batch_a: torch.Tensor, batch_b: torch.Tensor) -> torch.Tensor:
 
 
 class TrainingHarness(nn.Module):
+    """Harness for training the TagModel."""
     def __init__(self, model: TagModel, use_cos: bool) -> None:
         super().__init__()
         self._model = model
@@ -115,6 +147,12 @@ class TrainingHarness(nn.Module):
         return self._cos(left_embed, right_embed).reshape([-1, 1])
 
     def get_model(self) -> TagModel:
+        """
+        Get the underlying model.
+
+        Returns:
+            TagModel: The model.
+        """
         return self._model
 
     def forward(
@@ -126,6 +164,22 @@ class TrainingHarness(nn.Module):
             right_attention_mask: torch.Tensor,
             labels: torch.Tensor | None = None,
             ) -> tuple[torch.Tensor, torch.Tensor] | torch.Tensor:
+        """
+        Forward pass.
+
+        Args:
+            left_input_ids (torch.Tensor): Left input.
+            left_attention_mask (torch.Tensor): Left attention mask.
+            right_input_ids (torch.Tensor): Right input.
+            right_attention_mask (torch.Tensor): Right attention mask.
+            labels (torch.Tensor | None, optional): The ground truth.
+                Defaults to None.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor] | torch.Tensor: The predictions
+                and loss if the ground truth is provided, otherwise just the
+                predictions.
+        """
         left_embed = self._model(left_input_ids, left_attention_mask)
         right_embed = self._model(right_input_ids, right_attention_mask)
         preds = self._combine(left_embed, right_embed)
@@ -136,6 +190,7 @@ class TrainingHarness(nn.Module):
 
 
 class ModelNode(Node):
+    """Scattermind model node for the TagModel."""
     def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
         super().__init__(kind, graph, node_id)
         self._harness: TrainingHarness | None = None

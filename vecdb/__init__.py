@@ -13,3 +13,5 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Vector database test setup. Those were the initial tests to get used to the
+vector database but it is not in use anymore."""

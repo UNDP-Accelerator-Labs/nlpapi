@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""NER model using spaCy."""
 import threading
 from typing import cast, Literal
 
@@ -45,6 +46,7 @@ LANGUAGES: dict[LanguageStr, str] = {
 
 
 class SpacyNERNode(Node):
+    """NER model using spaCy."""
     def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
         super().__init__(kind, graph, node_id)
         self._model: Language | None = None

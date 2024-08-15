@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Tokenizer node for the custom tagging model."""
 from typing import get_args, Literal
 
 from scattermind.system.base import GraphId, NodeId
@@ -37,6 +38,7 @@ ALL_OPS: set[OpName] = set(get_args(OpName))
 
 
 class TokenizerNode(Node):
+    """The tokenizer node."""
     def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
         super().__init__(kind, graph, node_id)
         self._tokenizer = None

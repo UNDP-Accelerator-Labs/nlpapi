@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Utilities for downloading huggingface models."""
 # FIXME: the types are there, though...
 import huggingface_hub  # type: ignore
 from sentence_transformers import SentenceTransformer  # type: ignore
@@ -20,6 +21,16 @@ from sentence_transformers import SentenceTransformer  # type: ignore
 
 def get_sentence_transformer(
         model_name: str, cache_dir: str) -> SentenceTransformer:
+    """
+    Loads a sentence transformer model.
+
+    Args:
+        model_name (str): The model name.
+        cache_dir (str): The cache dir.
+
+    Returns:
+        SentenceTransformer: The model.
+    """
     if "/" in model_name:
         hname = model_name
     else:
