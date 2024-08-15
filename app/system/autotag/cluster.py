@@ -27,6 +27,7 @@ from app.misc.math import dot_order_np
 from app.misc.util import (
     CHUNK_PADDING,
     CHUNK_SIZE,
+    get_time_str,
     json_compact_str,
     json_read_str,
     NL,
@@ -39,6 +40,7 @@ from app.system.autotag.autotag import (
     create_tag_group,
     get_incomplete,
     get_keywords,
+    get_tag_group,
     get_tag_group_cluster_args,
     get_tags_for_main_id,
     is_ready,
@@ -358,11 +360,16 @@ def tagger_init(
     errors: list[str] = []
     total = 0
     with db.get_session() as session:
-        cur_tag_group = create_tag_group(
-            session,
-            entry["name"],
-            is_updating=entry["is_updating"],
-            cluster_args=entry["cluster_args"])
+        name = entry["name"]
+        if name is None:
+            name = f"tag {get_time_str()}"
+        cur_tag_group = get_tag_group(session, entry["name"])
+        if cur_tag_group is None:
+            cur_tag_group = create_tag_group(
+                session,
+                entry["name"],
+                is_updating=entry["is_updating"],
+                cluster_args=entry["cluster_args"])
     for base in entry["bases"]:
         cur_main_ids: list[str] = []
         for cur_main_id in get_all_docs(base):

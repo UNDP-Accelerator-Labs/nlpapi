@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""CLI tool for creating database tables."""
 import argparse
 import os
 
@@ -28,6 +29,12 @@ from app.system.smind.log import create_query_log
 
 
 def parse_args() -> argparse.Namespace:
+    """
+    Parse the command line arguments.
+
+    Returns:
+        argparse.Namespace: The arguments.
+    """
     parser = argparse.ArgumentParser(
         prog=f"python -m {python_module()}",
         description="Initialize subsystems.")
@@ -64,6 +71,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def run() -> None:
+    """Run the CLI tool."""
     args = parse_args()
     env_file: str | None = args.env
     if env_file:

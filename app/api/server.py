@@ -1472,6 +1472,8 @@ def setup(
         with db.get_session() as session:
             if tag_group is None:
                 tag_group = get_tag_group(session, name)
+            if tag_group is None:
+                raise ValueError(f"could not find tag group {name=}")
             clusters = get_tag_clusters(session, tag_group)
         return {
             "clusters": clusters,
@@ -1553,6 +1555,8 @@ def setup(
         with db.get_session() as session:
             if tag_group is None:
                 tag_group = get_tag_group(session, name)
+            if tag_group is None:
+                raise ValueError(f"could not find tag group {name=}")
             for main_id in main_ids:
                 tags[main_id] = sorted(
                     get_tags_for_main_id(session, tag_group, main_id))

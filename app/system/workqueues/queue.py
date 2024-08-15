@@ -109,6 +109,15 @@ PROCESS_HND_LOOKUP: dict[ProcessHandlerId, ProcessHandler] = {}
 
 
 def process_queue_info(process_queue_redis: Redis) -> ProcessQueueStats:
+    """
+    Get information about the queue status.
+
+    Args:
+        process_queue_redis (Redis): The processing queue redis.
+
+    Returns:
+        ProcessQueueStats: The statistics.
+    """
     process_queue_key = PROCESS_QUEUE_KEY
     process_active_key = PROCESS_ACTIVE_KEY
     process_error_key = PROCESS_ERROR_KEY
@@ -126,6 +135,7 @@ def process_queue_info(process_queue_redis: Redis) -> ProcessQueueStats:
 
 
 NS_HND = uuid.UUID("9e7a13e0b1bd4366be1ac97c5f99943f")
+"""The UUID namespace for processing handlers."""
 
 
 def register_process_queue(
@@ -133,6 +143,20 @@ def register_process_queue(
         convert_to_json: Callable[[PL], dict[str, str]],
         convert_from_json: Callable[[dict[str, str]], PL],
         compute: Callable[[PL], Any]) -> ProcessEnqueue[PL]:
+    """
+    Register a processing queue.
+
+    Args:
+        name (str): The readable name of the queue.
+        convert_to_json (Callable[[PL], dict[str, str]]): Converting a payload
+            to JSON.
+        convert_from_json (Callable[[dict[str, str]], PL]): Converting a JSON
+            to payload.
+        compute (Callable[[PL], Any]): Processing a task.
+
+    Returns:
+        ProcessEnqueue[PL]: Function to enqueue elements to the queue.
+    """
     hnd_name = f"{name}-{uuid.uuid5(NS_HND, name).hex}"
     if hnd_name in PROCESS_HND_LOOKUP:
         raise ValueError(f"cannot register {name} twice!")
@@ -163,6 +187,16 @@ def register_process_queue(
 def process_entry_to_json(
         process_hnd: ProcessHandler[PL],
         entry: ProcessEntry[PL]) -> ProcessEntryJSON:
+    """
+    Convert a queue entry to JSON.
+
+    Args:
+        process_hnd (ProcessHandler[PL]): The processing handler.
+        entry (ProcessEntry[PL]): The entry.
+
+    Returns:
+        ProcessEntryJSON: The entry as JSON.
+    """
     convert_to_json = process_hnd["convert_to_json"]
     return {
         "payload": convert_to_json(entry["payload"]),
@@ -173,6 +207,16 @@ def process_entry_to_json(
 def process_entry_from_json(
         process_hnd: ProcessHandler[PL],
         entry: ProcessEntryJSON) -> ProcessEntry[PL]:
+    """
+    Convert a queue entry from JSON.
+
+    Args:
+        process_hnd (ProcessHandler[PL]): The processing handler.
+        entry (ProcessEntryJSON): The entry as JSON.
+
+    Returns:
+        ProcessEntry[PL]: The entry.
+    """
     convert_from_json = process_hnd["convert_from_json"]
     return {
         "payload": convert_from_json(entry["payload"]),
@@ -181,22 +225,67 @@ def process_entry_from_json(
 
 
 def process_entry_to_redis(entry: ProcessEntryJSON) -> str:
+    """
+    Convert a queue entry to redis.
+
+    Args:
+        entry (ProcessEntryJSON): The processing queue entry.
+
+    Returns:
+        str: The redis value string.
+    """
     return json_compact_str(entry)
 
 
 def process_error_to_redis(error: ProcessError) -> str:
+    """
+    Convert a queue error to redis.
+
+    Args:
+        error (ProcessError): The error.
+
+    Returns:
+        str: The redis value string.
+    """
     return json_compact_str(error)
 
 
 def get_process_error(obj_str: str) -> ProcessError:
+    """
+    Convert a queue error from redis.
+
+    Args:
+        obj_str (str): The redis value string.
+
+    Returns:
+        ProcessError: The error.
+    """
     return json_read_str(obj_str)
 
 
 def get_process_entry_json(obj_str: str) -> ProcessEntryJSON:
+    """
+    Convert a queue entry from redis.
+
+    Args:
+        obj_str (str): The redis value string.
+
+    Returns:
+        ProcessEntryJSON: The entry JSON.
+    """
     return json_read_str(obj_str)
 
 
 def get_process_queue_errors(process_queue_redis: Redis) -> list[ProcessError]:
+    """
+    Get processing queue errors.
+
+    Args:
+        process_queue_redis (Redis): The processing queue redis.
+
+    Returns:
+        list[ProcessError]: The errors.
+    """
     process_error_key = PROCESS_ERROR_KEY
 
     return [
@@ -206,6 +295,15 @@ def get_process_queue_errors(process_queue_redis: Redis) -> list[ProcessError]:
 
 
 def requeue_errors(process_queue_redis: Redis) -> bool:
+    """
+    Requeues errors by putting the tasks back to the processing queue.
+
+    Args:
+        process_queue_redis (Redis): The processing queue redis.
+
+    Returns:
+        bool: Whether any errors were requeued.
+    """
     process_queue_key = PROCESS_QUEUE_KEY
     process_error_key = PROCESS_ERROR_KEY
 
@@ -228,10 +326,22 @@ def requeue_errors(process_queue_redis: Redis) -> bool:
 
 
 def log_process(msg: str) -> None:
+    """
+    Log information about the processing queue.
+
+    Args:
+        msg (str): The message.
+    """
     print(f"{get_time_str()} QUEUE: {msg}")
 
 
 def maybe_process_thread(process_queue_redis: Redis) -> None:
+    """
+    Start the processing queue processing thread if needed.
+
+    Args:
+        process_queue_redis (Redis): The processing queue redis.
+    """
     global PROCESS_THREAD  # pylint: disable=global-statement
 
     process_queue_key = PROCESS_QUEUE_KEY

@@ -20,7 +20,7 @@ from typing import TypedDict
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from app.misc.util import get_time_str, json_compact_str, json_read_str
+from app.misc.util import json_compact_str, json_read_str
 from app.system.db.base import (
     TagCluster,
     TagClusterMember,
@@ -67,8 +67,7 @@ def create_tag_group(
 
     Args:
         session (Session): The database session.
-        name (str | None): The optional name of the tag group. If unspecified
-            the current time is used.
+        name (str | None): The name of the tag group.
         is_updating (bool): Whether the tag group will update the platforms'
             tagging tables.
         cluster_args (dict): Arguments to the clustering algorithm.
@@ -76,8 +75,6 @@ def create_tag_group(
     Returns:
         int: The tag group id.
     """
-    if name is None:
-        name = f"tag {get_time_str()}"
     stmt = sa.insert(TagGroupTable).values(
         name=name,
         is_updating=is_updating,
@@ -89,7 +86,7 @@ def create_tag_group(
     return int(row_id)
 
 
-def get_tag_group(session: Session, name: str | None) -> int:
+def get_tag_group(session: Session, name: str | None) -> int | None:
     """
     Get a tag group by name.
 
@@ -102,7 +99,7 @@ def get_tag_group(session: Session, name: str | None) -> int:
         ValueError: If the tag group doesn't exist.
 
     Returns:
-        int: The tag group id.
+        int: The tag group id or None if the group does not exist.
     """
     stmt = sa.select(TagGroupTable.id)
     if name is not None:
@@ -113,7 +110,7 @@ def get_tag_group(session: Session, name: str | None) -> int:
     stmt = stmt.limit(1)
     tag_group = session.execute(stmt).scalar()
     if tag_group is None:
-        raise ValueError(f"could not find tag group {name=}")
+        return None
     return int(tag_group)
 
 
