@@ -205,6 +205,7 @@ def register_tagger(
                 entry,
                 process_queue_redis=process_queue_redis,
                 get_all_docs=get_all_docs,
+                doc_is_remove=doc_is_remove,
                 process_enqueue=process_enqueue)
         if entry["stage"] == "tag":
             return tagger_tag(
@@ -339,6 +340,7 @@ def tagger_init(
         *,
         process_queue_redis: Redis,
         get_all_docs: AllDocsFn,
+        doc_is_remove: IsRemoveFn,
         process_enqueue: ProcessEnqueue[TaggerPayload]) -> str:
     """
     Creates a new tag group and adds all documents to be processed.
@@ -348,6 +350,8 @@ def tagger_init(
         entry (InitTaggerPayload): The payload for creating the tag group.
         process_queue_redis (Redis): The processing queue redis.
         get_all_docs (AllDocsFn): Retrieves all documents for the given base.
+        doc_is_remove (IsRemoveFn): Whether a document (via main id) has been
+            removed.
         process_enqueue (ProcessEnqueue[TaggerPayload]): Enqueues the next
             step.
 
@@ -373,6 +377,12 @@ def tagger_init(
     for base in entry["bases"]:
         cur_main_ids: list[str] = []
         for cur_main_id in get_all_docs(base):
+            is_remove, error_remove = doc_is_remove(cur_main_id)
+            if error_remove is not None:
+                errors.append(error_remove)
+                continue
+            if is_remove:
+                continue
             cur_main_ids.append(cur_main_id)
         items_per = 100
         for ix in range(0, len(cur_main_ids), items_per):
