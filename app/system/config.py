@@ -16,7 +16,7 @@
 """The app configuration."""
 import json
 import os
-from typing import cast, TYPE_CHECKING, TypedDict
+from typing import cast, NoReturn, TYPE_CHECKING, TypedDict
 
 from app.misc.env import envload_bool, envload_int, envload_path, envload_str
 from app.misc.io import open_read, open_write
@@ -39,13 +39,22 @@ Config = TypedDict('Config', {
     "write_token": str,
     "tanuki": str,
 })
+"""The config object."""
 
 
 CONFIG: Config | None = None
+"""The cached config object."""
 CONFIG_PATH: str | None = None
+"""The cached config path."""
 
 
 def get_config_path() -> str:
+    """
+    Reads the config path from the environment.
+
+    Returns:
+        str: The path.
+    """
     global CONFIG_PATH  # pylint: disable=global-statement
 
     if CONFIG_PATH is None:
@@ -54,6 +63,12 @@ def get_config_path() -> str:
 
 
 def config_template() -> Config:
+    """
+    Create a config template.
+
+    Returns:
+        Config: The config template.
+    """
     default_conn: 'DBConfig' = {
         "dialect": "postgresql",
         "host": "localhost",
@@ -90,7 +105,16 @@ def config_template() -> Config:
     }
 
 
-def create_config_and_err(config_path: str) -> None:
+def create_config_and_err(config_path: str) -> NoReturn:
+    """
+    Creates a config template, writes it to the path and then errors out.
+
+    Args:
+        config_path (str): _description_
+
+    Raises:
+        ValueError: _description_
+    """
     with open_write(config_path, text=True) as fout:
         print(
             json.dumps(config_template(), indent=4, sort_keys=True),
@@ -102,6 +126,12 @@ def create_config_and_err(config_path: str) -> None:
 
 
 def get_config() -> Config:
+    """
+    Load the config.
+
+    Returns:
+        Config: The config object.
+    """
     global CONFIG  # pylint: disable=global-statement
 
     if CONFIG is not None:

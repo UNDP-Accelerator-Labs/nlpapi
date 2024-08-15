@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Start the NLP API app server."""
 import argparse
 import os
 import traceback
@@ -30,6 +31,12 @@ from app.misc.util import python_module
 
 
 def parse_args() -> argparse.Namespace:
+    """
+    Parses command line arguments.
+
+    Returns:
+        argparse.Namespace: The arguments.
+    """
     parser = argparse.ArgumentParser(
         prog=f"python -m {python_module()}",
         description="Run the API server")
@@ -55,6 +62,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def run() -> None:
+    """Start the app server."""
     args = parse_args()
     env_file: str | None = args.env
     if env_file:
