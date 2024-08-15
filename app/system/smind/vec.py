@@ -223,10 +223,12 @@ ResultChunk = TypedDict('ResultChunk', {
     "snippets": list[str],
     "meta": dict[MetaKey, list[str] | str | int],
 })
+"""A document result for a semantic search query."""
 QueryEmbed = TypedDict('QueryEmbed', {
     "hits": list[ResultChunk],
     "status": Literal["ok", "error"],
 })
+"""Query results for a semantic search query."""
 
 DocResult = TypedDict('DocResult', {
     "main_id": str,
@@ -239,6 +241,7 @@ DocResult = TypedDict('DocResult', {
     "embed": list[float],
     "meta": dict[MetaKey, list[str] | str | int],
 })
+"""A document result for a document lookup."""
 
 
 FILE_PROTOCOL = "file://"
@@ -1075,6 +1078,20 @@ def stat_embed(
         field: MetaKey,
         filters: dict[MetaKey, list[str]] | None,
         ) -> dict[str, int]:
+    """
+    Computes the number of documents of each variant of a given meta field
+    after applying a filter.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        field (MetaKey): The meta field to inspect.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+
+    Returns:
+        dict[str, int]: The variants of the meta field and their document
+            counts.
+    """
     query_filter = get_filter(
         filters, for_vec=False, skip_fields={field}, exclude_main_id=None)
     data_name = get_db_name(name, is_vec=False)
@@ -1117,6 +1134,15 @@ def stat_embed(
 
 
 def fill_meta_data(payload: Payload) -> MetaObjectOpt:
+    """
+    Create a meta data object from a data payload.
+
+    Args:
+        payload (Payload): The payload.
+
+    Returns:
+        MetaObjectOpt: The meta data object.
+    """
     meta: MetaObjectOpt = {}
     for key, value in payload.items():
         meta_info = unconvert_meta_key_data(key)
@@ -1140,6 +1166,19 @@ def get_filter(
         for_vec: bool,
         skip_fields: set[MetaKey] | None,
         exclude_main_id: str | None) -> Filter | None:
+    """
+    Convert a dictionary filter to the qdrant filter format.
+
+    Args:
+        filters (dict[MetaKey, list[str]] | None): The filter.
+        for_vec (bool): Whether the filter is for snippets (True) or document
+            data (False).
+        skip_fields (set[MetaKey] | None): Meta keys to skip if set.
+        exclude_main_id (str | None): If set, filters out the given main id.
+
+    Returns:
+        Filter | None: The filter or None if no filter was specified.
+    """
     if filters is None:
         return None
 
@@ -1185,6 +1224,18 @@ def process_meta(
         payload: Payload,
         defaults: dict[MetaKey, list[str] | str | int],
         ) -> list[str] | str | int:
+    """
+    Interprets the given meta field in the payload.
+
+    Args:
+        meta_key (MetaKey): The meta key.
+        payload (Payload): The payload.
+        defaults (dict[MetaKey, list[str] | str | int]): Meta field default
+            values.
+
+    Returns:
+        list[str] | str | int: The meta field value.
+    """
     res = payload.get(convert_meta_key_data(meta_key, None))
     if res is None:
         res = defaults.get(meta_key)
@@ -1203,6 +1254,17 @@ def get_meta_from_data_payload(
         payload: Payload,
         defaults: dict[MetaKey, list[str] | str | int],
         ) -> dict[MetaKey, list[str] | str | int]:
+    """
+    Gets all meta fields from the payload.
+
+    Args:
+        payload (Payload): The payload.
+        defaults (dict[MetaKey, list[str] | str | int]): Meta field default
+            values.
+
+    Returns:
+        dict[MetaKey, list[str] | str | int]: The meta field values.
+    """
     return {
         meta_key: process_meta(meta_key, payload, defaults)
         for meta_key in META_KEYS
@@ -1210,6 +1272,18 @@ def get_meta_from_data_payload(
 
 
 def get_doc(db: QdrantClient, name: str, main_id: str) -> DocResult | None:
+    """
+    Get the full information of the specified document.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        main_id (str): The main id.
+
+    Returns:
+        DocResult | None: The document information or None if the main id
+            doesn't exist in the database.
+    """
     data_name = get_db_name(name, is_vec=False)
     filter_data = Filter(
         must=[
@@ -1255,6 +1329,15 @@ def get_doc(db: QdrantClient, name: str, main_id: str) -> DocResult | None:
 
 
 def to_result(doc_result: DocResult) -> ResultChunk:
+    """
+    Convert a document result into a result chunk.
+
+    Args:
+        doc_result (DocResult): The document result.
+
+    Returns:
+        ResultChunk: The result chunk.
+    """
     return {
         "main_id": doc_result["main_id"],
         "base": doc_result["base"],
@@ -1280,6 +1363,25 @@ def search_docs(
         exclude_main_id: str | None,
         with_vectors: bool,
         ) -> list[DocResult]:
+    """
+    Find the closest documents to the given embedding. This uses the document
+    embedding (average of all snippet embeddings) instead of snippets.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        embed (list[float]): The embedding to search for.
+        offset (int | None): The offset. 0 if None.
+        limit (int): The number of documents to return.
+        score_threshold (float | None): If set limits the results by filtering
+            by score.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+        exclude_main_id (str | None): If set does not return the given main id.
+        with_vectors (bool): Whether to include in the response.
+
+    Returns:
+        list[DocResult]: The document results.
+    """
     data_name = get_db_name(name, is_vec=False)
     real_offset = 0 if offset is None else offset
     query_filter = get_filter(
@@ -1341,6 +1443,25 @@ def query_embed(
         score_threshold: float | None,
         filters: dict[MetaKey, list[str]] | None,
         ) -> list[ResultChunk]:
+    """
+    Find the closest documents to the given embedding using the snippet
+    embeddings.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        embed (list[float]): The embedding to search for.
+        offset (int | None): The offset. 0 if None.
+        limit (int): The number of documents to return.
+        hit_limit (int): The number of snippets to return for each document
+            hit.
+        score_threshold (float | None): If set limits the results by filtering
+            by score.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+
+    Returns:
+        list[ResultChunk]: The result chunks.
+    """
     # FIXME https://github.com/qdrant/qdrant/issues/3970 would be nice
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
@@ -1414,6 +1535,21 @@ def query_docs(
         filters: dict[MetaKey, list[str]] | None,
         order_by: MetaKey | tuple[MetaKey, str] | None,
         ) -> list[ResultChunk]:
+    """
+    Return documents in the database.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        offset (int | None): The offset. 0 if None.
+        limit (int): The number of documents to return.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+        order_by (MetaKey | tuple[MetaKey, str] | None): Meta key or keys to
+            order the results by.
+
+    Returns:
+        list[ResultChunk]: The result chunks.
+    """
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     print(f"scroll {name} offset={real_offset} limit={total_limit}")

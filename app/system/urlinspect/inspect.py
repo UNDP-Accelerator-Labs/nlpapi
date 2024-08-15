@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Extracts country codes from URLs."""
 import pandas as pd
 
 
@@ -20,6 +21,12 @@ COUNTRIES: dict[str, str] | None = None
 
 
 def get_country_lookup() -> dict[str, str]:
+    """
+    Load the lookup for country codes.
+
+    Returns:
+        dict[str, str]: Mapping of country name to ISO-3.
+    """
     global COUNTRIES  # pylint: disable=global-statement
 
     if COUNTRIES is None:
@@ -34,11 +41,29 @@ def get_country_lookup() -> dict[str, str]:
 
 
 def country_lookup(name: str) -> str | None:
+    """
+    Looks up a country code.
+
+    Args:
+        name (str): The country name.
+
+    Returns:
+        str | None: The ISO-3 code or None.
+    """
     countries = get_country_lookup()
     return countries.get(name)
 
 
 def inspect_url(url: str) -> str | None:
+    """
+    Extracts a country code from the given URL.
+
+    Args:
+        url (str): The URL.
+
+    Returns:
+        str | None: The ISO-3 code or None.
+    """
     purl = url.removeprefix(UNDP_PREFIX)
     for lang in LANGS:
         turl = purl.removeprefix(f"{lang}/")
@@ -60,6 +85,7 @@ def inspect_url(url: str) -> str | None:
 
 
 UNDP_PREFIX = "https://www.undp.org/"
+"""Prefix of UNDP URLs."""
 
 
 REGIONS: set[str] = {
@@ -72,6 +98,7 @@ REGIONS: set[str] = {
     "latin-america",
     "pacific",
 }
+"""UNDP URL regions."""
 
 
 MISC_CATEGORIES: set[str] = {
@@ -99,6 +126,7 @@ MISC_CATEGORIES: set[str] = {
     "speeches",
     "stories",
 }
+"""Categories in URLs."""
 
 
 LANGS: set[str] = {
@@ -131,3 +159,4 @@ LANGS: set[str] = {
     "vi",
     "zh",
 }
+"""Language codes in URLs."""

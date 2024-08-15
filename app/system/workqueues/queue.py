@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Processing queues for tasks. Queues are stored in redis."""
 import threading
 import time
 import traceback
@@ -31,52 +32,80 @@ PL_contra = TypeVar('PL_contra', contravariant=True)
 
 class ProcessEnqueue(  # pylint: disable=too-few-public-methods
         Protocol[PL_contra]):
+    """Functioin enqueue a task."""
     def __call__(self, process_queue_redis: Redis, payload: PL_contra) -> None:
-        ...
+        """
+        Enqueues a task to the processing queue.
+
+        Args:
+            process_queue_redis (Redis): The processing queue redis.
+            payload (PL_contra): The task payload.
+        """
 
 
 ProcessHandlerId: TypeAlias = str
+"""Id for a processing queue handler."""
 
 
 class ProcessEntry(TypedDict, Generic[PL]):
+    """Entry in the processing queue."""
     payload: PL
+    """The task payload."""
     process: ProcessHandlerId
+    """The handler identifier."""
 
 
 ProcessEntryJSON = TypedDict('ProcessEntryJSON', {
     "payload": dict[str, str],
     "process": ProcessHandlerId,
 })
+"""Entry in the processing queue as JSON."""
 
 
 class ProcessError(ProcessEntryJSON):  # pylint: disable=inherit-non-class
+    """Error in the processing queue."""
     error: str
+    """The error."""
 
 
 ProcessQueueStats = TypedDict('ProcessQueueStats', {
     "queue": int,
-    "active": int,
+    "active": list[ProcessEntryJSON],
     "error": int,
 })
+"""Information about the current status of the processing queue."""
 
 
 class ProcessHandler(TypedDict, Generic[PL]):
+    """Handles tasks in the processing queue."""
     compute: Callable[[PL], Any]
+    """Compute the task result."""
     convert_to_json: Callable[[PL], dict[str, str]]
+    """Convert the payload to JSON."""
     convert_from_json: Callable[[dict[str, str]], PL]
+    """Convert the payload back from JSON."""
 
 
 PROCESS_LOCK = threading.RLock()
+"""The processing queue lock."""
 PROCESS_COND = threading.Condition(PROCESS_LOCK)
+"""The processing queue notification condition."""
 PROCESS_THREAD: threading.Thread | None = None
+"""The processing queue processing thread."""
 PROCESS_QUEUE_KEY = "process"
+"""Redis key for the processing queue tasks."""
 PROCESS_ACTIVE_KEY = "active"
+"""Redis key for the active tasks in the processing queue."""
 PROCESS_ERROR_KEY = "errors"
+"""Redis key for errors in the processing queue."""
 PROCESS_LOCK_KEY = "lock"
+"""Redis key lock for ensuring only one thread is processing the queue."""
 HB_TIMEOUT = 60.0  # 1min
+"""Heartbeat timeout in seconds."""
 
 
 PROCESS_HND_LOOKUP: dict[ProcessHandlerId, ProcessHandler] = {}
+"""Process handler lookup."""
 
 
 def process_queue_info(process_queue_redis: Redis) -> ProcessQueueStats:
@@ -86,12 +115,12 @@ def process_queue_info(process_queue_redis: Redis) -> ProcessQueueStats:
 
     with process_queue_redis.pipeline() as pipe:
         pipe.llen(process_queue_key)
-        pipe.llen(process_active_key)
+        pipe.lrange(process_active_key, 0, -1)
         pipe.llen(process_error_key)
-        queue_len, active_len, error_len = pipe.execute()
+        queue_len, actives, error_len = pipe.execute()
     return {
         "queue": queue_len,
-        "active": active_len,
+        "active": [get_process_entry_json(active) for active in actives],
         "error": error_len,
     }
 
