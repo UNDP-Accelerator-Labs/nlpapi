@@ -81,7 +81,7 @@ class TaggerProcessor(Protocol):  # pylint: disable=too-few-public-methods
 
 InitTaggerPayload = TypedDict('InitTaggerPayload', {
     "stage": Literal["init"],
-    "name": str | None,
+    "name": str,
     "is_updating": bool,
     "cluster_args": dict,
     "bases": list[str],
@@ -177,7 +177,7 @@ def register_tagger(
         if payload["stage"] == "init":
             return {
                 "stage": "init",
-                "name": payload["name"] if payload["name"] else None,
+                "name": payload["name"],
                 "bases": payload["bases"].split(","),
                 "is_updating": bool(int(payload["is_updating"])),
                 "cluster_args": json_read_str(payload["cluster_args"]),
@@ -243,6 +243,8 @@ def register_tagger(
             bases: list[str],
             is_updating: bool,
             cluster_args: dict) -> None:
+        if name is None:
+            name = f"tag {get_time_str()}"
         process_enqueue(
             process_queue_redis,
             {
@@ -365,13 +367,11 @@ def tagger_init(
     total = 0
     with db.get_session() as session:
         name = entry["name"]
-        if name is None:
-            name = f"tag {get_time_str()}"
-        cur_tag_group = get_tag_group(session, entry["name"])
+        cur_tag_group = get_tag_group(session, name)
         if cur_tag_group is None:
             cur_tag_group = create_tag_group(
                 session,
-                entry["name"],
+                name,
                 is_updating=entry["is_updating"],
                 cluster_args=entry["cluster_args"])
     for base in entry["bases"]:
