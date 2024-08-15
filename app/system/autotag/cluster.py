@@ -374,9 +374,14 @@ def tagger_init(
         cur_main_ids: list[str] = []
         for cur_main_id in get_all_docs(base):
             cur_main_ids.append(cur_main_id)
-        with db.get_session() as session:
-            add_tag_members(
-                db, session, cur_tag_group, cur_main_ids)
+        items_per = 100
+        for ix in range(0, len(cur_main_ids), items_per):
+            with db.get_session() as session:
+                add_tag_members(
+                    db,
+                    session,
+                    cur_tag_group,
+                    cur_main_ids[ix:ix + items_per])
         total += len(cur_main_ids)
     process_enqueue(
         process_queue_redis,
