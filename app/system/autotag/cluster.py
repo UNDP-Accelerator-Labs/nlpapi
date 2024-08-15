@@ -363,18 +363,19 @@ def tagger_init(
             entry["name"],
             is_updating=entry["is_updating"],
             cluster_args=entry["cluster_args"])
-        for base in entry["bases"]:
-            cur_main_ids: list[str] = []
-            for cur_main_id in get_all_docs(base):
-                cur_main_ids.append(cur_main_id)
+    for base in entry["bases"]:
+        cur_main_ids: list[str] = []
+        for cur_main_id in get_all_docs(base):
+            cur_main_ids.append(cur_main_id)
+        with db.get_session() as session:
             add_tag_members(
                 db, session, cur_tag_group, cur_main_ids)
-            total += len(cur_main_ids)
-        process_enqueue(
-            process_queue_redis,
-            {
-                "stage": "tag",
-            })
+        total += len(cur_main_ids)
+    process_enqueue(
+        process_queue_redis,
+        {
+            "stage": "tag",
+        })
     if errors:
         raise ValueError(
             f"errors while processing:\n{NL.join(errors)}")
