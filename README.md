@@ -37,7 +37,7 @@ You can also call individual lints via make. See `make help`.
 to fill in the correct values. Then run `make run-local` again. Also, makes
 sure to add the `gguf` file into the `models` folder (to run the LLM).
 
-You can force a vector database to be loaded by setting `NO_QDRANT=true` in the
+You can force a vector database to be loaded by setting `NO_QDRANT=false` in the
 env file. This, however, requires you to provide credentials for the qdrant
 database. It is not possible to access the qdrant database on Azure since it
 is private to the docker compose and doesn't expose any endpoints. However, you
