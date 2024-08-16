@@ -13,12 +13,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Test utility functions."""
 from typing import Any
 
 from app.misc.util import escape, retain_some, unescape
 
 
 def test_retain_some() -> None:
+    """Test the function `retain_some`."""
 
     def test_rs(
             input_arr: list[int],
@@ -104,6 +106,7 @@ def test_retain_some() -> None:
 
 
 def test_escape() -> None:
+    """Test the `escape` and `unescape` functions."""
 
     def test(text: str, subs: dict[str, str]) -> None:
         rsubs = {

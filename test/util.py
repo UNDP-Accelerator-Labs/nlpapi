@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Utilities for tests."""
 import collections
 import os
 import re
@@ -28,20 +29,54 @@ DEFAULT_TEST_DURATION = 10.0
 
 
 def listdir(path: str) -> list[str]:
+    """
+    List the content of a folder. This function exists to avoid dependencies
+    to other parts of the codebase.
+
+    Args:
+        path (str): The folder.
+
+    Returns:
+        list[str]: The files and folders inside the given folder.
+    """
     return sorted(os.listdir(path))
 
 
 def check_equal(a: pd.DataFrame, b: pd.DataFrame) -> None:
+    """
+    Check whether two dataframes are essentially the same.
+
+    Args:
+        a (pd.DataFrame): One dataframe.
+        b (pd.DataFrame): The other dataframe.
+    """
     pd_test.assert_frame_equal(a[sorted(a.columns)], b[sorted(b.columns)])
 
 
 def find_tests(folder: str) -> collections.abc.Iterable[str]:
+    """
+    Find test files in the given folder.
+
+    Args:
+        folder (str): The folder.
+
+    Yields:
+        str: The full path to the test file.
+    """
     for item in listdir(folder):
         if not os.path.isdir(item) and TEST_FILE_PATTERN.match(item):
             yield os.path.join(folder, item)
 
 
 def merge_results(base_folder: str, out_filename: str) -> None:
+    """
+    Merges results found in the `parts` subdirectory of the base folder.
+    Writes the merged test results to the out file.
+
+    Args:
+        base_folder (str): The base folder.
+        out_filename (str): The out file.
+    """
     xml_files = listdir(os.path.join(base_folder, "parts"))
 
     testsuites = ET.Element("testsuites")
@@ -81,6 +116,15 @@ def merge_results(base_folder: str, out_filename: str) -> None:
 
 
 def split_tests(filepath: str, total_nodes: int, cur_node: int) -> None:
+    """
+    Splits tests equally among available worker nodes.
+
+    Args:
+        filepath (str): The path to previous test results for timing
+            information.
+        total_nodes (int): The total amount of worker nodes.
+        cur_node (int): The identity of the current worker node.
+    """
     _, fname = os.path.split(filepath)
     base = "test"
     if XML_FILE_PATTERN.match(fname):
