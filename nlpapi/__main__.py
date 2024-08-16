@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""CLI for testing model setups."""
 import argparse
 import json
 import os
@@ -49,6 +50,12 @@ JSONPads = TypedDict('JSONPads', {
 
 
 def parse_args() -> argparse.Namespace:
+    """
+    Parse command line arguments.
+
+    Returns:
+        argparse.Namespace: The arguments.
+    """
     parser = argparse.ArgumentParser(
         description="Run scattermind of a batch of data.")
     parser.add_argument(
@@ -78,6 +85,15 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_config(config_fname: str) -> ScattermindAPI:
+    """
+    Load the scattermind API.
+
+    Args:
+        config_fname (str): The scattermind config file.
+
+    Returns:
+        ScattermindAPI: The scattermind API.
+    """
     with open(config_fname, "rb") as fin:
         config_obj = json.load(fin)
     return load_api(config_obj)
@@ -86,6 +102,17 @@ def load_config(config_fname: str) -> ScattermindAPI:
 def load_graph(
         smind: ScattermindAPI,
         graph_fname: str) -> tuple[GNamespace, str, list[str]]:
+    """
+    Load a model.
+
+    Args:
+        smind (ScattermindAPI): The scattermind API.
+        graph_fname (str): The graph file.
+
+    Returns:
+        tuple[GNamespace, str, list[str]]: The namespace, input field, and
+            output fields.
+    """
     with open(graph_fname, "rb") as fin:
         graph_def_obj = json.load(fin)
     ns = smind.load_graph(graph_def_obj)
@@ -111,6 +138,7 @@ def load_graph(
 
 
 def run() -> None:
+    """Run the process."""
     # ./run.sh
     # python -m nlpapi --config study/config.json --graph
     # study/graphs/graph_tags.json --input @sm_pads.json --output tags.csv

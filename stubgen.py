@@ -13,11 +13,19 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Helper to create type stubs."""
 import sys
 from typing import IO
 
 
 def process(fin: IO[str], fout: IO[str]) -> None:
+    """
+    Process a file.
+
+    Args:
+        fin (IO[str]): The input file handle.
+        fout (IO[str]): The output file handle.
+    """
     gap = 0
     max_len = 79
     prev_is_symbol = False
@@ -157,6 +165,13 @@ def process(fin: IO[str], fout: IO[str]) -> None:
 
 
 def run(fname_in: str, fname_out: str) -> None:
+    """
+    Process files.
+
+    Args:
+        fname_in (str): The input file.
+        fname_out (str): The output file.
+    """
     with open(fname_in, "r", encoding="utf-8") as fin:
         with open(fname_out, "a", encoding="utf-8") as fout:
             process(fin, fout)

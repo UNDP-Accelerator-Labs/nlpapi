@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""The types for the api endpoint results."""
 from typing import TypedDict
 
 from app.system.autotag.autotag import TagClusterEntry
@@ -22,16 +23,12 @@ from app.system.smind.vec import DBName, VecDBStat
 from app.system.workqueues.queue import ProcessError, ProcessQueueStats
 
 
-SourceResponse = TypedDict('SourceResponse', {
-    "source": str,
-})
-SourceListResponse = TypedDict('SourceListResponse', {
-    "sources": list[str],
-})
 UserResponse = TypedDict('UserResponse', {
     "uuid": str | None,
     "name": str | None,
 })
+"""Provides information about the currently logged in user: the uuid and
+display name."""
 VersionResponse = TypedDict('VersionResponse', {
     "app_name": str,
     "app_commit": str,
@@ -45,35 +42,49 @@ VersionResponse = TypedDict('VersionResponse', {
     "deepdives": list[str],
     "error": list[str] | None,
 })
+"""Provides information about the currently running server."""
+HeartbeatResponse = TypedDict('HeartbeatResponse', {
+    "okay": bool,
+})
+"""Heartbeat response."""
 StatsResponse = TypedDict('StatsResponse', {
     "vecdbs": list[VecDBStat],
     "queues": list[QueueStat],
     "process_queue": ProcessQueueStats,
 })
+"""Statistics about the current state of the app. """
 URLInspectResponse = TypedDict('URLInspectResponse', {
     "url": str,
     "iso3": str | None,
 })
+"""Information about a url."""
 DateResponse = TypedDict('DateResponse', {
     "date": str | None,
 })
+"""The date or `None` if no date could be found."""
 Snippy = TypedDict('Snippy', {
     "text": str,
     "offset": int,
 })
+"""A snippet. It contains the text and the offset in the fulltext."""
 SnippyResponse = TypedDict('SnippyResponse', {
     "count": int,
     "snippets": list[Snippy],
 })
+"""The number of snippets and the actual snippets in a list."""
 BuildIndexResponse = TypedDict('BuildIndexResponse', {
     "new_index_count": int,
 })
+"""Indicates the number of newly created indices."""
 CollectionResponse = TypedDict('CollectionResponse', {
     "collection_id": int,
 })
+"""The collection id."""
 CollectionStats = TypedDict('CollectionStats', {
     "segments": list[SegmentStats],
 })
+"""Segment statistics. Provides information about the progress of each
+snippet."""
 CollectionJSON = TypedDict('CollectionJSON', {
     "id": int,
     "user": str,
@@ -81,50 +92,67 @@ CollectionJSON = TypedDict('CollectionJSON', {
     "deep_dive_name": str,
     "is_public": bool,
 })
+"""Information about a collection."""
 CollectionListResponse = TypedDict('CollectionListResponse', {
     "collections": list[CollectionJSON],
 })
+"""All collections visible to the current user."""
 CollectionOptionsResponse = TypedDict('CollectionOptionsResponse', {
     "success": bool,
 })
+"""Whether the operation was successful."""
 DocumentResponse = TypedDict('DocumentResponse', {
     "document_ids": list[int],
 })
+"""List of document ids."""
 DocumentListResponse = TypedDict('DocumentListResponse', {
     "documents": list[DocumentObj],
     "is_readonly": bool,
 })
+"""All documents of a collection and information about whether the current
+user is allowed to modify the collection."""
 TagListResponse = TypedDict('TagListResponse', {
     "tags": dict[str, list[str]],
     "tag_group": int,
 })
+"""Tags (clusters) of a given set of main ids. The tag group is returned as
+well."""
 TagClustersResponse = TypedDict('TagClustersResponse', {
     "clusters": list[TagClusterEntry],
     "tag_group": int,
 })
+"""Clusters of a given tag group. The tag group is returned as well."""
 TagDocsResponse = TypedDict('TagDocsResponse', {
     "main_ids": list[str],
     "tag_group": int,
     "cluster_id": int,
 })
+"""All documents (main ids) with the given tag (cluster). The tag group and
+cluster id are returned as well."""
 FulltextResponse = TypedDict('FulltextResponse', {
     "content": str | None,
     "error": str | None,
 })
+"""Either the fulltext of a document or the error."""
 TitleResponse = TypedDict('TitleResponse', {
     "url": str | None,
     "title": str | None,
     "error": str | None,
 })
+"""Either the url and title of a document or the error."""
 TitlesResponse = TypedDict('TitlesResponse', {
     "info": list[TitleResponse],
 })
+"""Info about multiple documents."""
 RequeueResponse = TypedDict('RequeueResponse', {
     "done": bool,
 })
+"""Whether the queue operation was successful."""
 AddQueue = TypedDict('AddQueue', {
     "enqueued": bool,
 })
+"""Whether the element is successfully added to the queue."""
 ErrorProcessQueue = TypedDict('ErrorProcessQueue', {
     "errors": list[ProcessError],
 })
+"""Errors in the processing queue."""

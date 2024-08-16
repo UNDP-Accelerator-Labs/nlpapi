@@ -13,14 +13,24 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Compute usage statistics of certain NLP APIs."""
 from collections.abc import Callable
 
 
 LengthCounter = Callable[[str], str]
+"""Adds the length of the text to the length counter. Returns the text."""
 LengthResult = Callable[[], int]
+"""Returns the current total of the length counter."""
 
 
 def create_length_counter() -> tuple[LengthCounter, LengthResult]:
+    """
+    Creates a length counter pair.
+
+    Returns:
+        tuple[LengthCounter, LengthResult]: The counter to count processing
+            amount and a function to retrieve the result.
+    """
     total = 0
 
     def length_counter(text: str) -> str:

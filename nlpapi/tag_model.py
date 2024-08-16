@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Tagging model using KeyBERT."""
 import re
 import threading
 
@@ -50,10 +51,28 @@ EXCLUDE_TAGS = {"NNP", "NNPS"}
 
 
 def remove_numbers(text: str) -> str:
+    """
+    Remove numbers from the text.
+
+    Args:
+        text (str): The text.
+
+    Returns:
+        str: The transformed text.
+    """
     return REMOVE_NUMS.sub("", text)
 
 
 def remove_proper_nouns(text: str) -> str:
+    """
+    Remove nouns.
+
+    Args:
+        text (str): The text.
+
+    Returns:
+        str: The transformed text.
+    """
     pos_tags = pos_tag(word_tokenize(text))
     return " ".join((
         word
@@ -62,6 +81,15 @@ def remove_proper_nouns(text: str) -> str:
 
 
 def remove_emails_and_hyperlinks(text: str) -> str:
+    """
+    Remove emails and links.
+
+    Args:
+        text (str): The text.
+
+    Returns:
+        str: The transformed text.
+    """
     return FULL_URL.sub("", EMAIL.sub("", text))
 
 
@@ -69,6 +97,7 @@ LOCK = threading.RLock()
 
 
 class TagModelNode(Node):
+    """Tagging model using KeyBERT."""
     def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
         super().__init__(kind, graph, node_id)
         self._model: KeyBERT | None = None
@@ -139,12 +168,9 @@ class TagModelNode(Node):
             prep(tensor_to_str(val))
             for val in inputs.get_data("text").iter_values()
         ]
-        task_keyword_scores = model.extract_keywords(texts, top_n=top_n)
-        if len(texts) == 1:
-            # NOTE: fixing the extract_keywords "autocorrect"
-            task_keyword_scores = [task_keyword_scores]
-        for task, keyword_scores in zip(
-                inputs.get_current_tasks(), task_keyword_scores):
+        for task_ix, task in enumerate(inputs.get_current_tasks()):
+            keyword_scores = model.extract_keywords(
+                texts[task_ix], top_n=top_n)
             keywords: list[str] = []
             scores: list[float] = []
             print(keyword_scores)
@@ -158,7 +184,8 @@ class TagModelNode(Node):
                 [task],
                 {
                     "tags": state.create_single(
-                        str_to_tensor(",".join(keywords))),
+                        str_to_tensor(
+                            ",".join(keywords) if keywords else " ")),
                     "scores": state.create_single(
                         create_tensor(scores, dtype="float")),
                 })

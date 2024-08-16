@@ -13,12 +13,19 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""CLI for splitting and merging of unit tests and their results."""
 import argparse
 
 from .util import merge_results, split_tests
 
 
 def parse_args_split_tests(parser: argparse.ArgumentParser) -> None:
+    """
+    The command line arguments for splitting tests.
+
+    Args:
+        parser (argparse.ArgumentParser): The arguments.
+    """
     parser.add_argument(
         "--filepath",
         default="test-results/results.xml",
@@ -39,6 +46,12 @@ def parse_args_split_tests(parser: argparse.ArgumentParser) -> None:
 
 
 def parse_args_merge_results(parser: argparse.ArgumentParser) -> None:
+    """
+    The command line arguments for merging results.
+
+    Args:
+        parser (argparse.ArgumentParser): The arguments.
+    """
     parser.add_argument(
         "--dir",
         default="test-results",
@@ -53,6 +66,12 @@ def parse_args_merge_results(parser: argparse.ArgumentParser) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """
+    The command line arguments.
+
+    Returns:
+        argparse.ArgumentParser: The arguments.
+    """
     parser = argparse.ArgumentParser(
         description="Test Utilities")
     subparser = parser.add_subparsers(title="Commands")
@@ -75,6 +94,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def run() -> None:
+    """Start the CLI."""
     args = parse_args()
     args.func(args)
 

@@ -13,6 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Functions for loading document information. Documents are identified via
+main id. Main ids consist of a `base` (`solution`, `experiment`, `actionplan`,
+`blog`, or `rave_ce`) and the `doc_id` in that database. They are formatted
+like this: `<base>:<doc_id>`."""
 import traceback
 from collections.abc import Callable, Iterable
 from datetime import datetime
@@ -38,28 +42,73 @@ from app.system.stats import create_length_counter
 
 
 AllDocsFn: TypeAlias = Callable[[str], Iterable[str]]
+"""Function to retrieve all documents of a given base. The function returns an
+iterator of main ids."""
 IsRemoveFn: TypeAlias = Callable[[str], tuple[bool, str | None]]
+"""Whether a given main id denotes a document that was removed from the
+database (e.g., unpublished or deemed irrelevant). Note, the result is *not*
+a boolean but a tuple of a boolean and an optional error message. If the error
+is not None the boolean is undefined and cannot be used."""
 FullTextFn: TypeAlias = Callable[[str], tuple[str | None, str | None]]
+"""Function to retrieve the full text of a document specified as main id. The
+return value is a tuple of either the full text or the error."""
 TagFn: TypeAlias = Callable[[str], tuple[str | None, str]]
+"""Function to retrieve the tag (i.e., country) of a document specified as
+main id. The result is a tuple of tag or None (if the tag couldn't be
+determined) and the reasoning."""
 StatusDateTypeFn: TypeAlias = Callable[
     [str], tuple[tuple[DocStatus, str | None, str] | None, str | None]]
+"""Function to retrieve the status, date, and type of a document specified as
+main id. The result is a tuple of a tuple of status, date or None, and type,
+or the error."""
 
 
 class UrlTitleFn(Protocol):  # pylint: disable=too-few-public-methods
+    """Function to retrieve the url and title of a document specified as main
+    id. The result is a tuple of a tuple of url and title or the error."""
     def __call__(
             self,
             main_id: str,
             *,
             is_logged_in: bool) -> tuple[tuple[str, str] | None, str | None]:
-        ...
+        """
+        Returns the url and title of a document specified as main id.
+
+        Args:
+            main_id (str): The main id.
+            is_logged_in (bool): Whether the requestor has access to preview /
+                private documents.
+
+        Returns:
+            tuple[tuple[str, str] | None, str | None]: The url and title or the
+                error.
+        """
 
 
 def get_base_doc(main_id: str) -> tuple[str, int]:
+    """
+    Splits a main id into `base` and `doc_id`.
+
+    Args:
+        main_id (str): the main id.
+
+    Returns:
+        tuple[str, int]: The `base` and `doc_id`.
+    """
     base, doc_id_str = main_id.split(":", 1)
     return base.strip(), int(doc_id_str)
 
 
 def get_title(title: str | None) -> str | None:
+    """
+    Clean the title.
+
+    Args:
+        title (str | None): The title or None.
+
+    Returns:
+        str | None: The title if it was proper otherwise None.
+    """
     if title is not None and not f"{title}".strip():
         title = None
     if title is not None:
@@ -68,6 +117,16 @@ def get_title(title: str | None) -> str | None:
 
 
 def all_pad(db: DBConnector, base: str) -> Iterable[str]:
+    """
+    Get all pads from a platform base.
+
+    Args:
+        db (DBConnector): The platform's database connector.
+        base (str): The base.
+
+    Yields:
+        str: The main id.
+    """
     with db.get_session() as session:
         stmt = sa.select(PadTable.id).order_by(PadTable.id)
         for row in session.execute(stmt):
@@ -75,6 +134,16 @@ def all_pad(db: DBConnector, base: str) -> Iterable[str]:
 
 
 def all_blog(db: DBConnector, base: str) -> Iterable[str]:
+    """
+    Get all documents from a blog base.
+
+    Args:
+        db (DBConnector): The blog database connector.
+        base (str): The base.
+
+    Yields:
+        str: The main id.
+    """
     with db.get_session() as session:
         stmt = sa.select(ArticlesTable.id).order_by(ArticlesTable.id)
         for row in session.execute(stmt):
@@ -84,6 +153,16 @@ def all_blog(db: DBConnector, base: str) -> Iterable[str]:
 def create_all_docs(
         platforms: dict[str, DBConnector],
         blogs: dict[str, DBConnector]) -> AllDocsFn:
+    """
+    Create function to retrieve all documents of a base.
+
+    Args:
+        platforms (dict[str, DBConnector]): The platforms' database connectors.
+        blogs (dict[str, DBConnector]): The blogs' database connectors.
+
+    Returns:
+        AllDocsFn: The function.
+    """
 
     def get_all_docs(base: str) -> Iterable[str]:
         pdb = platforms.get(base)
@@ -99,6 +178,16 @@ def create_all_docs(
 
 
 def is_remove_pad(db: DBConnector, doc_id: int) -> bool:
+    """
+    Whether a pad got removed.
+
+    Args:
+        db (DBConnector): The platform's database connector.
+        doc_id (int): The pad id.
+
+    Returns:
+        bool: True, if the pad was removed.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             PadTable.status, PadTable.full_text, PadTable.title)
@@ -118,6 +207,16 @@ def is_remove_pad(db: DBConnector, doc_id: int) -> bool:
 
 
 def is_remove_blog(db: DBConnector, doc_id: int) -> bool:
+    """
+    Whether a document got removed from a blog database.
+
+    Args:
+        db (DBConnector): The blog's database connector.
+        doc_id (int): The document id.
+
+    Returns:
+        bool: True, if the document was removed.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             ArticlesTable.id,
@@ -145,6 +244,16 @@ def is_remove_blog(db: DBConnector, doc_id: int) -> bool:
 def create_is_remove(
         platforms: dict[str, DBConnector],
         blogs: dict[str, DBConnector]) -> IsRemoveFn:
+    """
+    Creates a function to check whether a document got removed.
+
+    Args:
+        platforms (dict[str, DBConnector]): The platforms' database connectors.
+        blogs (dict[str, DBConnector]): The blogs' database connectors.
+
+    Returns:
+        IsRemoveFn: The function.
+    """
 
     def get_is_remove(main_id: str) -> tuple[bool, str | None]:
         try:
@@ -172,6 +281,18 @@ def read_pad(
         *,
         combine_title: bool,
         ignore_unpublished: bool) -> tuple[str | None, str | None]:
+    """
+    Get the full text of a pad.
+
+    Args:
+        db (DBConnector): The platform's database connector.
+        doc_id (int): The pad id.
+        combine_title (bool): Whether to combine the title with the full text.
+        ignore_unpublished (bool): Whether to ignore unpublished pads.
+
+    Returns:
+        tuple[str | None, str | None]: The full text or the error.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             PadTable.status, PadTable.full_text, PadTable.title)
@@ -194,6 +315,18 @@ def read_blog(
         *,
         combine_title: bool,
         ignore_unpublished: bool) -> tuple[str | None, str | None]:
+    """
+    Get the full text of a blog database document.
+
+    Args:
+        db (DBConnector): The blog's database connector.
+        doc_id (int): The document id.
+        combine_title (bool): Whether to combine the title into the full text.
+        ignore_unpublished (bool): Whether to ignore unpublished documents.
+
+    Returns:
+        tuple[str | None, str | None]: The full text or the error.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             ArticlesTable.id,
@@ -219,6 +352,7 @@ def read_blog(
 
 
 FULL_TEXT_LRU: LRU[str, tuple[str | None, str | None]] = LRU(100)
+"""LRU cache for full text results."""
 
 
 def create_full_text(
@@ -228,6 +362,18 @@ def create_full_text(
         combine_title: bool,
         ignore_unpublished: bool,
         ) -> FullTextFn:
+    """
+    Creates a function to retrieve the full text of documents.
+
+    Args:
+        platforms (dict[str, DBConnector]): The platforms' database connectors.
+        blogs (dict[str, DBConnector]): The blogs' database connectors.
+        combine_title (bool): Whether to combine the title into the full text.
+        ignore_unpublished (bool): Whether to ignore unpublished documents.
+
+    Returns:
+        FullTextFn: The function.
+    """
 
     def get_full_text(main_id: str) -> tuple[str | None, str | None]:
         lru = FULL_TEXT_LRU
@@ -267,6 +413,7 @@ PLATFORM_URLS: dict[str, str] = {
     "experiment": (
         "https://experiments.sdg-innovation-commons.org/en/view/pad?id="),
 }
+"""Base URLs of the platforms."""
 
 
 def get_url_title_pad(
@@ -277,6 +424,20 @@ def get_url_title_pad(
         ignore_unpublished: bool,
         is_logged_in: bool,
         ) -> tuple[tuple[str, str | None] | None, str | None]:
+    """
+    Get the URL and title of a pad.
+
+    Args:
+        db (DBConnector): The platform's database connector.
+        base (str): The base.
+        doc_id (int): The pad id.
+        ignore_unpublished (bool): Whether to ignore unpublished pads.
+        is_logged_in (bool): Whether the requestor is logged in.
+
+    Returns:
+        tuple[tuple[str, str | None] | None, str | None]: The title and URL or
+            the error.
+    """
     url_base = PLATFORM_URLS.get(base)
     if url_base is None:
         return (None, f"unknown {base=}")
@@ -305,6 +466,18 @@ def get_url_title_blog(
         *,
         ignore_unpublished: bool,
         ) -> tuple[tuple[str, str | None] | None, str | None]:
+    """
+    Get the URL and title of a blog database document.
+
+    Args:
+        db (DBConnector): The blog's database connector.
+        doc_id (int): The document id.
+        ignore_unpublished (bool): Whether to ignore unpublished documents.
+
+    Returns:
+        tuple[tuple[str, str | None] | None, str | None]: The URL and title or
+            the error.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             ArticlesTable.id,
@@ -328,6 +501,19 @@ def create_url_title(
         *,
         get_full_text: FullTextFn,
         ignore_unpublished: bool) -> UrlTitleFn:
+    """
+    Create a function to get the URL and title of a document.
+
+    Args:
+        platforms (dict[str, DBConnector]): The platforms' database connectors.
+        blogs (dict[str, DBConnector]): The blogs' database connectors.
+        get_full_text (FullTextFn): The full text function for inferring the
+            title from the content.
+        ignore_unpublished (bool): Whether to ignore unpublished documents.
+
+    Returns:
+        UrlTitleFn: The function.
+    """
 
     def get_url_title(
             main_id: str,
@@ -385,6 +571,18 @@ def get_tag_pad(
         *,
         ignore_unpublished: bool,
         ) -> tuple[str | None, str]:
+    """
+    Get the tag (i.e., country) of a pad.
+
+    Args:
+        login_db (DBConnector): The login database connector.
+        db (DBConnector): The platform's database connector.
+        doc_id (int): The pad id.
+        ignore_unpublished (bool): Whether to ignore unpublished pads.
+
+    Returns:
+        tuple[str | None, str]: The tag or None or the error.
+    """
     with db.get_session() as session:
         stmt = sa.select(PadTable.status, PadTable.owner)
         stmt = stmt.where(PadTable.id == doc_id)
@@ -409,6 +607,17 @@ def get_tag_blog(
         *,
         ignore_unpublished: bool,
         ) -> tuple[str | None, str]:
+    """
+    Get the tag (i.e., country) of a blog database document.
+
+    Args:
+        db (DBConnector): The blog's database connector.
+        doc_id (int): The document id.
+        ignore_unpublished (bool): Whether to ignore unpublished documents.
+
+    Returns:
+        tuple[str | None, str]: The tag or None or the error.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             ArticlesTable.id,
@@ -428,6 +637,17 @@ def create_tag_fn(
         blogs: dict[str, DBConnector],
         *,
         ignore_unpublished: bool) -> TagFn:
+    """
+    Create a function to get the tag (i.e., country) of a document.
+
+    Args:
+        platforms (dict[str, DBConnector]): The platforms' database connectors.
+        blogs (dict[str, DBConnector]): The blogs' database connectors.
+        ignore_unpublished (bool): Whether to ignore unpublished documents.
+
+    Returns:
+        TagFn: The function.
+    """
 
     def get_tag(main_id: str) -> tuple[str | None, str]:
         try:
@@ -460,12 +680,14 @@ DOC_TYPES: dict[str, str] = {
     "actionplan": "action plan",
     "experiment": "experiment",
 }
+"""Base to document type."""
 
 
 STATUS_MAP: dict[int, DocStatus] = {
     2: "preview",
     3: "public",
 }
+"""Status integer to string."""
 
 
 def get_status_date_type_pad(
@@ -475,6 +697,19 @@ def get_status_date_type_pad(
         *,
         ignore_unpublished: bool,
         ) -> tuple[tuple[DocStatus, str | None, str] | None, str | None]:
+    """
+    Get the status, date, and type of a pad.
+
+    Args:
+        db (DBConnector): The platform's database connector.
+        base (str): The base.
+        doc_id (int): The pad id.
+        ignore_unpublished (bool): Whether to ignore unpublished pads.
+
+    Returns:
+        tuple[tuple[DocStatus, str | None, str] | None, str | None]: The
+            status, date or None, and type or the error.
+    """
     with db.get_session() as session:
         stmt = sa.select(PadTable.status, PadTable.update_at)
         stmt = stmt.where(PadTable.id == doc_id)
@@ -503,6 +738,18 @@ def get_status_date_type_blog(
         *,
         ignore_unpublished: bool,
         ) -> tuple[tuple[DocStatus, str | None, str] | None, str | None]:
+    """
+    Get the status, date, and type of a blog database document.
+
+    Args:
+        db (DBConnector): The blog's database connector.
+        doc_id (int): The document id.
+        ignore_unpublished (bool): Whether to ignore unpublished documents.
+
+    Returns:
+        tuple[tuple[DocStatus, str | None, str] | None, str | None]: The
+            status, date or None, and type or the error.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             ArticlesTable.id,
@@ -541,6 +788,17 @@ def create_status_date_type(
         blogs: dict[str, DBConnector],
         *,
         ignore_unpublished: bool) -> StatusDateTypeFn:
+    """
+    Create a function to get the status, date, and type of a document.
+
+    Args:
+        platforms (dict[str, DBConnector]): The platforms' database connectors.
+        blogs (dict[str, DBConnector]): The blogs' database connectors.
+        ignore_unpublished (bool): Whether to ignore unpublished documents.
+
+    Returns:
+        StatusDateTypeFn: The function.
+    """
 
     def get_status_date_type(
             main_id: str,

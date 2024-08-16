@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Definitions of all required tables."""
 import numpy as np
 import sqlalchemy as sa
 from citext import CIText  # type: ignore
@@ -22,16 +23,39 @@ from sqlalchemy.orm.decl_api import DeclarativeMeta
 
 
 COUNTRY_MAX_LEN = 5
+"""Maximum length of iso-3 countries. Contains some extra space for future
+expansions."""
 DATE_STRING_LEN = 10
+"""Maximum length of a date string."""
 VEC_DB_NAME_LEN = 40
+"""Maximum length of a vector database name."""
 MAIN_ID_LEN = 40
+"""Maximum length of a main id."""
 
 
 def adapt_numpy_float64(numpy_float64: np.float64) -> AsIs:
+    """
+    Allow numpy floats as floats.
+
+    Args:
+        numpy_float64 (np.float64): The numpy float.
+
+    Returns:
+        AsIs: Alias.
+    """
     return AsIs(numpy_float64)
 
 
 def adapt_numpy_int64(numpy_int64: np.int64) -> AsIs:
+    """
+    Allow numpy integers as integers.
+
+    Args:
+        numpy_int64 (np.int64): The numpy integer.
+
+    Returns:
+        AsIs: Alias.
+    """
     return AsIs(numpy_int64)
 
 
@@ -44,6 +68,7 @@ mapper_registry = registry()
 
 class Base(
         metaclass=DeclarativeMeta):  # pylint: disable=too-few-public-methods
+    """The base for all tables. Provides necessary meta fields."""
     __abstract__ = True
     __table__: sa.Table
 
@@ -61,6 +86,7 @@ LOCATION_CACHE_ID_SEQ: sa.Sequence = sa.Sequence(
 
 
 class LocationCache(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi location_cache table. Caches queries to OpenCage."""
     __tablename__ = "location_cache"
 
     query = sa.Column(
@@ -86,6 +112,8 @@ class LocationCache(Base):  # pylint: disable=too-few-public-methods
 
 
 class LocationEntries(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi location_entries table. Contains the actual results from
+    OpenCage."""
     __tablename__ = "location_entries"
 
     location_id = sa.Column(
@@ -108,6 +136,7 @@ class LocationEntries(Base):  # pylint: disable=too-few-public-methods
 
 
 class LocationUsers(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi location_users table. User statistics of the location api."""
     __tablename__ = "location_users"
 
     userid: sa.Column[sa.Uuid] = sa.Column(
@@ -126,6 +155,8 @@ class LocationUsers(Base):  # pylint: disable=too-few-public-methods
 
 
 class QueryLog(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi query_log table. Logs and statistics of semantic search
+    queries."""
     __tablename__ = "query_log"
 
     vecdb = sa.Column(
@@ -154,10 +185,18 @@ class QueryLog(Base):  # pylint: disable=too-few-public-methods
 
 
 LLM_CHUNK_SIZE = 4000
+"""Default chunk size for LLM processing."""
 LLM_CHUNK_PADDING = 1000
+"""Default padding size for LLM processing."""
 
 
 class DeepDivePrompt(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi deep_dive_prompt table. Defines a prompt for deep dives.
+    If `categories` is `NULL` the prompt is a verification prompt otherwise
+    `categories` must contain a comma separated list of categories. Note, the
+    LLM needs to be separately instructed (via `main_prompt`) to generate those
+    categories. `post_prompt` is a system prompt that gets inserted after the
+    payload if set."""
     __tablename__ = "deep_dive_prompt"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -168,6 +207,9 @@ class DeepDivePrompt(Base):  # pylint: disable=too-few-public-methods
 
 
 class DeepDiveProcess(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi deep_dive_process table. Defines a deep dive process by
+    combining one verification and one category prompt. The name must be unique
+    as it is used to identify a process."""
     __tablename__ = "deep_dive_process"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -193,6 +235,8 @@ class DeepDiveProcess(Base):  # pylint: disable=too-few-public-methods
 
 
 class DeepDiveCollection(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi deep_dive_collection table. A collection of documents for a
+    deep dive."""
     __tablename__ = "deep_dive_collection"
 
     id = sa.Column(
@@ -215,6 +259,10 @@ DEEP_DIVE_ELEMENT_ID_SEQ: sa.Sequence = sa.Sequence(
 
 
 class DeepDiveElement(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi deep_dive_element table. Documents of deep dive collections.
+    Initially all results are `NULL`. LLM processing works through all
+    unfinished elements. For processing, each entry generates segments to be
+    processed."""
     __tablename__ = "deep_dive_element"
 
     main_id = sa.Column(sa.String(MAIN_ID_LEN), primary_key=True)
@@ -247,6 +295,11 @@ DEEP_DIVE_SEGMENT_ID_SEQ: sa.Sequence = sa.Sequence(
 
 
 class DeepDiveSegment(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi deep_dive_segment table. The segments of the documents of
+    a deep dive collection. Once processing of a document is fully complete
+    the segments get removed after updating the elements table. If an error
+    occurred the segments don't get removed to allow for requeueing only the
+    erroneous segments."""
     __tablename__ = "deep_dive_segment"
 
     id = sa.Column(
@@ -276,6 +329,7 @@ class DeepDiveSegment(Base):  # pylint: disable=too-few-public-methods
 
 
 class TagGroupTable(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi tag_group table. Defines a tag group."""
     __tablename__ = "tag_group"
 
     id = sa.Column(
@@ -290,6 +344,7 @@ class TagGroupTable(Base):  # pylint: disable=too-few-public-methods
 
 
 class TagGroupMembers(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi tag_group_members table. Documents of a tag group."""
     __tablename__ = "tag_group_members"
 
     tag_group = sa.Column(
@@ -305,6 +360,7 @@ class TagGroupMembers(Base):  # pylint: disable=too-few-public-methods
 
 
 class TagNamesTable(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi tag_names table. Tag (raw keyword) ranges for tag groups."""
     __tablename__ = "tag_names"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -327,6 +383,7 @@ class TagNamesTable(Base):  # pylint: disable=too-few-public-methods
 
 
 class TagCluster(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi tag_cluster table. Tag clusters."""
     __tablename__ = "tag_cluster"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -341,6 +398,8 @@ class TagCluster(Base):  # pylint: disable=too-few-public-methods
 
 
 class TagClusterMember(Base):  # pylint: disable=too-few-public-methods
+    """The nlpapi tag_cluster_member table. Keywords associated with tag
+    clusters."""
     __tablename__ = "tag_cluster_member"
 
     tag_cluster = sa.Column(
@@ -358,6 +417,7 @@ class TagClusterMember(Base):  # pylint: disable=too-few-public-methods
 
 
 class SessionTable(Base):  # pylint: disable=too-few-public-methods
+    """The login session table."""
     __tablename__ = "session"
 
     sid = sa.Column(sa.Text(), nullable=False, primary_key=True)
@@ -366,6 +426,7 @@ class SessionTable(Base):  # pylint: disable=too-few-public-methods
 
 
 class UsersTable(Base):  # pylint: disable=too-few-public-methods
+    """The login users table."""
     __tablename__ = "users"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -392,6 +453,7 @@ class UsersTable(Base):  # pylint: disable=too-few-public-methods
 
 
 class GlobalTagsTable(Base):  # pylint: disable=too-few-public-methods
+    """The login tags table."""
     __tablename__ = "tags"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -412,6 +474,7 @@ class GlobalTagsTable(Base):  # pylint: disable=too-few-public-methods
 
 
 class PadTable(Base):  # pylint: disable=too-few-public-methods
+    """Platforms' pads table."""
     __tablename__ = "pads"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -442,6 +505,7 @@ class PadTable(Base):  # pylint: disable=too-few-public-methods
 
 
 class PlatformTaggingTable(Base):  # pylint: disable=too-few-public-methods
+    """Platforms' tagging table."""
     __tablename__ = "tagging"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -465,6 +529,7 @@ class PlatformTaggingTable(Base):  # pylint: disable=too-few-public-methods
 
 
 class ArticlesTable(Base):  # pylint: disable=too-few-public-methods
+    """The blogs articles table."""
     __tablename__ = "articles"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -495,6 +560,7 @@ class ArticlesTable(Base):  # pylint: disable=too-few-public-methods
 
 
 class ArticleContentTable(Base):  # pylint: disable=too-few-public-methods
+    """The blogs article_content table."""
     __tablename__ = "article_content"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
@@ -519,6 +585,7 @@ class ArticleContentTable(Base):  # pylint: disable=too-few-public-methods
 
 
 class ArticlesRawHTMLTable(Base):  # pylint: disable=too-few-public-methods
+    """The blogs raw_html table."""
     __tablename__ = "raw_html"
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)

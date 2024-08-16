@@ -29,6 +29,7 @@ buildtmp
 
 !deploy/*.json
 !deploy/graphs/*.json
+!sample.config.json
 deploy/default.env
 /userdata/
 

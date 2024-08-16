@@ -1,0 +1,76 @@
+{
+  "appsecret": "<APP_SECRET>",
+  "blogs": {
+    "blog": {
+      "dbname": "blogs",
+      "dialect": "<BLOGS_DB_DIALECT>",
+      "host": "<BLOGS_DB_HOST>",
+      "passwd": "<BLOGS_DB_PASSWORD>",
+      "port": 5432,
+      "schema": "<BLOGS_DB_SCHEMA>",
+      "user": "<BLOGS_DB_USERNAME>"
+    },
+    "rave_ce": {
+      "dbname": "circular_economy_rave",
+      "dialect": "<BLOGS_DB_DIALECT>",
+      "host": "<BLOGS_DB_HOST>",
+      "passwd": "<BLOGS_DB_PASSWORD>",
+      "port": 5432,
+      "schema": "<BLOGS_DB_SCHEMA>",
+      "user": "<BLOGS_DB_USERNAME>"
+    }
+  },
+  "db": {
+    "dbname": "<LOGIN_DB_NAME>",
+    "dialect": "<LOGIN_DB_DIALECT>",
+    "host": "<LOGIN_DB_HOST>",
+    "passwd": "<LOGIN_DB_PASSWORD>",
+    "port": 5432,
+    "schema": "<LOGIN_DB_SCHEMA>",
+    "user": "<LOGIN_DB_USERNAME>"
+  },
+  "graphs": "local/graphs/",
+  "opencage": "<OPENCAGE_API>",
+  "platforms": {
+    "actionplan": {
+      "dbname": "action_plans_platform",
+      "dialect": "<LOGIN_DB_DIALECT>",
+      "host": "<LOGIN_DB_HOST>",
+      "passwd": "<LOGIN_DB_PASSWORD>",
+      "port": 5432,
+      "schema": "<LOGIN_DB_SCHEMA_PLATFORM>",
+      "user": "<LOGIN_DB_USERNAME>"
+    },
+    "experiment": {
+      "dbname": "experiments_platform",
+      "dialect": "<LOGIN_DB_DIALECT>",
+      "host": "<LOGIN_DB_HOST>",
+      "passwd": "<LOGIN_DB_PASSWORD>",
+      "port": 5432,
+      "schema": "<LOGIN_DB_SCHEMA_PLATFORM>",
+      "user": "<LOGIN_DB_USERNAME>"
+    },
+    "login": {
+      "dbname": "postgres",
+      "dialect": "<LOGIN_DB_DIALECT>",
+      "host": "<LOGIN_DB_HOST>",
+      "passwd": "<LOGIN_DB_PASSWORD>",
+      "port": 5432,
+      "schema": "<LOGIN_DB_SCHEMA_PLATFORM>",
+      "user": "<LOGIN_DB_USERNAME>"
+    },
+    "solution": {
+      "dbname": "solutions_mapping_platform",
+      "dialect": "<LOGIN_DB_DIALECT>",
+      "host": "<LOGIN_DB_HOST>",
+      "passwd": "<LOGIN_DB_PASSWORD>",
+      "port": 5432,
+      "schema": "<LOGIN_DB_SCHEMA_PLATFORM>",
+      "user": "<LOGIN_DB_USERNAME>"
+    }
+  },
+  "smind": "local/smind-config.json",
+  "tanuki": "tanuki",
+  "vector": null,
+  "write_token": "write"
+}

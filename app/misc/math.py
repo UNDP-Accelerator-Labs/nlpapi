@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Useful math operations."""
 import numpy as np
 
 
@@ -20,6 +21,17 @@ def dot_order_np(
         ref_embed: np.ndarray,  # 1 x dim
         cand_embeds: np.ndarray,  # n x dim
         ) -> list[int]:
+    """
+    Computes the dot product and returns the indices of the elements in order
+    of relevance.
+
+    Args:
+        ref_embed (np.ndarray): The reference embedding.
+        cand_embeds (np.ndarray): The candidate embeddings.
+
+    Returns:
+        list[int]: The order of indices into the candidate embedding list.
+    """
     mat_embed = cand_embeds.T  # dim x n
     dots = np.matmul(ref_embed, mat_embed).ravel()
     return list(np.argsort(dots))[::-1]
@@ -29,6 +41,22 @@ def dot_order(
         embed: list[float],
         sembeds: list[tuple[tuple[int, str], list[float]]],
         hit_limit: int) -> dict[int, list[str]]:
+    """
+    Orders a list of text snippets according to their dot proximity of a
+    reference embedding.
+
+    Args:
+        embed (list[float]): The reference embedding.
+        sembeds (list[tuple[tuple[int, str], list[float]]]): The candidates.
+            The first element tuple contains the position in the overall result
+            and the text of the snippets. The second element list contains the
+            embedding.
+        hit_limit (int): The maximum number of hits to return.
+
+    Returns:
+        dict[int, list[str]]: A mapping of the position in the overall result
+            to the ordered list of snippets.
+    """
     mat_ref = np.array([embed])  # 1 x len(embed)
 
     def dot_hit(group: list[tuple[str, list[float]]]) -> list[str]:

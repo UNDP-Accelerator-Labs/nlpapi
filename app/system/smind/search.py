@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""High level access to semantic search functionality."""
 import hashlib
 import re
 import time
@@ -78,16 +79,31 @@ AddEmbed = TypedDict('AddEmbed', {
     "snippets": int,
     "failed": int,
 })
+"""Information about the document added to the vector database. `previous` is
+the previous number of snippets, `snippets` is the new number of snippets, and
+`failed` is snippets that could not be added."""
 
 
 class GetVecDB(Protocol):  # pylint: disable=too-few-public-methods
+    """Function to get the internal name of a vector database."""
     def __call__(
             self,
             *,
             name: Literal["main", "test"],
             force_clear: bool,
             force_index: bool) -> str:
-        ...
+        """
+        Get the internal name from the external vector database name.
+
+        Args:
+            name (Literal['main', 'test']): The external database name.
+            force_clear (bool): Whether to force dropping the entire database.
+                This is an irreversible action.
+            force_index (bool): Whether to force full index creation.
+
+        Returns:
+            str: The internal database name.
+        """
 
 
 ClearResponse = TypedDict('ClearResponse', {
@@ -104,6 +120,7 @@ ClearResponse = TypedDict('ClearResponse', {
     "index_vecdb_main": bool,
     "index_vecdb_test": bool,
 })
+"""Which app components were cleared / deleted / dropped / indexed."""
 
 
 def vec_clear(
@@ -125,6 +142,31 @@ def vec_clear(
         clear_vecdb_all: bool,
         index_vecdb_main: bool,
         index_vecdb_test: bool) -> ClearResponse:
+    """
+    Clears / indexes app components.
+
+    Args:
+        vec_db (QdrantClient): The vector database client.
+        smind_config (str): The scattermind config file.
+        process_queue_redis (Redis): The processing queue redis.
+        qdrant_cache (Redis): The vector database cache redis.
+        get_vec_db (GetVecDB): Function to get the internal name of a database.
+        clear_rmain (bool): Clears the scattermind main redis.
+        clear_rdata (bool): Clears the scattermind data redis.
+        clear_rcache (bool): Clears the scattermind cache redis.
+        clear_rbody (bool): Clears the scattermind body redis.
+        clear_rworker (bool): Clears the scattermind worker redis.
+        clear_process_queue (bool): Clears the processing queue redis.
+        clear_veccache (bool): Clears the vector database cache.
+        clear_vecdb_main (bool): Drops the main vector database.
+        clear_vecdb_test (bool): Drops the test vector database.
+        clear_vecdb_all (bool): Drops all vector databases.
+        index_vecdb_main (bool): Indexes the main vector database.
+        index_vecdb_test (bool): Indexes the test vector database.
+
+    Returns:
+        ClearResponse: Which app components were dropped / cleared / indexed.
+    """
     if clear_vecdb_all and (not clear_vecdb_main or not clear_vecdb_test):
         raise ValueError(
             "clear_vecdb_all must have "
@@ -222,6 +264,7 @@ def vec_clear(
 
 
 LOW_CUTOFF_DATE = parse_time_str("1971-01-01T00:00:00.000+0000").date()
+"""Cutoff date for invalid / non-sensical dates."""
 
 
 def vec_add(
@@ -240,6 +283,30 @@ def vec_add(
         url: str,
         title: str | None,
         meta_obj: MetaObject) -> AddEmbed:
+    """
+    Adds a document to the vector database.
+
+    Args:
+        db (DBConnector): The database connector.
+        vec_db (QdrantClient): The vector database client.
+        input_str (str): The full document content.
+        qdrant_cache (Redis): The vector database cache redis.
+        articles (str): The internal vector database name.
+        articles_graph (GraphProfile): The embedding model.
+        ner_graphs (dict[LanguageStr, GraphProfile]): NER models for different
+            languages.
+        get_tag (TagFn): Function to return the tag (i.e., country) of the
+            document.
+        user (uuid.UUID): The user uuid.
+        base (str): The document base.
+        doc_id (int): The document id.
+        url (str): The document URL.
+        title (str | None): The document title. If None it will be inferred.
+        meta_obj (MetaObject): The document meta data.
+
+    Returns:
+        AddEmbed: Information about the added snippets.
+    """
     update_last_query(long_time=True)
     main_id = f"{base}:{doc_id}"
     # FIXME: make "smart" features optional
@@ -399,6 +466,15 @@ def vec_add(
 
 
 def get_filter_hash(filters: dict[MetaKey, list[str]] | None) -> str:
+    """
+    Compute the hash value of the given filter.
+
+    Args:
+        filters (dict[MetaKey, list[str]] | None): The filter.
+
+    Returns:
+        str: The hash value.
+    """
     blake = hashlib.blake2b(digest_size=32)
     if filters is not None:
         for key, values in sorted(filters.items(), key=lambda kv: kv[0]):
@@ -422,6 +498,19 @@ def vec_filter_total(
         qdrant_cache: Redis,
         articles: str,
         filters: dict[MetaKey, list[str]] | None) -> int:
+    """
+    Computes how many documents in total are retained after using the given
+    filter.
+
+    Args:
+        vec_db (QdrantClient): The vector database client.
+        qdrant_cache (Redis): The vector database cache redis
+        articles (str): The internal vector database name.
+        filters (dict[MetaKey, list[str]] | None): The filter.
+
+    Returns:
+        int: Number of documents after applying the filter.
+    """
     if filters is not None:
         filters = {
             key: to_list(value)
@@ -445,6 +534,20 @@ def vec_filter_field(
         qdrant_cache: Redis,
         articles: str,
         filters: dict[MetaKey, list[str]] | None) -> dict[str, int]:
+    """
+    Return the number of documents for each field value after applying the
+    filter.
+
+    Args:
+        vec_db (QdrantClient): The vector database client.
+        field (MetaKey): The field to retrieve information for.
+        qdrant_cache (Redis): The vector database cache redis.
+        articles (str): The internal vector database name.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+
+    Returns:
+        dict[str, int]: Field values mapped to counts.
+    """
     if filters is not None:
         filters = {
             key: to_list(value)
@@ -469,6 +572,20 @@ def vec_filter(
         articles: str,
         fields: set[MetaKey],
         filters: dict[MetaKey, list[str]] | None) -> StatEmbed:
+    """
+    Provide full information about document counts after applying a filter.
+
+    Args:
+        vec_db (QdrantClient): The vector database client.
+        qdrant_cache (Redis): The vector database cache redis.
+        articles (str): The internal vector database name.
+        fields (set[MetaKey]): The fields to retrieve detailed information.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+
+    Returns:
+        StatEmbed: Statistics about total document counts and requested field
+            document counts.
+    """
     return {
         "doc_count": vec_filter_total(
             vec_db,
@@ -490,6 +607,17 @@ def vec_filter(
 def apply_snippets(
         hits: list[ResultChunk],
         fn: Callable[[int], list[str]]) -> list[ResultChunk]:
+    """
+    Applies a function to snippets.
+
+    Args:
+        hits (list[ResultChunk]): The query results.
+        fn (Callable[[int], list[str]]): Function to apply. Gets provided the
+            hit index and should return snippets as list.
+
+    Returns:
+        list[ResultChunk]: _description_
+    """
 
     def apply(ix: int, hit: ResultChunk) -> ResultChunk:
         res = hit.copy()
@@ -506,6 +634,22 @@ def snippet_post(
         articles_graph: GraphProfile,
         short_snippets: bool,
         hit_limit: int) -> tuple[list[ResultChunk], int]:
+    """
+    Performs snippet refinement for the given query results.
+
+    Args:
+        hits (list[ResultChunk]): The query results.
+        embed (list[float]): Query embedding.
+        articles_graph (GraphProfile): The embedding model.
+        short_snippets (bool): Whether to return short snippets. That is the
+            hit snippets get further refined to more precisely match the search
+            query.
+        hit_limit (int): The number of hits to return per result.
+
+    Returns:
+        tuple[list[ResultChunk], int]: The results and the number of short
+            snippets generated.
+    """
 
     def process_snippets(ix: int) -> list[str]:
         return [
@@ -556,6 +700,41 @@ def vec_search(
         score_threshold: float | None,
         short_snippets: bool,
         no_log: bool) -> QueryEmbed:
+    """
+    Searches for the given string in the vector database. If the search
+    query is empty the latest documents are returned instead. If the search
+    query starts with `=` followed by a main id (e.g., `=solution:1234`)
+    a nearest neighbor search to the given document is performed. Snippets
+    are only generated for regular searches.
+
+    Args:
+        db (DBConnector): The database connector.
+        vec_db (QdrantClient): The vector database client.
+        input_str (str): The search query.
+        articles (str): The vector database name.
+        articles_graph (GraphProfile): The embedding model.
+        filters (dict[MetaKey, list[str]] | None): Query filters. A mapping
+            of meta data fields to a list of included values. The date
+            field, if given, expects a list of exactly two values, the
+            start and end date (both inclusive). If None defaults to
+            the empty filter.
+        order_by (MetaKey | tuple[MetaKey, str] | None): Which way to order
+            non-search results.
+        offset (int | None): The offset of the returned results. If None
+            defaults to 0.
+        limit (int): The maximum number of returned results.
+        hit_limit (int): The maximum number of hit snippets generated per
+            result.
+        score_threshold (float | None): Allows to limit the number of
+            results further by cutting off at a given score threshold.
+            If None defaults to not limiting by score.
+        short_snippets (bool): Whether hit snippets should be further
+            refined to give more precise and relevant snippets.
+        no_log (bool): If True, no log entry is created for the query.
+
+    Returns:
+        QueryEmbed: Vector database search results.
+    """
     update_last_query(long_time=False)
     if filters is not None:
         filters = {

@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Performs tagging updates to the platforms' databases."""
 from collections.abc import Callable
 
 import sqlalchemy as sa
@@ -24,21 +25,44 @@ from app.system.prep.fulltext import get_base_doc
 
 
 TAG_AI_TYPE = "auto_thematic"
+"""The tag type used for auto tags."""
 
 
 def clear_global_tags(session: Session) -> None:
+    """
+    Clears all auto tags from the login tag table.
+
+    Args:
+        session (Session): The login database session.
+    """
     stmt = sa.delete(GlobalTagsTable).where(
         GlobalTagsTable.type == TAG_AI_TYPE)
     session.execute(stmt)
 
 
 def clear_platform_tags(session: Session) -> None:
+    """
+    Clears all auto tags from a platform tagging table.
+
+    Args:
+        session (Session): The platform database session.
+    """
     stmt = sa.delete(PlatformTaggingTable).where(
         PlatformTaggingTable.type == TAG_AI_TYPE)
     session.execute(stmt)
 
 
 def fill_global_tags(session: Session, all_tags: set[str]) -> dict[str, int]:
+    """
+    Fills the login tag table with all tags and returns the tag id mapping.
+
+    Args:
+        session (Session): The login database session.
+        all_tags (set[str]): All tags.
+
+    Returns:
+        dict[str, int]: A mapping from tag to tag id.
+    """
     res: dict[str, int] = {}
     for keyword in all_tags:
         stmt = sa.insert(GlobalTagsTable).values(
@@ -62,6 +86,15 @@ def add_pad_tags(
         pad_id: int,
         keywords: set[str],
         lookup: dict[str, int]) -> None:
+    """
+    Adds tags to the platform tagging table for a given pad.
+
+    Args:
+        session (Session): The platform database session.
+        pad_id (int): The pad id.
+        keywords (set[str]): The tags to add.
+        lookup (dict[str, int]): The tag id lookup.
+    """
     for keyword in keywords:
         stmt = sa.insert(PlatformTaggingTable).values(
             pad=pad_id,
@@ -76,6 +109,20 @@ def process_main_ids(
         platforms: set[str],
         get_keywords: Callable[[str], set[str]],
         ) -> tuple[set[str], dict[str, dict[int, set[str]]]]:
+    """
+    Processes the tags for the given main ids.
+
+    Args:
+        main_ids (list[str]): The main ids.
+        platforms (set[str]): The supported platforms.
+        get_keywords (Callable[[str], set[str]]): Callback to retrieve the
+            tags of a given main id.
+
+    Returns:
+        tuple[set[str], dict[str, dict[int, set[str]]]]: The full set of tags
+            to add to the login tag table and the mapping of base to pad id to
+            tag set.
+    """
     all_tags: set[str] = set()
     kwords: dict[str, dict[int, set[str]]] = {}
     for main_id in main_ids:
@@ -100,6 +147,16 @@ def fill_in_everything(
         all_tags: set[str],
         kwords: dict[str, dict[int, set[str]]],
         ) -> None:
+    """
+    Fills in all tags to the login tag table and the platforms' tagging tables.
+
+    Args:
+        global_db (DBConnector): The login database connector.
+        platforms (dict[str, DBConnector]): The platforms' database connectors.
+        all_tags (set[str]): All tags.
+        kwords (dict[str, dict[int, set[str]]]): Mapping from base to pad id to
+            tag set.
+    """
     with global_db.get_session() as g_session:
         clear_global_tags(g_session)
         lookup = fill_global_tags(g_session, all_tags)

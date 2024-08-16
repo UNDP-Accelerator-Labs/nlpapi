@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""The Llama model."""
 import os
 from typing import cast
 
@@ -40,6 +41,7 @@ from nlpapi.llama import (
 
 
 class LlamaNode(Node):
+    """The llama model. The prompts are provided via inputs."""
     def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
         super().__init__(kind, graph, node_id)
         self._model: Llama | None = None

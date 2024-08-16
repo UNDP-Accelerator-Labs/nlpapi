@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Defines all api endpoints."""
 import hmac
 import os
 import sys
@@ -21,7 +22,7 @@ import time
 import traceback
 import uuid
 from collections.abc import Callable
-from typing import Any, cast, Literal, TypedDict
+from typing import Any, cast, TypedDict
 
 from qdrant_client import QdrantClient
 from quick_server import create_server, MiddlewareF, QuickServer
@@ -45,6 +46,7 @@ from app.api.response_types import (
     DocumentResponse,
     ErrorProcessQueue,
     FulltextResponse,
+    HeartbeatResponse,
     RequeueResponse,
     Snippy,
     SnippyResponse,
@@ -162,7 +164,7 @@ from app.system.workqueues.queue import (
 
 
 MAX_INPUT_LENGTH = 100 * 1024 * 1024  # 100MiB
-MAX_LINKS = 20
+"""The maximum length allowed for an input string."""
 
 
 VersionDict = TypedDict('VersionDict', {
@@ -174,9 +176,20 @@ VersionDict = TypedDict('VersionDict', {
     "deploy_time": str,
     "start_time": str,
 })
+"""The version dictionary gives information about the environment of the
+server. The python version, the quick_server version, and the app version are
+returned. The exact commit of the app version is also returned and the time
+of deploying the app (when the docker images were built) and the start time
+(when the app started) are provided as well."""
 
 
 def get_version_strs() -> VersionDict:
+    """
+    Computes version details.
+
+    Returns:
+        VersionDict: The version details.
+    """
     py_version_detail = f"{sys.version}"
     py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     version_name = get_version("name")
@@ -201,6 +214,21 @@ def get_vec_db(
         graph_embed: GraphProfile,
         force_clear: bool,
         force_index: bool) -> str:
+    """
+    Helper function to obtain the internal vector database string of the given
+    database.
+
+    Args:
+        vec_db (QdrantClient): The qdrant client.
+        name (DBName): The external name of the database.
+        graph_embed (GraphProfile): The associated embedding model.
+        force_clear (bool): Whether to delete the db.
+        force_index (bool): Whether to delete the db index.
+
+    Returns:
+        str: The internal name of the database. The database is guaranteed to
+            exist after this function returns.
+    """
     return build_db_name(
         f"articles_{name}",
         distance_fn="dot",
@@ -233,6 +261,47 @@ def add_vec_features(
         verify_token: MiddlewareF,
         verify_write: MiddlewareF,
         verify_tanuki: MiddlewareF) -> Callable[[], dict[DBName, str]]:
+    """
+    Adds vector database api endpoints and features (e.g., starts the
+    processing queue). This function is only called if the vector database is
+    active for this deployment (`NO_QDRANT=false` or unset).
+
+    Args:
+        server (QuickServer): The server to add the api endpoints to.
+        db (DBConnector): The login database connector.
+        vec_db (QdrantClient): The vector database client.
+        prefix (str): The api endpoint prefix.
+        process_queue_redis (Redis): The processing queue redis connector.
+        qdrant_cache (Redis): The qdrant cache redis connector.
+        smind_config (str): The scattermind configuration file.
+        graph_embed (GraphProfile): The embedding model.
+        ner_graphs (dict[LanguageStr, GraphProfile]): The NER models for each
+            language.
+        get_all_docs (AllDocsFn): Function to get all docs.
+        doc_is_remove (IsRemoveFn): Function to check whether a doc exists.
+        get_full_text (FullTextFn): Function to get fulltext of a doc.
+        get_url_title (UrlTitleFn): Function to get url and title of a doc.
+        get_tag (TagFn): Function to get "tag" of doc (in this case it is
+            specifically the country of the lab that published the doc if the
+            country is known).
+        get_status_date_type (StatusDateTypeFn): Function to get meta data of
+            a doc.
+        maybe_session (MiddlewareF): Middleware to check for an optional
+            session cookie.
+        verify_readonly (MiddlewareF): Middleware to guarantee that no write
+            tokens are set.
+        verify_input (MiddlewareF): Middleware to preprocess the input string.
+        verify_token (MiddlewareF): Middleware to ensure that an api token is
+            provided.
+        verify_write (MiddlewareF): Middleware to ensure that a write token is
+            provided.
+        verify_tanuki (MiddlewareF): Middleware to ensure that the tanuki token
+            is provided.
+
+    Returns:
+        Callable[[], dict[DBName, str]]: Function to return all loaded vector
+            databases.
+    """
     cond = threading.Condition()
     articles_dict: dict[DBName, str] = {}
 
@@ -356,6 +425,7 @@ def add_vec_features(
         queries. If the session cookie is not provided or invalid only public
         documents are considered for the stats.
 
+        @api
         @readonly
         @cookie (optional)
 
@@ -371,6 +441,7 @@ def add_vec_features(
                         invalid the "status" filter gets overwritten to
                         include "public" documents only.
                     "vecdb": The vector database.
+
         Returns:
             StatEmbed: Vector database document counts.
         """
@@ -393,6 +464,48 @@ def add_vec_features(
     @server.middleware(maybe_session)
     @server.middleware(verify_input)
     def _post_search(_req: QSRH, rargs: ReqArgs) -> QueryEmbed:
+        """
+        The `/api/search` endpoint provides document results for semantic
+        search queries. If the session cookie is not provided or invalid only
+        public documents are considered for the stats.
+
+        @api
+        @readonly
+        @cookie (optional)
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "input": The search query. If empty, the latest documents
+                        will get returned and no hit snippets are generated.
+                        If the search query is `=` followed by a main id, the
+                        results are the neighbors of the specified document.
+                        No hit snippets are generated for this type of query
+                        either.
+                    "filters": A dictionary of field types to lists of filter
+                        values. The date field, if given, expects a list of
+                        exactly two values, the start and end date
+                        (both inclusive). If the session cookie is missing or
+                        invalid the "status" filter gets overwritten to
+                        include "public" documents only. Defaults to the empty
+                        filter.
+                    "vecdb": The vector database.
+                    "offset": The offset of the returned results. Defaults to
+                        0.
+                    "limit": The maximum number of returned results.
+                    "hit_limit": The maximum number of hit snippets generated
+                        per result. Defaults to 1.
+                    "score_threshold": Allows to limit the number of results
+                        further by cutting off at a given score threshold.
+                        Default is `null` which does not limit by score.
+                    "short_snippets": Whether hit snippets should be further
+                        refined to give more precise and relevant snippets.
+                        Defaults to `true`.
+
+        Returns:
+            QueryEmbed: Vector database search results.
+        """
         session: SessionInfo | None = rargs["meta"].get("session")
         args = rargs["post"]
         meta = rargs["meta"]
@@ -425,9 +538,22 @@ def add_vec_features(
 
     def get_ctx_vec_db(
             *,
-            name: Literal["main", "test"],
+            name: DBName,
             force_clear: bool,
             force_index: bool) -> str:
+        """
+        Helper function to obtain the internal vector database string of the
+        given database with implied context.
+
+        Args:
+            name (DBName): The external name of the database.
+            force_clear (bool): Whether to delete the db.
+            force_index (bool): Whether to delete the db index.
+
+        Returns:
+            str: The internal name of the database. The database is guaranteed
+                to exist after this function returns.
+        """
         return get_vec_db(
             vec_db,
             name=name,
@@ -439,6 +565,20 @@ def add_vec_features(
 
     @server.json_get(f"{prefix}/queue/error")
     def _get_queue_error(_req: QSRH, _rargs: ReqArgs) -> ErrorProcessQueue:
+        """
+        The `/api/queue/error` endpoint provides an overview of errors
+        generated by the processing queue. You can requeue errors via
+        `/api/queue/requeue` or delete the errors via `/api/clear`.
+
+        @api
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments. GET
+
+        Returns:
+            ErrorProcessQueue: A list of all errors.
+        """
         return {
             "errors": get_process_queue_errors(process_queue_redis),
         }
@@ -448,6 +588,54 @@ def add_vec_features(
         @server.middleware(verify_write)
         @server.middleware(verify_tanuki)
         def _post_clear(_req: QSRH, rargs: ReqArgs) -> ClearResponse:
+            """
+            The `/api/clear` endpoint allows deleting various data across the
+            app. This method should be used with care and the only commonly
+            used option is `clear_process_queue`. Clearing redis dbs can be
+            beneficial if queues are stuck or caches are stale. Note, all
+            deletions are permanent.
+
+            @api
+            @token
+            @write_token
+            @tanuki
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "clear_rmain": Flushes the rmain redis of scattermind.
+                        "clear_rdata": Flushes the rdata redis of scattermind.
+                        "clear_rcache": Flushes the rcache redis of
+                            scattermind.
+                        "clear_rbody": Flushes the rbody redis of scattermind.
+                        "clear_rworker": Flushes the rworker redis of
+                            scattermind.
+                        "clear_process_queue": Flushes the processing queue.
+                            This is useful to get rid of errors that cannot be
+                            resolved via requeuing (`/api/queue/requeue`).
+                        "clear_veccache": Clears the cache of the vector
+                            database. Note, the cache is cleared automatically
+                            when the database is updated. It's not necessary
+                            to manually clear the cache.
+                        "clear_vecdb_main": Deletes the entire main vector
+                            database.
+                        "clear_vecdb_test": Deletes the entire test vector
+                            database.
+                        "clear_vecdb_all": Deletes all vector databases.
+                        "index_vecdb_main": Deletes the index of the main
+                            vector databases. Note, rebuilding index for a full
+                            database typically times out. It's probably better
+                            to delete the whole database at that point.
+                        "index_vecdb_test": Deletes the index of the test
+                            vector databases. Note, rebuilding index for a full
+                            database typically times out. It's probably better
+                            to delete the whole database at that point.
+
+            Returns:
+                ClearResponse: A mapping indicating which options were
+                    successfully performed.
+            """
             args = rargs["post"]
             clear_rmain = bool(args.get("clear_rmain", False))
             clear_rdata = bool(args.get("clear_rdata", False))
@@ -501,6 +689,22 @@ def add_vec_features(
         @server.middleware(verify_write)
         def _post_queue_requeue(
                 _req: QSRH, _rargs: ReqArgs) -> AddQueue:
+            """
+            The `/api/queue/requeue` endpoint moves all errors back into the
+            queue attempting to reprocess the items. This should be called
+            after the root cause has been eliminated or is fixed.
+
+            @api
+            @token
+            @write_token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments. POST
+
+            Returns:
+                AddQueue: Whether the items got requeued successfully.
+            """
             res = requeue_errors(process_queue_redis)
             return {
                 "enqueued": res,
@@ -509,6 +713,42 @@ def add_vec_features(
         @server.json_post(f"{prefix}/embed/add")
         @server.middleware(verify_write)
         def _post_embed_add(_req: QSRH, rargs: ReqArgs) -> AddQueue:
+            """
+            The `/api/embed/add` endpoint adds (or removes) a document or a
+            collection of documents to the vector database. Elements are
+            added to the processing queue. Use `/api/queue/error` to check
+            if there are any errors. Sometimes connection errors happen and the
+            translate api runs out of quota every now and then. In that case
+            `/api/queue/requeue` is enough to fix the issues. In the case of
+            translate api quota errors make sure to wait a day for the quota
+            to reset.
+
+            @api
+            @token
+            @write_token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "main_id": Specifies the document to add, e.g.,
+                            `solution:1234` or `blog:42`. If a document does
+                            not exist or otherwise wouldn't be included anymore
+                            the document is removed from vector database if it
+                            was added previously. Must be unset or `null` if
+                            `bases` is set.
+                        "bases": Specifies a list of document collections to
+                            add. Bases can be `blog`, `solution`, `actionplan`,
+                            `experiment`, or `race_ce`. All possible documents
+                            of each collection are added to the queue to ensure
+                            that unpublished documents will be properly
+                            removed.
+                        "db": The target vector database. Can be `main`,
+                            `test`, or `rave_ce`.
+
+            Returns:
+                AddQueue: Whether the items got queued successfully.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             main_id = args.get("main_id")
@@ -529,6 +769,40 @@ def add_vec_features(
         @server.middleware(verify_write)
         @server.middleware(verify_input)
         def _post_add_embed(_req: QSRH, rargs: ReqArgs) -> AddEmbed:
+            """
+            The `/api/add_embed` endpoint adds (or removes) text to the vector
+            database. Elements are processed immediately. This can lead to
+            timeouts for large documents. This method is deprecated by
+            `/api/embed/add` because it allows to add arbitrary text with
+            arbitrary settings and can time out. But it can be useful to test
+            parameters on the `test` database.
+
+            @deprecated
+            @api
+            @token
+            @write_token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The text to add. If the text is empty the
+                            id is removed from the database.
+                        "db": The target vector database. Can be `main`,
+                            `test`, or `rave_ce`.
+                        "base": The base. Can be `blog`, `solution`,
+                            `actionplan`, `experiment`, or `race_ce`.
+                        "doc_id": The id that identifies the document in the
+                            base. The base and the doc_id together form the
+                            main_id via `<base>:<doc_id>`.
+                        "url": The url of the document.
+                        "title": The title of the document.
+                        "meta": The document meta data. Any expected field that
+                            is not set will be inferred from the provided text.
+
+            Returns:
+                AddEmbed: Whether the text was added successfully.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             input_str: str = meta["input"]
@@ -564,6 +838,27 @@ def add_vec_features(
         @server.middleware(verify_write)
         def _post_build_index(
                 _req: QSRH, rargs: ReqArgs) -> BuildIndexResponse:
+            """
+            The `/api/build_index` endpoint updates the indices of the vector
+            database. This method is deprecated as this step is not necessary
+            anymore since adding a document can automatically detect which
+            indices need updating.
+
+            @deprecated
+            @api
+            @token
+            @write_token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "db": The target vector database. Can be `main`,
+                            `test`, or `rave_ce`.
+
+            Returns:
+                BuildIndexResponse: Number of new indices.
+            """
             args = rargs["post"]
             vdb_str = args["db"]
             articles = get_articles(vdb_str)
@@ -575,6 +870,30 @@ def add_vec_features(
         @server.json_post(f"{prefix}/stat_embed")
         @server.middleware(verify_readonly)
         def _post_stat_embed(_req: QSRH, rargs: ReqArgs) -> StatEmbed:
+            """
+            The `/api/stat_embed` endpoint provides document counts for
+            semantic search queries. This method is the same as `/api/stats`
+            with the only difference being that it requires an api token
+            instead of a cookie.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "fields": A set of field types expected to be returned.
+                        "filters": A dictionary of field types to lists of
+                            filter values. The date field, if given, expects a
+                            list of exactly two values, the start and end date
+                            (both inclusive).
+                        "db": The vector database.
+
+            Returns:
+                StatEmbed: Vector database document counts.
+            """
             args = rargs["post"]
             vdb_str = args["db"]
             articles = get_articles(vdb_str)
@@ -591,6 +910,47 @@ def add_vec_features(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _post_query_embed(_req: QSRH, rargs: ReqArgs) -> QueryEmbed:
+            """
+            The `/api/query_embed` endpoint provides document results for
+            semantic search queries.  This method is the same as `/api/search`
+            with the only difference being that it requires an api token
+            instead of a cookie.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The search query. If empty, the latest
+                            documents will get returned and no hit snippets are
+                            generated. If the search query is `=` followed by a
+                            main id, the results are the neighbors of the
+                            specified document. No hit snippets are generated
+                            for this type of query either.
+                        "filters": A dictionary of field types to lists of
+                            filter values. The date field, if given, expects a
+                            list of exactly two values, the start and end date
+                            (both inclusive). Defaults to the empty filter.
+                        "db": The vector database.
+                        "offset": The offset of the returned results. Defaults
+                            to 0.
+                        "limit": The maximum number of returned results.
+                        "hit_limit": The maximum number of hit snippets
+                            generated per result. Defaults to 1.
+                        "score_threshold": Allows to limit the number of
+                            results further by cutting off at a given score
+                            threshold. Default is `null` which does not limit
+                            by score.
+                        "short_snippets": Whether hit snippets should be
+                            further refined to give more precise and relevant
+                            snippets. Defaults to `true`.
+
+            Returns:
+                QueryEmbed: Vector database search results.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             input_str: str = meta["input"]
@@ -627,6 +987,21 @@ def setup(
         *,
         deploy: bool,
         versions: VersionDict) -> tuple[QuickServer, str]:
+    """
+    Sets up all api endpoints for the app server. If any exception is raised
+    during server setup `fallback_server` is called to provide only the
+    `api/version` endpoint which details the error (this is not done by this
+    function! use `setup_server`).
+
+    Args:
+        server (QuickServer): The server to add the api endpoints to.
+        deploy (bool): If False, the server provides a command loop for
+            commands, like `restart`, `quit`, and `help`.
+        versions (VersionDict): The version object.
+
+    Returns:
+        tuple[QuickServer, str]: The server object and the api prefix.
+    """
     prefix = "/api"
 
     server.suppress_noise = True
@@ -786,6 +1161,17 @@ def setup(
         force_user = None
 
     def maybe_session(_req: QSRH, rargs: ReqArgs, okay: ReqNext) -> ReqNext:
+        """
+        Adds the session info to the meta argument if the appropriate cookie
+        is present.
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            ReqNext: The response or continuation.
+        """
         if force_user is not None:
             session: SessionInfo | None = {
                 "name": "ADMIN",
@@ -807,6 +1193,18 @@ def setup(
 
     def verify_session(
             req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Adds the session info to the meta argument. Requires the appropriate
+        cookie to be present.
+
+        Args:
+            req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         inner = maybe_session(req, rargs, okay)
         if inner is not okay:
             return inner
@@ -817,6 +1215,16 @@ def setup(
 
     def verify_token(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Requires the api token to be present.
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         token = rargs.get("post", {}).get("token")
         if token is None:
             token = rargs.get("query", {}).get("token")
@@ -830,6 +1238,17 @@ def setup(
 
     def verify_readonly(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Ensures that the api call is read only. That is if the `write_access`
+        token is present the call is rejected.
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         token = rargs.get("post", {}).get("write_access")
         if token is not None:
             raise ValueError(
@@ -839,6 +1258,16 @@ def setup(
 
     def verify_write(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Ensures that the `write_access` token is present.
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         token = rargs.get("post", {}).get("write_access")
         if token is None:
             raise KeyError("'write_access' not set")
@@ -848,6 +1277,16 @@ def setup(
 
     def verify_tanuki(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Ensures that the `tanuki` token is present.
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         req_tanuki = rargs.get("post", {}).get("tanuki")
         if req_tanuki is None:
             raise KeyError("'tanuki' not set")
@@ -857,6 +1296,19 @@ def setup(
 
     def verify_input(
             _req: QSRH, rargs: ReqArgs, okay: ReqNext) -> Response | ReqNext:
+        """
+        Ensures that an input field is provided. It also checks the size of the
+        input, rejecting inputs that are too long. Finally, it normalizes the
+        input by removing redundant white space etc. and checks against error
+        inputs (`undefined`, `null`, `None`, etc. are rejected).
+
+        Args:
+            rargs (ReqArgs): The arguments.
+            okay (ReqNext): Sentinel to indicates that the request continues.
+
+        Returns:
+            Response | ReqNext: The response or continuation.
+        """
         args = rargs.get("post", {})
         text = args.get("input")
         if text is None:
@@ -902,9 +1354,46 @@ def setup(
 
     # *** misc ***
 
+    @server.json_get(f"{prefix}/heartbeat")
+    @server.middleware(verify_readonly)
+    def _get_heartbeat(_req: QSRH, _rargs: ReqArgs) -> HeartbeatResponse:
+        """
+        The `/api/heartbeat` endpoint gives a quick response that indicates
+        whether the server was properly loaded. The response is fully static.
+
+        @api
+        @readonly
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments. GET
+
+        Returns:
+            HeartbeatResponse: Indicating the app health.
+        """
+        return {
+            "okay": True,
+        }
+
     @server.json_get(f"{prefix}/version")
     @server.middleware(verify_readonly)
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
+        """
+        The `/api/version` endpoint provides basic information about the
+        server. This api endpoint always exists (even if the app failed during
+        startup in which case the endpoint outputs the error) and can be used
+        as heartbeat indicator.
+
+        @api
+        @readonly
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments. GET
+
+        Returns:
+            VersionResponse: The version info.
+        """
         articles_dbs = sorted(get_articles_dict().keys())
         return {
             "app_name": versions["app_version"],
@@ -921,8 +1410,24 @@ def setup(
         }
 
     @server.json_post(f"{prefix}/user")
+    @server.middleware(verify_readonly)
     @server.middleware(maybe_session)
     def _post_user(_req: QSRH, rargs: ReqArgs) -> UserResponse:
+        """
+        The `/api/user` endpoint provides information about the current user
+        determined by the session cookie. If no session cookie is set the
+        method returns `null` values.
+
+        @api
+        @readonly
+        @cookie (optional)
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments. POST
+        Returns:
+            UserResponse: The user uuid and display name if available.
+        """
         session: SessionInfo | None = rargs["meta"].get("session")
         return {
             "uuid": None if session is None else session["uuid"].hex,
@@ -932,6 +1437,20 @@ def setup(
     @server.json_get(f"{prefix}/info")
     @server.middleware(verify_readonly)
     def _get_info(_req: QSRH, _rargs: ReqArgs) -> StatsResponse:
+        """
+        The `/api/info` endpoint provides statistics about the processing
+        queue, scattermind queues, and the vector databases.
+
+        @api
+        @readonly
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments. GET
+
+        Returns:
+            StatsResponse: The statistics.
+        """
         vecdbs: list[VecDBStat] = []
         if vec_db is not None:
             for ext_name, article in get_articles_dict().items():
@@ -949,6 +1468,24 @@ def setup(
 
     @server.json_post(f"{prefix}/tags/clusters")
     def _post_tags_clusters(_req: QSRH, rargs: ReqArgs) -> TagClustersResponse:
+        """
+        The `/api/tags/clusters` endpoint lists all clusters of a tag group.
+
+        @api
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "tag_group": The tag group to list. Must be `null` if
+                        `name` is set. If both are `null` the latest
+                        non-updating tag group is returned.
+                    "name": The name of a tag group to list. Must be `null` if
+                        `tag_group` is set.
+
+        Returns:
+            TagClustersResponse: The list of clusters and the tag group.
+        """
         args = rargs["post"]
         tag_group: int | None = maybe_int(args.get("tag_group"))
         name: str | None = args.get("name")
@@ -957,6 +1494,8 @@ def setup(
         with db.get_session() as session:
             if tag_group is None:
                 tag_group = get_tag_group(session, name)
+            if tag_group is None:
+                raise ValueError(f"could not find tag group {name=}")
             clusters = get_tag_clusters(session, tag_group)
         return {
             "clusters": clusters,
@@ -965,6 +1504,27 @@ def setup(
 
     @server.json_post(f"{prefix}/tags/docs")
     def _post_tags_docs(_req: QSRH, rargs: ReqArgs) -> TagDocsResponse:
+        """
+        The `/api/tags/docs` endpoint lists all documents of a cluster of a tag
+        group.
+
+        @api
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "tag_group": The tag group.
+                    "cluster": The cluster keyword. Must be `null` if
+                        `cluster_id` is specified.
+                    "cluster_id": The cluster id. Must be `null` if `cluster`
+                        is specified. This is the preferred method to specify
+                        a cluster as it is unambiguous.
+
+        Returns:
+            TagDocsResponse: The main ids of the cluster members, tag group,
+                and cluster id.
+        """
         args = rargs["post"]
         tag_group: int = int(args["tag_group"])
         cluster: str | None = args.get("cluster")
@@ -986,6 +1546,27 @@ def setup(
 
     @server.json_post(f"{prefix}/tags/list")
     def _post_tags_list(_req: QSRH, rargs: ReqArgs) -> TagListResponse:
+        """
+        The `/api/tags/list` endpoint lists all tags (clusters) of a list of
+        documents (main ids).
+
+        @api
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "tag_group": The tag group to list. Must be `null` if
+                        `name` is set. If both are `null` the latest
+                        non-updating tag group is returned.
+                    "name": The name of a tag group to list. Must be `null` if
+                        `tag_group` is set.
+                    "main_ids": A list of main ids.
+
+        Returns:
+            TagListResponse: Lists the tags (clusters) of each provided main
+                id. Also, the tag group is returned.
+        """
         args = rargs["post"]
         tag_group: int | None = maybe_int(args.get("tag_group"))
         name: str | None = args.get("name")
@@ -996,6 +1577,8 @@ def setup(
         with db.get_session() as session:
             if tag_group is None:
                 tag_group = get_tag_group(session, name)
+            if tag_group is None:
+                raise ValueError(f"could not find tag group {name=}")
             for main_id in main_ids:
                 tags[main_id] = sorted(
                     get_tags_for_main_id(session, tag_group, main_id))
@@ -1021,6 +1604,37 @@ def setup(
         @server.json_post(f"{prefix}/tags/create")
         @server.middleware(verify_write)
         def _post_tags_create(_req: QSRH, rargs: ReqArgs) -> AddQueue:
+            """
+            The `/api/tags/create` endpoint creates a new tag group. The
+            request is added to the processing queue. Use `/api/queue/error` to
+            check if there are any errors.
+
+            @api
+            @token
+            @write_token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "name": The name of the new tag group. If `null` the
+                            name is automatically set to the current time.
+                        "bases": A list of bases to create the clusters from.
+                            Bases can be `blog`, `solution`, `actionplan`,
+                            `experiment`, or `rave_ce`.
+                        "is_updating": Whether the tag group is updating, that
+                            is whether the results overwrite the `tagging`
+                            table of the platform databases.
+                        "cluster_args": Arguments provided to the clustering
+                            algorithm. By default `distance_threshold` is set
+                            so it needs to be set to `null` if you want to
+                            specify `n_clusters`.
+                            See https://scikit-learn.org/stable/modules/generated/sklearn.cluster.AgglomerativeClustering.html  # noqa # pylint: disable=line-too-long
+                            for an explanation of each argument.
+
+            Returns:
+                AddQueue: Whether the task was successfully added to the queue.
+            """
             args = rargs["post"]
             name: str | None = args.get("name")
             bases: list[str] = list(args["bases"])
@@ -1041,6 +1655,24 @@ def setup(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _get_geoforward(_req: QSRH, rargs: ReqArgs) -> OpenCageFormat:
+            """
+            The `api/geoforward` endpoint extract a location from a given text.
+            The output format is the same as if the call was made directly to
+            open cage.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    GET
+                        "q": The input text.
+
+            Returns:
+                OpenCageFormat: The detected location in open cage format.
+            """
             meta = rargs["meta"]
             input_str: str = meta["input"]
             user: uuid.UUID = meta["user"]
@@ -1050,6 +1682,38 @@ def setup(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _post_locations(_req: QSRH, rargs: ReqArgs) -> GeoOutput:
+            """
+            The `/api/locations` endpoint extracts locations from a given input
+            text.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The text to analyze.
+                        "return_input": Whether to return the original input.
+                            Defaults to `false`.
+                        "return_context": Whether to return the context around
+                            hits. Defaults to `true`.
+                        "strategy": Which strategy to use for determining the
+                            main location. Can be `top` or `frequency`.
+                            Defaults to `top`.
+                        "language": Which language the input text is in. Can
+                            be `en` for english or `xx` for multi-lingual.
+                            Defaults to `en`.
+                        "max_requests": The maximum number of location requests
+                            to be made for the full document. If set to
+                            `null` the number is unrestricted. Defaults to
+                            `null`.
+
+            Returns:
+                GeoOutput: The detected locations and the estimate of the main
+                    location.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             input_str: str = meta["input"]
@@ -1070,6 +1734,22 @@ def setup(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _post_language(_req: QSRH, rargs: ReqArgs) -> LangResponse:
+            """
+            The `/api/language` endpoint detects the language of a given text.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The text to analyze.
+
+            Returns:
+                LangResponse: The result of the language analysis.
+            """
             meta = rargs["meta"]
             input_str: str = meta["input"]
             user: uuid.UUID = meta["user"]
@@ -1080,6 +1760,24 @@ def setup(
         @server.json_post(f"{prefix}/inspect")
         @server.middleware(verify_readonly)
         def _post_inspect(_req: QSRH, rargs: ReqArgs) -> URLInspectResponse:
+            """
+            The `/api/inspect` endpoint determines the country from a given
+            url.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "url": The url to inspect.
+
+            Returns:
+                URLInspectResponse: The url and detected iso3. If no country
+                    was detected `null` is returned.
+            """
             args = rargs["post"]
             url = args["url"]
             iso3 = inspect_url(url)
@@ -1091,6 +1789,29 @@ def setup(
         @server.json_post(f"{prefix}/date")
         @server.middleware(verify_readonly)
         def _post_date(_req: QSRH, rargs: ReqArgs) -> DateResponse:
+            """
+            The `/api/date` endpoint extracts the date of a given article from
+            the text.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "raw_html": The raw html to analyze.
+                        "posted_date_str": An optional previously detected
+                            date string. Defaults to `null`.
+                        "language": The known language of the text. If unknown
+                            `null` can be passed. Defaults to `null`.
+                        "use_date_str": If `true`, use the provided date string
+                            if given. Defaults to `true`.
+
+            Returns:
+                DateResponse: The detected date or `null`.
+            """
             args = rargs["post"]
             raw_html = args["raw_html"]
             posted_date_str = args.get("posted_date_str")
@@ -1111,6 +1832,33 @@ def setup(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _post_snippify(_req: QSRH, rargs: ReqArgs) -> SnippyResponse:
+            """
+            The `/api/snippify` endpoint breaks a given text into snippets
+            / chunks.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The text to analyze.
+                        "chunk_size": The target chunk size. Can be `null` to
+                            use default values. Defaults to `null`.
+                        "chunk_padding": The target overlap between chunks. Can
+                            be `null` to use default values. Defaults to
+                            `null`.
+                        "small_snippets": If `true` and `chunk_size` or
+                            `chunk_padding` is not set the default values for
+                            small snippets are chosen instead of the default
+                            values for large snippets. Defaults to `false`.
+
+            Returns:
+                SnippyResponse: Provides a list of snippets and the number of
+                    snippets.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             input_str: str = meta["input"]
@@ -1150,6 +1898,31 @@ def setup(
         @server.middleware(verify_readonly)
         @server.middleware(verify_input)
         def _post_extract(_req: QSRH, rargs: ReqArgs) -> dict[str, Any]:
+            """
+            The `/api/extract` endpoint provides some text api endpoints in a
+            unified way. This allows to send the full text only once instead
+            of each time for each individual endpoint.
+
+            @api
+            @readonly
+            @token
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "input": The text to analyze.
+                        "modules": A list of modules. Each element is an object
+                            with the `name` of the module (`location` or
+                            `language`) and the arguments `args`. The arguments
+                            can be found at the respective endpoints for those
+                            modules.
+
+            Returns:
+                dict[str, Any]: A dictionary with a key for each requested
+                    module. The contents of each response matches the output of
+                    their respective endpoints.
+            """
             args = rargs["post"]
             meta = rargs["meta"]
             input_str: str = meta["input"]
@@ -1166,6 +1939,19 @@ def setup(
 
     @server.json_get(f"{prefix}/collection/stats")
     def _get_collection_stats(_req: QSRH, _rargs: ReqArgs) -> CollectionStats:
+        """
+        The `/api/collection/stats` endpoint provides information about
+        (pending) segments for the collection processing.
+
+        @api
+
+        Args:
+            _req (QSRH): The request.
+            _rargs (ReqArgs): The arguments. GET
+
+        Returns:
+            CollectionStats: The information about segment groups.
+        """
         stats = list(segment_stats(db))
         return {
             "segments": stats,
@@ -1173,6 +1959,16 @@ def setup(
 
     # # # SESSION # # #
     def get_doc_info(main_id: str, *, is_logged_in: bool) -> TitleResponse:
+        """
+        Convenience function for retrieving document information.
+
+        Args:
+            main_id (str): The main id of the document.
+            is_logged_in (bool): Whether the results are for a logged in user.
+
+        Returns:
+            TitleResponse: Document information if available.
+        """
         url_title, error_msg = get_url_title(
             main_id, is_logged_in=is_logged_in)
         if url_title is None:
@@ -1192,6 +1988,22 @@ def setup(
     @server.middleware(maybe_session)
     def _post_documents_info(
             _req: QSRH, rargs: ReqArgs) -> TitleResponse:
+        """
+        The `/api/documents/info` endpoint provides information about a single
+        document specified via main id.
+
+        @api
+        @cookie (optional)
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "main_id": The main id of the document to analyze.
+
+        Returns:
+            TitleResponse: The title and url of the document requested.
+        """
         session: SessionInfo | None = rargs["meta"].get("session")
         args = rargs["post"]
         main_id: str = args["main_id"]
@@ -1202,6 +2014,22 @@ def setup(
     @server.middleware(maybe_session)
     def _post_documents_infos(
             _req: QSRH, rargs: ReqArgs) -> TitlesResponse:
+        """
+        The `/api/documents/infos` endpoint provides information about multiple
+        document specified via main id.
+
+        @api
+        @cookie (optional)
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments.
+                POST
+                    "main_ids": A list of main ids of the documents to analyze.
+
+        Returns:
+            TitlesResponse: The titles and urls of the requested documents.
+        """
         session: SessionInfo | None = rargs["meta"].get("session")
         args = rargs["post"]
         main_ids: list[str] = args["main_ids"]
@@ -1220,9 +2048,26 @@ def setup(
         @server.json_post(f"{prefix}/collection/add")
         def _post_collection_add(
                 _req: QSRH, rargs: ReqArgs) -> CollectionResponse:
+            """
+            The `/api/collection/add` endpoint creates a new collection for the
+            current user.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "name": The name of the new collection.
+                        "deep_dive": The name of the deep dive process.
+
+            Returns:
+                CollectionResponse: The id of the new collection.
+            """
             args = rargs["post"]
             name: str = args["name"]
-            deep_dive = args["deep_dive"]
+            deep_dive: str = args["deep_dive"]
             session: SessionInfo = rargs["meta"]["session"]
             res = add_collection(db, session["uuid"], name, deep_dive)
             return {
@@ -1232,6 +2077,20 @@ def setup(
         @server.json_post(f"{prefix}/collection/list")
         def _post_collection_list(
                 _req: QSRH, rargs: ReqArgs) -> CollectionListResponse:
+            """
+            The `/api/collection/list` endpoint lists all collections of the
+            current user (and publicly available collections).
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request
+                rargs (ReqArgs): The arguments. POST
+
+            Returns:
+                CollectionListResponse: A list of all visible collections.
+            """
             session: SessionInfo = rargs["meta"]["session"]
             return {
                 "collections": [
@@ -1249,6 +2108,27 @@ def setup(
         @server.json_post(f"{prefix}/collection/options")
         def _post_collection_options(
                 _req: QSRH, rargs: ReqArgs) -> CollectionOptionsResponse:
+            """
+            The `/api/collection/options` endpoint sets the options for a given
+            collection.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "collection_id": The id of the collection.
+                        "options": An option containing the fields to update.
+                            The only field currently is the boolean field
+                            `is_public` which determines whether a collection
+                            is visible to everyone.
+
+            Returns:
+                CollectionOptionsResponse: Whether the record was successfully
+                    updated.
+            """
             args = rargs["post"]
             collection_id = int(args["collection_id"])
             options: CollectionOptions = args["options"]
@@ -1261,6 +2141,24 @@ def setup(
         @server.json_post(f"{prefix}/documents/add")
         def _post_documents_add(
                 _req: QSRH, rargs: ReqArgs) -> DocumentResponse:
+            """
+            The `/api/documents/add` endpoint adds documents to a collection.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "collection_id": The id of the collection.
+                        "main_ids": A list of main ids to add to the
+                            collection.
+
+            Returns:
+                DocumentResponse: The ids of the newly added documents. The
+                    size of the list equals the number of new documents.
+            """
             args = rargs["post"]
             collection_id = int(args["collection_id"])
             main_ids: list[str] = args["main_ids"]
@@ -1274,6 +2172,24 @@ def setup(
         @server.json_post(f"{prefix}/documents/list")
         def _post_documents_list(
                 _req: QSRH, rargs: ReqArgs) -> DocumentListResponse:
+            """
+            The `/api/documents/list` endpoint retrieves all documents in the
+            given collection.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "collection_id": The id of the collection.
+
+            Returns:
+                DocumentListResponse: The documents in the current collection
+                    and whether the current user is allowed to modify the
+                    collection.
+            """
             args = rargs["post"]
             collection_id = int(args["collection_id"])
             session: SessionInfo = rargs["meta"]["session"]
@@ -1287,6 +2203,23 @@ def setup(
         @server.json_post(f"{prefix}/documents/fulltext")
         def _post_documents_fulltext(
                 _req: QSRH, rargs: ReqArgs) -> FulltextResponse:
+            """
+            The `/api/documents/fulltext` endpoint retrieves the fulltext of
+            a given document.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "main_id": The main id of the requested document.
+
+            Returns:
+                FulltextResponse: The fulltext of the document or the error
+                    message if the operation failed.
+            """
             args = rargs["post"]
             main_id: str = args["main_id"]
             content, error_msg = get_full_text(main_id)
@@ -1298,6 +2231,29 @@ def setup(
         @server.json_post(f"{prefix}/documents/requeue")
         def _post_documents_requeue(
                 _req: QSRH, rargs: ReqArgs) -> RequeueResponse:
+            """
+            The `/api/documents/requeue` endpoint requeues some documents of a
+            collection for reprocessing.
+
+            @api
+            @cookie
+
+            Args:
+                _req (QSRH): The request.
+                rargs (ReqArgs): The arguments.
+                    POST
+                        "collection_id": The id of the collection.
+                        "main_ids": The list of main ids to process again.
+                        "meta_only": `true` if only the meta data (e.g.,
+                            country information) should be recomputed. Defaults
+                            to `false`.
+                        "error_only": `true` if only previously failed segments
+                            should be recomputed. Defaults to `false`.
+
+            Returns:
+                RequeueResponse: Whether the documents were successfully queued
+                    up.
+            """
             args = rargs["post"]
             collection_id = int(args["collection_id"])
             main_ids: list[str] = args["main_ids"]
@@ -1324,6 +2280,22 @@ def setup_server(
         addr: str | None,
         port: int | None,
         versions: VersionDict) -> tuple[QuickServer, str]:
+    """
+    Fully sets up the server and guarantees that some api is provided even if
+    an error occurred.
+
+    Args:
+        deploy (bool): Whether the server should start in deployment mode. That
+            is, no command line loop is started.
+        addr (str | None): The address of the server or `None` for reading the
+            value from the env.
+        port (int | None): The port of the server or `None` for reading the
+            value from the env.
+        versions (VersionDict): The version info.
+
+    Returns:
+        tuple[QuickServer, str]: The server and the api prefix.
+    """
     if addr is None:
         addr = envload_str("HOST", default="127.0.0.1")
     if port is None:
@@ -1355,6 +2327,26 @@ def fallback_server(
         port: int | None,
         versions: VersionDict,
         exc_strs: list[str]) -> tuple[QuickServer, str]:
+    """
+    Creates the fallback server if any error happened during creation of the
+    actual server. This server only provides the `/api/version` endpoint to
+    ensure that the healthcheck succeeds. If the healthcheck wouldn't succeed
+    Azure would not correctly write out the logs and it would be extremely
+    difficult to debug *why* the server didn't start. It is better to just fake
+    a healthy heatbeat and provide the error that prevented the proper start in
+    the api endpoint.
+
+    Args:
+        deploy (bool): Whether the server should provide a command loop.
+        addr (str | None): The address. If `None` the value is read from the
+            env.
+        port (int | None): The port. If `None` the value is read from the env.
+        versions (VersionDict): The version info.
+        exc_strs (list[str]): The exception output.
+
+    Returns:
+        tuple[QuickServer, str]: The server and the api prefix.
+    """
     if addr is None:
         addr = envload_str("HOST", default="127.0.0.1")
     if port is None:
@@ -1382,8 +2374,19 @@ def fallback_server(
 
     # *** misc ***
 
+    @server.json_get(f"{prefix}/heartbeat")
+    def _get_heartbeat(_req: QSRH, _rargs: ReqArgs) -> HeartbeatResponse:
+        # NOTE: this endpoint is identical to the one above except that it
+        # indicates that the server is not okay. no duplicate documentation
+        # is provided
+        return {
+            "okay": False,
+        }
+
     @server.json_get(f"{prefix}/version")
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
+        # NOTE: this endpoint is identical to the one above except that it
+        # also indicates the error. no duplicate documentation is provided
         return {
             "app_name": versions["app_version"],
             "app_commit": versions["commit"],
@@ -1402,6 +2405,13 @@ def fallback_server(
 
 
 def start(server: QuickServer, prefix: str) -> None:
+    """
+    Starts the server.
+
+    Args:
+        server (QuickServer): The server.
+        prefix (str): The api prefix.
+    """
     addr, port = server.server_address
     if not isinstance(addr, str):
         addr = addr.decode("utf-8")

@@ -13,6 +13,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Vector database operations. All vector database client calls should go
+here."""
 import collections
 import hashlib
 import uuid
@@ -76,11 +78,15 @@ T = TypeVar('T')
 
 
 QDRANT_UUID = uuid.UUID("5c349547-396f-47e1-b0fb-22ed665bc112")
+"""UUID namespace for uuids created for vector database items."""
 REF_KEY: Literal["main_uuid"] = "main_uuid"
+"""The name of the database key storing the item UUID."""
 
 
 META_CAT = "_"
+"""Meta field concatenation symbol."""
 META_PREFIX = f"meta{META_CAT}"
+"""Prefix for meta fields."""
 
 
 DBName: TypeAlias = Literal["main", "test", "rave_ce"]
@@ -90,11 +96,17 @@ DBS: tuple[DBName] = get_args(DBName)
 
 
 DBQName: TypeAlias = str
+"""Internal vector database name distinguishing snippets and documents.
+This is not the same as a regular internal vector database name which just
+indicates the corpus."""
 InternalDataKey: TypeAlias = str
+"""Internal vector database meta key for document data."""
 InternalSnippetKey: TypeAlias = str
+"""Internal vector database meta key for snippets."""
 
 
 HashTup: TypeAlias = tuple[str, int]
+"""Document hash. Combination of hash and number of snippets."""
 
 
 MetaObject = TypedDict('MetaObject', {
@@ -104,6 +116,7 @@ MetaObject = TypedDict('MetaObject', {
     "language": NotRequired[dict[str, float]],
     "iso3": NotRequired[dict[str, float]],
 })
+"""Meta data structure."""
 MetaObjectOpt = TypedDict('MetaObjectOpt', {
     "date": NotRequired[str],
     "status": DocStatus,
@@ -111,9 +124,13 @@ MetaObjectOpt = TypedDict('MetaObjectOpt', {
     "language": dict[str, float],
     "iso3": dict[str, float],
 }, total=False)
+"""Partial meta data structure."""
 MetaKey = Literal["date", "status", "doc_type", "language", "iso3"]
+"""Valid meta data keys."""
 META_KEYS: set[MetaKey] = set(get_args(MetaKey))
+"""Valid meta data keys."""
 META_SCALAR: set[Literal["language", "iso3"]] = {"language", "iso3"}
+"""Scalar meta data keys."""
 META_SNIPPET_INDEX: dict[MetaKey, PayloadSchemaType] = {
     "date": "datetime",
     "status": "keyword",
@@ -121,6 +138,7 @@ META_SNIPPET_INDEX: dict[MetaKey, PayloadSchemaType] = {
     "language": "keyword",
     "iso3": "keyword",
 }
+"""Schema of meta data fields."""
 
 
 KNOWN_DOC_TYPES: dict[str, set[str]] = {
@@ -128,11 +146,13 @@ KNOWN_DOC_TYPES: dict[str, set[str]] = {
     "experiment": {"experiment"},
     "solution": {"solution"},
 }
+"""Mapping from bases to human readable document types."""
 DOC_TYPE_TO_BASE: dict[str, str] = {
     doc_type: base
     for base, doc_types in KNOWN_DOC_TYPES.items()
     for doc_type in doc_types
 }
+"""Mapping from human readable document types to bases."""
 
 
 StatEmbed = TypedDict('StatEmbed', {
@@ -140,7 +160,7 @@ StatEmbed = TypedDict('StatEmbed', {
     "fields": dict[MetaKey, dict[str, int]],
 })
 """Vector database document counts. "doc_count" is the total number of
-documents and fields maps field types to field values to their frequency."""
+documents and "fields" maps field types to field values to their frequency."""
 
 
 VecDBStat = TypedDict('VecDBStat', {
@@ -150,6 +170,10 @@ VecDBStat = TypedDict('VecDBStat', {
     "status": str,
     "count": int,
 })
+"""Information about vector databases. `ext_name` is the external name, `name`
+is the internal name, and `db_name` is the internal distinguishin between
+document data and snippet storage. `count` is the number of items stored in
+the database."""
 
 
 VecDBConfig = TypedDict('VecDBConfig', {
@@ -158,6 +182,7 @@ VecDBConfig = TypedDict('VecDBConfig', {
     "grpc": int,
     "token": str | None,
 })
+"""Vector database connection configuration."""
 
 
 DistanceFn = Literal[
@@ -166,6 +191,7 @@ DistanceFn = Literal[
     "man",
     "euc",
 ]
+"""Possible embedding distance measures."""
 
 
 EmbedMain = TypedDict('EmbedMain', {
@@ -175,6 +201,7 @@ EmbedMain = TypedDict('EmbedMain', {
     "title": str,
     "meta": MetaObject,
 })
+"""Embedding payload for document data."""
 
 
 EmbedChunk = TypedDict('EmbedChunk', {
@@ -182,6 +209,7 @@ EmbedChunk = TypedDict('EmbedChunk', {
     "embed": list[float],
     "snippet": str,
 })
+"""Embedding payload for snippet data."""
 
 
 ResultChunk = TypedDict('ResultChunk', {
@@ -195,10 +223,12 @@ ResultChunk = TypedDict('ResultChunk', {
     "snippets": list[str],
     "meta": dict[MetaKey, list[str] | str | int],
 })
+"""A document result for a semantic search query."""
 QueryEmbed = TypedDict('QueryEmbed', {
     "hits": list[ResultChunk],
     "status": Literal["ok", "error"],
 })
+"""Query results for a semantic search query."""
 
 DocResult = TypedDict('DocResult', {
     "main_id": str,
@@ -211,13 +241,29 @@ DocResult = TypedDict('DocResult', {
     "embed": list[float],
     "meta": dict[MetaKey, list[str] | str | int],
 })
+"""A document result for a document lookup."""
 
 
 FILE_PROTOCOL = "file://"
+"""Protocol section for file vector database storage. Useful for testing out
+vector database behavior locally."""
 
 
 def convert_meta_key_data(
         key: MetaKey, variant: str | None) -> InternalDataKey:
+    """
+    Convert a meta data key and value into the internal representation of meta
+    keys. Scalar meta data fields store the value as key instead of as value.
+
+    Args:
+        key (MetaKey): The meta data key.
+        variant (str | None): If the meta data field is scalar the value can
+            be provided to create the extended key.
+
+    Returns:
+        InternalDataKey: The internal key to be used in the document data
+            database.
+    """
     if key not in META_KEYS:
         raise ValueError(f"{key} is not a valid meta key")
     if key in META_SCALAR and variant is not None:
@@ -226,6 +272,16 @@ def convert_meta_key_data(
 
 
 def convert_meta_key_snippet(key: MetaKey) -> InternalSnippetKey:
+    """
+    Convert a meta data key into the internal representation of meta keys.
+
+    Args:
+        key (MetaKey): The meta data key.
+
+    Returns:
+        InternalSnippetKey: The internal key to be used in the snippet
+            database.
+    """
     if key not in META_KEYS:
         raise ValueError(f"{key} is not a valid meta key")
     return f"{META_PREFIX}{key}"
@@ -233,6 +289,18 @@ def convert_meta_key_snippet(key: MetaKey) -> InternalSnippetKey:
 
 def unconvert_meta_key_data(
         key: InternalDataKey) -> tuple[MetaKey, str | None] | None:
+    """
+    Convert an internal meta data key used in the document data database into
+    a regular meta key.
+
+    Args:
+        key (InternalDataKey): The internal key.
+
+    Returns:
+        tuple[MetaKey, str | None] | None: The meta key and the optional
+            variant for if the meta key is scalar. If the key is not a meta
+            key None is returned.
+    """
     res = key.removeprefix(META_PREFIX)
     if res == key:
         return None
@@ -247,6 +315,16 @@ def unconvert_meta_key_data(
 
 
 def unconvert_meta_key_snippet(key: InternalSnippetKey) -> MetaKey | None:
+    """
+    Convert an internal meta data key used in the snippet database into a
+    regular meta key.
+
+    Args:
+        key (InternalSnippetKey): The internal key.
+
+    Returns:
+        MetaKey | None: The meta key or None if the key is not a meta key.
+    """
     res = key.removeprefix(META_PREFIX)
     if res == key:
         return None
@@ -256,12 +334,34 @@ def unconvert_meta_key_snippet(key: InternalSnippetKey) -> MetaKey | None:
 
 
 def ensure_valid_name(name: str) -> str:
+    """
+    Checks whether a database name is valid.
+
+    Args:
+        name (str): The database name.
+
+    Raises:
+        ValueError: If the name is not valid.
+
+    Returns:
+        str: The name.
+    """
     if "-" in name or ":" in name:
         raise ValueError(f"invalid name {name}")
     return name
 
 
 def get_vec_client(config: Config) -> QdrantClient | None:
+    """
+    Create a vector database client for the given configuration.
+
+    Args:
+        config (Config): The configuration.
+
+    Returns:
+        QdrantClient | None: The client or None if no vector database is
+            specified in the config.
+    """
     vec_db = config["vector"]
     if vec_db is None:
         return None
@@ -288,6 +388,12 @@ def get_vec_client(config: Config) -> QdrantClient | None:
 
 
 def vec_flushall(db: QdrantClient) -> None:
+    """
+    Deletes all vector databases.
+
+    Args:
+        db (QdrantClient): The vector database client.
+    """
     for collection in retry_err(lambda: db.get_collections().collections):
         retry_err(
             lambda name: db.delete_collection(name, timeout=600),
@@ -296,6 +402,18 @@ def vec_flushall(db: QdrantClient) -> None:
 
 def get_vec_stats(
         db: QdrantClient, name: str, *, is_vec: bool) -> VecDBStat | None:
+    """
+    Get information about a vector database.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        is_vec (bool): Whether to inspect the snippet database (True) or the
+            document data database (False),
+
+    Returns:
+        VecDBStat | None: The stats or None if the information is unavailable.
+    """
     try:
         db_name = get_db_name(name, is_vec=is_vec)
         if not retry_err(lambda: db.collection_exists(db_name)):
@@ -315,6 +433,18 @@ def get_vec_stats(
 
 
 def get_db_name(name: str, *, is_vec: bool) -> DBQName:
+    """
+    Get the internal database name distinguishing the document data and snippet
+    database.
+
+    Args:
+        name (str): The database name.
+        is_vec (bool): Whether to return the snippet database (True) or the
+            document data database (False),
+
+    Returns:
+        DBQName: The name.
+    """
     return f"{name}_vec" if is_vec else f"{name}_data"
 
 
@@ -326,6 +456,20 @@ def build_db_name(
         db: QdrantClient,
         force_clear: bool,
         force_index: bool) -> str:
+    """
+    Ensures the database with the given name exists.
+
+    Args:
+        name (str): The vector database name.
+        distance_fn (DistanceFn): The distance function to be used.
+        embed_size (int): The length of embeddings.
+        db (QdrantClient): The vector database client.
+        force_clear (bool): Whether to delete the database first.
+        force_index (bool): Whether to force indexing the database.
+
+    Returns:
+        str: The internal database name.
+    """
     name = f"{ensure_valid_name(name)}_{distance_fn}"
     if distance_fn == "dot":
         distance: Distance = Distance.DOT
@@ -424,6 +568,22 @@ def create_index(
         *,
         db_schema: dict[str, PayloadIndexInfo],
         force_recreate: bool) -> int:
+    """
+    Creates an index for the given field name.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        db_name (DBQName): The internal database name distinguishing document
+            data and snippets.
+        field_name (str): The internal field name. This might be a field and
+            value for scalar fields.
+        field_schema (PayloadSchemaType): The index schema type.
+        db_schema (dict[str, PayloadIndexInfo]): Existing index schemas.
+        force_recreate (bool): Forces creation of a new index from scratch.
+
+    Returns:
+        int: 1 if the index was created and 0 if it existed already.
+    """
     if force_recreate:
         retry_err(
             lambda key: db.delete_payload_index(db_name, key), field_name)
@@ -437,6 +597,19 @@ def create_index(
 
 def recreate_index(
         db: QdrantClient, name: str, *, force_recreate: bool) -> int:
+    """
+    Creates all missing indexes.
+
+    Args:
+        db (QdrantClient): The vetor database client.
+        name (str): The database name.
+        force_recreate (bool): Forces recreation of all indexes. This is only
+            recommended if the database is still small or empty. For big
+            databases creating a new index will almost certainly time out.
+
+    Returns:
+        int: The number of new indices created.
+    """
     count = 0
     # * vec keys *
     vec_name = get_db_name(name, is_vec=True)
@@ -497,6 +670,23 @@ def build_scalar_index(
         *,
         full_stats: dict[MetaKey, dict[str, int] | dict[str, float]] | None,
         ) -> int:
+    """
+    Builds the index of a scalar type. Scalar types have one field and thus
+    one index for each variant (i.e., possible value).
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The database name.
+        full_stats (dict[MetaKey, dict[str, int] | dict[str, float]] | None):
+            Full (non-indexed nor cached) statistics about the meta fields.
+            If None, the stats are computed from scratch. It is important to
+            not use pre-indexed or cached value here as that will not reveal
+            any new variants that might exist in the database but haven't been
+            indexed yet.
+
+    Returns:
+        int: Number of newly created indices.
+    """
     count = 0
     if full_stats is None:
         count += recreate_index(db, name, force_recreate=False)
@@ -528,6 +718,22 @@ def full_scroll(
         scroll_filter: Filter | None,
         with_vectors: bool,
         with_payload: bool | Sequence[str]) -> list[Record]:
+    """
+    Performs a full scroll through the vector database. This operation can take
+    a while since it has to look at every row in the database (except for
+    using filters leveraging indices) so it is advised to cache the results.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The database name.
+        scroll_filter (Filter | None): The filter or None for no filter.
+        with_vectors (bool): Whether to return the rows with their embeddings.
+        with_payload (bool | Sequence[str]): Whether to return the rows with
+            their meta data.
+
+    Returns:
+        list[Record]: The results of the scan.
+    """
     offset = None
     cur_limit = 10
     res: list[Record] = []
@@ -551,6 +757,15 @@ def full_scroll(
 
 
 def compute_chunk_hash(chunks: list[EmbedChunk]) -> HashTup:
+    """
+    Computes the hash of chunk snippets.
+
+    Args:
+        chunks (list[EmbedChunk]): The snippets.
+
+    Returns:
+        HashTup: The hash and the number of chunks.
+    """
     blake = hashlib.blake2b(digest_size=32)
     blake.update(f"{len(chunks)}:".encode("utf-8"))
     for chunk in chunks:
@@ -562,6 +777,16 @@ def compute_chunk_hash(chunks: list[EmbedChunk]) -> HashTup:
 
 def compute_doc_embedding(
         embed_size: int, chunks: list[EmbedChunk]) -> list[float]:
+    """
+    Compute the document embedding by averaging the snippet embeddings.
+
+    Args:
+        embed_size (int): The dimensionality of the embeddings.
+        chunks (list[EmbedChunk]): The actual chunk embeddings.
+
+    Returns:
+        list[float]: The document embedding.
+    """
     # we can use the average. see here:
     # https://datascience.stackexchange.com/a/110506
     if not chunks:
@@ -570,10 +795,28 @@ def compute_doc_embedding(
 
 
 def get_main_id(data: EmbedMain) -> str:
+    """
+    Compute the main id from the meta data and row info.
+
+    Args:
+        data (EmbedMain): The meta data and row info.
+
+    Returns:
+        str: The main id.
+    """
     return f"{data['base']}:{data['doc_id']}"
 
 
 def get_main_uuid(data: EmbedMain) -> str:
+    """
+    Create a UUID that uniquely identifies a document.
+
+    Args:
+        data (EmbedMain): The meta data and row info.
+
+    Returns:
+        str: The UUID.
+    """
     return f"{uuid.uuid5(QDRANT_UUID, get_main_id(data))}"
 
 
@@ -581,6 +824,17 @@ def to_data_payload(
         data: EmbedMain,
         chunk_hash: HashTup,
         ) -> dict[InternalDataKey, list[str] | str | float | int]:
+    """
+    Converts meta data and row information into a vector database document
+    data payload.
+
+    Args:
+        data (EmbedMain): The meta data and row info.
+        chunk_hash (HashTup): The hashes and quantity of the chunk snippets.
+
+    Returns:
+        dict[InternalDataKey, list[str] | str | float | int]: The payload.
+    """
     hash_str, count = chunk_hash
     res: dict[InternalDataKey, list[str] | str | float | int] = {
         "main_id": get_main_id(data),
@@ -614,6 +868,16 @@ def to_data_payload(
 def to_snippet_payload_template(
         data: EmbedMain,
         ) -> dict[InternalSnippetKey, list[str] | str | int]:
+    """
+    Converts meta data and row information into a vector database snippet
+    payload.
+
+    Args:
+        data (EmbedMain): The meta data and row info.
+
+    Returns:
+        dict[InternalSnippetKey, list[str] | str | int]: The payload.
+    """
     res: dict[InternalSnippetKey, list[str] | str | int] = {
         REF_KEY: get_main_uuid(data),
     }
@@ -640,6 +904,19 @@ def add_embed(
         data: EmbedMain,
         embed_size: int,
         chunks: list[EmbedChunk]) -> tuple[int, int]:
+    """
+    Adds an embedding to the vector database.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The database name.
+        data (EmbedMain): The meta data and row info.
+        embed_size (int): The dimensionality of the embeddings.
+        chunks (list[EmbedChunk]): The snippet chunks.
+
+    Returns:
+        tuple[int, int]: The previous snippet count and the new snippet count.
+    """
     chunk_hash = compute_chunk_hash(chunks)
     doc_embed = compute_doc_embedding(embed_size, chunks)
     cur_hash, new_count = chunk_hash
@@ -770,6 +1047,18 @@ def stat_total(
         name: str,
         *,
         filters: dict[MetaKey, list[str]] | None) -> int:
+    """
+    Counts the total number of documents for a given filter.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The database name.
+        filters (dict[MetaKey, list[str]] | None): The filter or None for no
+            filter.
+
+    Returns:
+        int: The number of documents.
+    """
     query_filter = get_filter(
         filters, for_vec=False, skip_fields=None, exclude_main_id=None)
     data_name = get_db_name(name, is_vec=False)
@@ -789,6 +1078,20 @@ def stat_embed(
         field: MetaKey,
         filters: dict[MetaKey, list[str]] | None,
         ) -> dict[str, int]:
+    """
+    Computes the number of documents of each variant of a given meta field
+    after applying a filter.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        field (MetaKey): The meta field to inspect.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+
+    Returns:
+        dict[str, int]: The variants of the meta field and their document
+            counts.
+    """
     query_filter = get_filter(
         filters, for_vec=False, skip_fields={field}, exclude_main_id=None)
     data_name = get_db_name(name, is_vec=False)
@@ -831,6 +1134,15 @@ def stat_embed(
 
 
 def fill_meta_data(payload: Payload) -> MetaObjectOpt:
+    """
+    Create a meta data object from a data payload.
+
+    Args:
+        payload (Payload): The payload.
+
+    Returns:
+        MetaObjectOpt: The meta data object.
+    """
     meta: MetaObjectOpt = {}
     for key, value in payload.items():
         meta_info = unconvert_meta_key_data(key)
@@ -854,6 +1166,19 @@ def get_filter(
         for_vec: bool,
         skip_fields: set[MetaKey] | None,
         exclude_main_id: str | None) -> Filter | None:
+    """
+    Convert a dictionary filter to the qdrant filter format.
+
+    Args:
+        filters (dict[MetaKey, list[str]] | None): The filter.
+        for_vec (bool): Whether the filter is for snippets (True) or document
+            data (False).
+        skip_fields (set[MetaKey] | None): Meta keys to skip if set.
+        exclude_main_id (str | None): If set, filters out the given main id.
+
+    Returns:
+        Filter | None: The filter or None if no filter was specified.
+    """
     if filters is None:
         return None
 
@@ -899,6 +1224,18 @@ def process_meta(
         payload: Payload,
         defaults: dict[MetaKey, list[str] | str | int],
         ) -> list[str] | str | int:
+    """
+    Interprets the given meta field in the payload.
+
+    Args:
+        meta_key (MetaKey): The meta key.
+        payload (Payload): The payload.
+        defaults (dict[MetaKey, list[str] | str | int]): Meta field default
+            values.
+
+    Returns:
+        list[str] | str | int: The meta field value.
+    """
     res = payload.get(convert_meta_key_data(meta_key, None))
     if res is None:
         res = defaults.get(meta_key)
@@ -917,6 +1254,17 @@ def get_meta_from_data_payload(
         payload: Payload,
         defaults: dict[MetaKey, list[str] | str | int],
         ) -> dict[MetaKey, list[str] | str | int]:
+    """
+    Gets all meta fields from the payload.
+
+    Args:
+        payload (Payload): The payload.
+        defaults (dict[MetaKey, list[str] | str | int]): Meta field default
+            values.
+
+    Returns:
+        dict[MetaKey, list[str] | str | int]: The meta field values.
+    """
     return {
         meta_key: process_meta(meta_key, payload, defaults)
         for meta_key in META_KEYS
@@ -924,6 +1272,18 @@ def get_meta_from_data_payload(
 
 
 def get_doc(db: QdrantClient, name: str, main_id: str) -> DocResult | None:
+    """
+    Get the full information of the specified document.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        main_id (str): The main id.
+
+    Returns:
+        DocResult | None: The document information or None if the main id
+            doesn't exist in the database.
+    """
     data_name = get_db_name(name, is_vec=False)
     filter_data = Filter(
         must=[
@@ -969,6 +1329,15 @@ def get_doc(db: QdrantClient, name: str, main_id: str) -> DocResult | None:
 
 
 def to_result(doc_result: DocResult) -> ResultChunk:
+    """
+    Convert a document result into a result chunk.
+
+    Args:
+        doc_result (DocResult): The document result.
+
+    Returns:
+        ResultChunk: The result chunk.
+    """
     return {
         "main_id": doc_result["main_id"],
         "base": doc_result["base"],
@@ -994,6 +1363,25 @@ def search_docs(
         exclude_main_id: str | None,
         with_vectors: bool,
         ) -> list[DocResult]:
+    """
+    Find the closest documents to the given embedding. This uses the document
+    embedding (average of all snippet embeddings) instead of snippets.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        embed (list[float]): The embedding to search for.
+        offset (int | None): The offset. 0 if None.
+        limit (int): The number of documents to return.
+        score_threshold (float | None): If set limits the results by filtering
+            by score.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+        exclude_main_id (str | None): If set does not return the given main id.
+        with_vectors (bool): Whether to include in the response.
+
+    Returns:
+        list[DocResult]: The document results.
+    """
     data_name = get_db_name(name, is_vec=False)
     real_offset = 0 if offset is None else offset
     query_filter = get_filter(
@@ -1055,6 +1443,25 @@ def query_embed(
         score_threshold: float | None,
         filters: dict[MetaKey, list[str]] | None,
         ) -> list[ResultChunk]:
+    """
+    Find the closest documents to the given embedding using the snippet
+    embeddings.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        embed (list[float]): The embedding to search for.
+        offset (int | None): The offset. 0 if None.
+        limit (int): The number of documents to return.
+        hit_limit (int): The number of snippets to return for each document
+            hit.
+        score_threshold (float | None): If set limits the results by filtering
+            by score.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+
+    Returns:
+        list[ResultChunk]: The result chunks.
+    """
     # FIXME https://github.com/qdrant/qdrant/issues/3970 would be nice
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
@@ -1128,6 +1535,21 @@ def query_docs(
         filters: dict[MetaKey, list[str]] | None,
         order_by: MetaKey | tuple[MetaKey, str] | None,
         ) -> list[ResultChunk]:
+    """
+    Return documents in the database.
+
+    Args:
+        db (QdrantClient): The vector database client.
+        name (str): The vector database name.
+        offset (int | None): The offset. 0 if None.
+        limit (int): The number of documents to return.
+        filters (dict[MetaKey, list[str]] | None): The filters.
+        order_by (MetaKey | tuple[MetaKey, str] | None): Meta key or keys to
+            order the results by.
+
+    Returns:
+        list[ResultChunk]: The result chunks.
+    """
     real_offset = 0 if offset is None else offset
     total_limit = real_offset + limit
     print(f"scroll {name} offset={real_offset} limit={total_limit}")

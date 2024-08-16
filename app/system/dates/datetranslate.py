@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Extracts dates."""
 import re
 import time
 from datetime import datetime
@@ -28,14 +29,29 @@ from app.system.stats import LengthCounter
 
 
 P_RE = re.compile(r"<p>(.*?)<\/p>")
+"""Regex to find the content of a leaf paragraph."""
 H_RE = re.compile(r"<h6 class=\"posted-date\">(.*?)</h6>")
+"""Regex to find the content of a leaf header."""
 SPACE_RE = re.compile(r"[\s\n]+")
+"""Regex for spaces."""
 
 
 def get_translate_lang(
         raw: str,
         language: str | None,
         lnc: LengthCounter) -> str:
+    """
+    Get the language needed for translation. If `en` no translation is
+    necessary.
+
+    Args:
+        raw (str): The raw content.
+        language (str | None): Previously determined language or None.
+        lnc (LengthCounter): The length counter for the language api.
+
+    Returns:
+        str: The iso language.
+    """
     if language is not None and language != "en":
         return language
     lang_res = get_lang(raw, lnc)
@@ -46,10 +62,22 @@ def get_translate_lang(
 
 
 TRANSLATE_FREQ: float = 1.0
+"""How frequent (in secconds) a date can be translated."""
 LAST_TRANSLATE: float | None = None
+"""When the last translation happened."""
 
 
 def translate_date(*, date: str, lang: str) -> str:
+    """
+    Translates the given date from the provided iso language.
+
+    Args:
+        date (str): The date string.
+        lang (str): The iso language.
+
+    Returns:
+        str: The date in english.
+    """
     global LAST_TRANSLATE  # pylint: disable=global-statement
 
     if lang == "en":
@@ -74,6 +102,15 @@ def translate_date(*, date: str, lang: str) -> str:
 
 
 def parse_date(date_en: str) -> datetime | None:
+    """
+    Parses an english date string.
+
+    Args:
+        date_en (str): The english date string.
+
+    Returns:
+        datetime | None: The parsed date or None if it couldn't be parsed.
+    """
     try:
         return parser.parse(date_en)
     except ParserError:
@@ -85,6 +122,19 @@ def get_date_candidate(
         *,
         posted_date_str: str | None,
         use_date_str: bool) -> str:
+    """
+    Gets a candidate for a date string.
+
+    Args:
+        raw_html (str): The raw html.
+        posted_date_str (str | None): A previously detected date string or
+            None.
+        use_date_str (bool): Whether to use the previously detected date string
+            if it is available.
+
+    Returns:
+        str: A candidate date string.
+    """
     if use_date_str and posted_date_str is not None:
         return posted_date_str
     date = " ".join(H_RE.findall(raw_html)).strip().lower()
@@ -98,6 +148,21 @@ def extract_date(
         language: str | None,
         use_date_str: bool,
         lnc: LengthCounter) -> datetime | None:
+    """
+    Extracts the main date of the given raw html.
+
+    Args:
+        raw_html (str): The raw html.
+        posted_date_str (str | None): Previously detected date string or None.
+        language (str | None): Previously detected iso language or None.
+        use_date_str (bool): Whether to use the previously detected date
+            string.
+        lnc (LengthCounter): The length counter for the language api.
+
+    Returns:
+        datetime | None: The parsed date or None if no date was found or if it
+            didn't parse.
+    """
     raw = " ".join(P_RE.findall(raw_html))
     lang = get_translate_lang(raw, language, lnc)
     date = get_date_candidate(

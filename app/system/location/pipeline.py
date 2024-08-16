@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Pipeline for extracting locations from a given text."""
 import collections
 from uuid import UUID
 
@@ -44,9 +45,21 @@ from app.system.stats import create_length_counter
 
 
 NO_COUNT_REQUESTS: set[GeoStatus] = {"requestlimit"}
+"""Set of statuses that won't result in a count towards the user usage."""
 
 
 def extract_opencage(db: DBConnector, text: str, user: UUID) -> OpenCageFormat:
+    """
+    Extracts locations using OpenCage.
+
+    Args:
+        db (DBConnector): The database connector.
+        text (str): The text.
+        user (UUID): The user uuid.
+
+    Returns:
+        OpenCageFormat: The geolocation results in OpenCage format.
+    """
     query = text.strip()
     cache_res = read_geo_cache(db, {query})
     results: list[OpenCageResult] = []
@@ -107,6 +120,19 @@ def extract_locations(
         graph_profiles: dict[LanguageStr, GraphProfile],
         geo_query: GeoQuery,
         user: UUID) -> GeoOutput:
+    """
+    Extracts locations from the given text.
+
+    Args:
+        db (DBConnector): The database connector.
+        graph_profiles (dict[LanguageStr, GraphProfile]): NER models for
+            different languages.
+        geo_query (GeoQuery): The query to perform.
+        user (UUID): The user uuid.
+
+    Returns:
+        GeoOutput: The geolocation result.
+    """
     strategy = get_strategy(geo_query["strategy"])
     rt_context = geo_query["return_context"]
     max_requests = geo_query["max_requests"]
@@ -223,4 +249,10 @@ def extract_locations(
 
 
 def create_location_tables(db: DBConnector) -> None:
+    """
+    Creates all tables for the location api.
+
+    Args:
+        db (DBConnector): The database connector.
+    """
     db.create_tables([LocationCache, LocationEntries, LocationUsers])

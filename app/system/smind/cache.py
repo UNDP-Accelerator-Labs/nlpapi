@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Caching of embedding model results."""
 from collections.abc import Callable
 from typing import TypeVar
 
@@ -23,6 +24,14 @@ T = TypeVar('T')
 
 
 def clear_cache(cache: Redis, *, db_name: str | None) -> None:
+    """
+    Clears the cache for a specific vector database.
+
+    Args:
+        cache (Redis): The redis cache database.
+        db_name (str | None): The vector database name or None to flush all
+            caches.
+    """
     if db_name is None:
         cache.flushall()
     else:
@@ -42,6 +51,33 @@ def cached(
         timeout: float = 300.0,  # pylint: disable=unused-argument
         wait_sleep: float = 0.1,  # pylint: disable=unused-argument
         ) -> T:
+    """
+    Process a caching value. If the value is available in the cache it is
+    returned, otherwise the value is computed and put into the cache.
+
+    Args:
+        cache (Redis): The redis cache database. Must have a LRU or similar key
+            expiration policy.
+        cache_type (str): The cache type identifier. The value must be
+            consistent for a given type of computation.
+        db_name (str): The vector database name.
+        cache_hash (str): The hash of the task to compute.
+        compute_fn (Callable[[], T]): Computes the task.
+        pre_cache_fn (Callable[[T], str]): Converts the task output into a
+            string that can be stored in redis. The string must never be empty.
+        post_fn (Callable[[str], T | None]): Converts a string stored in redis
+            to the correct output type.
+        timeout (float, optional): Unused timeout in seconds.
+            Defaults to 300.0.
+        wait_sleep (float, optional): Unused sleep time in seconds. Defaults
+            to 0.1.
+
+    Raises:
+        ValueError: If the string to be stored in redis is empty.
+
+    Returns:
+        T: The result of the task.
+    """
     cache_key = f"{db_name}:{cache_type}:{cache_hash}"
     res = cache.get_value(cache_key)
     if res is not None:

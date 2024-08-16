@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Pipeline for extracting languages."""
 from uuid import UUID
 
 from app.system.db.base import LocationUsers
@@ -23,6 +24,17 @@ from app.system.stats import create_length_counter
 
 def extract_language(
         db: DBConnector, text: str, user: UUID) -> LangResponse:
+    """
+    Extracts the language for a user and keeps track of the overall api usage.
+
+    Args:
+        db (DBConnector): The database connector.
+        text (str): The full text.
+        user (UUID): The user uuid.
+
+    Returns:
+        LangResponse: The language results.
+    """
     lnc, lnr = create_length_counter()
     res = get_lang(text, lnc)
     with db.get_session() as session:

@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Functions to provide insights into which version is currently running."""
 import subprocess
 from typing import Literal
 
@@ -26,6 +27,15 @@ VERSION_DATE: str | None = None
 
 
 def simple_call(cmd: list[str]) -> str | None:
+    """
+    Calls a process and returns its stdout output.
+
+    Args:
+        cmd (list[str]): The command.
+
+    Returns:
+        str | None: The output or None if there was an error.
+    """
     try:
         return subprocess.check_output(
             cmd, stderr=subprocess.STDOUT).decode("utf-8")
@@ -34,9 +44,19 @@ def simple_call(cmd: list[str]) -> str | None:
 
 
 VersionResult = Literal["name", "hash", "date"]
+"""Version result kind."""
 
 
 def get_version(version_result: VersionResult) -> str:
+    """
+    Retrieves version information.
+
+    Args:
+        version_result (VersionResult): The version result kind.
+
+    Returns:
+        str: The info.
+    """
     global VERSION_NAME  # pylint: disable=global-statement
     global VERSION_HASH  # pylint: disable=global-statement
     global VERSION_DATE  # pylint: disable=global-statement

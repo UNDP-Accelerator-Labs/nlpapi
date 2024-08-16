@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""The location module."""
 import uuid
 from collections.abc import Mapping
 from typing import Any
@@ -29,6 +30,7 @@ from app.system.smind.api import GraphProfile
 
 
 class LocationModule(Module):
+    """The location module."""
     def __init__(
             self,
             db: DBConnector,

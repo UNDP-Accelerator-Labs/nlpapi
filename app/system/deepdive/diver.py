@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""The LLM powered deep dive queue."""
 import json
 import re
 import threading
@@ -51,11 +52,20 @@ from app.system.smind.api import GraphProfile
 
 
 DIVER_LOCK = threading.RLock()
+"""The lock for the diver."""
 DIVER_COND = threading.Condition(DIVER_LOCK)
+"""Condition to wait for incoming tasks."""
 DIVER_THREAD: threading.Thread | None = None
+"""The currently active diver thread."""
 
 
 def log_diver(msg: str) -> None:
+    """
+    Log a message from the diver.
+
+    Args:
+        msg (str): The message.
+    """
     print(f"{get_time_str()} DIVER: {msg}")
 
 
@@ -66,6 +76,17 @@ def maybe_diver_thread(
         get_full_text: FullTextFn,
         get_url_title: UrlTitleFn,
         get_tag: TagFn) -> None:
+    """
+    Maybe start the diver and process the queue.
+
+    Args:
+        db (DBConnector): The database connector.
+        smind (ScattermindAPI): The scattermind api.
+        graph_llama (GraphProfile): The LLM model.
+        get_full_text (FullTextFn): Retrieves full texts of documents.
+        get_url_title (UrlTitleFn): Retrieves url and titles of documents.
+        get_tag (TagFn): Retrieves the tag (i.e., country) of a document.
+    """
     global DIVER_THREAD  # pylint: disable=global-statement
 
     def get_docs() -> list[DocumentObj]:
@@ -109,6 +130,18 @@ def process_pending(
         get_full_text: FullTextFn,
         get_url_title: UrlTitleFn,
         get_tag: TagFn) -> None:
+    """
+    Processes all pending documents and segments.
+
+    Args:
+        db (DBConnector): The database connector.
+        docs (list[DocumentObj]): Documents pending processing.
+        smind (ScattermindAPI): The scattermind api.
+        graph_llama (GraphProfile): The LLM model.
+        get_full_text (FullTextFn): Retrieves full texts of documents.
+        get_url_title (UrlTitleFn): Retrieves url and titles of documents.
+        get_tag (TagFn): Retrieves the tag (i.e., country) of a document.
+    """
     if not docs:
         return
     for _ in range(3):
@@ -162,6 +195,7 @@ def process_pending(
 
 
 LLM_TIMEOUT = 300
+"""Maximum processing time for the LLM in seconds."""
 
 
 def process_segments(
@@ -169,6 +203,17 @@ def process_segments(
         smind: ScattermindAPI,
         graph_llama: GraphProfile,
         ) -> int:
+    """
+    Processes pending segments.
+
+    Args:
+        db (DBConnector): The database connector.
+        smind (ScattermindAPI): The scattermind api.
+        graph_llama (GraphProfile): The LLM model.
+
+    Returns:
+        int: The number of processed segments.
+    """
     segments = list(retry_err(get_segments_in_queue, db))
     ns = graph_llama.get_ns()
     for queue_counts in smind.get_queue_stats(ns):
@@ -221,7 +266,6 @@ def process_segments(
         if llm_out is not None:
             error_msg = (
                 f"ERROR: could not interpret model output:\n{llm_out}")
-            # prompt_info["categories"] is None  is_verify
             if is_verify:
                 vres, verror = interpret_verify(llm_out)
                 if vres is None:
@@ -284,6 +328,19 @@ def llm_response(
         full_text: str,
         prompt_info: DeepDivePromptInfo,
         ) -> tuple[str | None, Literal["timeout", "missing", "okay"]]:
+    """
+    Queries the LLM.
+
+    Args:
+        smind (ScattermindAPI): The scattermind api.
+        ns (GNamespace): The model namespace.
+        full_text (str): The full text of the document.
+        prompt_info (DeepDivePromptInfo): The system prompts.
+
+    Returns:
+        tuple[str | None, Literal["timeout", "missing", "okay"]]: The result or
+            None and an indicator on whether the processing went well.
+    """
     post_prompt = prompt_info["post_prompt"]
     if post_prompt is None:
         post_prompt = " "
@@ -306,10 +363,21 @@ def llm_response(
 
 
 LP = r"{"
+"""Opening curly brace."""
 RP = r"}"
+"""Closing curly brace."""
 
 
 def parse_json(text: str) -> tuple[dict | None, str | None]:
+    """
+    Parse a JSON from the model response.
+
+    Args:
+        text (str): The model response.
+
+    Returns:
+        tuple[dict | None, str | None]: The JSON or the error.
+    """
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r",\s+}", RP, text)  # NOTE: remove trailing commas
     start = text.find(LP)
@@ -344,6 +412,16 @@ def parse_json(text: str) -> tuple[dict | None, str | None]:
 
 
 def interpret_verify(text: str) -> tuple[VerifyResult | None, str | None]:
+    """
+    Interpret the results of a verification prompt.
+
+    Args:
+        text (str): The model response.
+
+    Returns:
+        tuple[VerifyResult | None, str | None]: The verification result or the
+            error.
+    """
     obj, error = parse_json(text)
     if obj is None:
         return (None, error)
@@ -362,6 +440,17 @@ def interpret_verify(text: str) -> tuple[VerifyResult | None, str | None]:
 def interpret_deep_dive(
         text: str,
         categories: list[str]) -> tuple[DeepDiveResult | None, str | None]:
+    """
+    Interpret the result of a category prompt.
+
+    Args:
+        text (str): The model response.
+        categories (list[str]): The expected categories.
+
+    Returns:
+        tuple[DeepDiveResult | None, str | None]: The deep dive result or the
+            error.
+    """
     obj, error = parse_json(text)
     if obj is None:
         return (None, error)

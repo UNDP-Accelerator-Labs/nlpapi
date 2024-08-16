@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Strategy to determine the main location of a document."""
 import collections
 from collections.abc import Callable
 from typing import get_args, Literal, TYPE_CHECKING
@@ -23,21 +24,36 @@ if TYPE_CHECKING:
 
 
 Strategy = Literal["top", "frequency"]
+"""Available document location strategies."""
 STRATEGIES = get_args(Strategy)
+"""Available document location strategies."""
 
 
 StrategyCallback = Callable[[str], 'GeoLocation']
+"""Function to get location for a given query."""
 
 
 class LocationStrategy:  # pylint: disable=too-few-public-methods
+    """The location strategy interface."""
     @staticmethod
     def get_callback(
             queries: list[str],
             results: dict[str, 'GeoResult']) -> StrategyCallback:
+        """
+        Creates the strategy callback to retrieve locations from a given query.
+
+        Args:
+            queries (list[str]): The list of queries.
+            results (dict[str, GeoResult]): The results of the queries.
+
+        Returns:
+            StrategyCallback: The function to read out the results.
+        """
         raise NotImplementedError()
 
 
 class TopStrategy(LocationStrategy):  # pylint: disable=too-few-public-methods
+    """The top strategy takes the most likely country of a given query."""
     @staticmethod
     def get_callback(
             queries: list[str],
@@ -51,6 +67,8 @@ class TopStrategy(LocationStrategy):  # pylint: disable=too-few-public-methods
 
 
 class FreqStrategy(LocationStrategy):  # pylint: disable=too-few-public-methods
+    """The frequency strategy takes the most frequent country of the entire
+    result."""
     @staticmethod
     def get_callback(
             queries: list[str],
@@ -90,6 +108,18 @@ class FreqStrategy(LocationStrategy):  # pylint: disable=too-few-public-methods
 
 
 def get_strategy(strategy: Strategy) -> LocationStrategy:
+    """
+    Load a location strategy.
+
+    Args:
+        strategy (Strategy): The strategy to load.
+
+    Raises:
+        ValueError: If the strategy is invalid.
+
+    Returns:
+        LocationStrategy: The strategy.
+    """
     if strategy == "top":
         return TopStrategy()
     if strategy == "frequency":

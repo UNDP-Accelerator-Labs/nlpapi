@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Convenience functions for llama_cpp_py interactions."""
 import os
 import pickle
 from typing import Literal, TypedDict
@@ -24,26 +25,47 @@ from nlpapi.default_prompts import SYSTEM_PROMPTS
 
 
 Role = Literal["assistant", "user"]
+"""The message role. `user` is the user message and `assistant` is the model
+response."""
 FullRole = Literal["system"] | Role
+"""The message role with system prompts. `system` is the system prompt, `user`
+is the user message, and `assistant` is the model response."""
 
 
 ROLE_ASSISTANT: Literal["assistant"] = "assistant"
+"""The model response role."""
 ROLE_USER: Literal["user"] = "user"
+"""The user input role."""
 ROLE_SYSTEM: Literal["system"] = "system"
+"""The system prompt role."""
 
 
 VisibleMessage = TypedDict('VisibleMessage', {
     "role": Role,
     "content": str,
 })
+"""A user visible message contains of a non-system role and the content."""
 
 
 STATE_FILE = "state.pkl"
+"""File to store the model state in. Unused."""
 MSGS_FILE = "msgs.json"
+"""File to store the messages in. Unused."""
 SYS_PROMPT_FILE = "system_prompt.txt"
+"""File to store the system prompt. Unused."""
 
 
 def load_state(model: Llama, cache_dir: str) -> bool:
+    """
+    Load a model state.
+
+    Args:
+        model (Llama): The model.
+        cache_dir (str): The cache dir.
+
+    Returns:
+        bool: True, if the model state existed.
+    """
     state_file = os.path.join(cache_dir, STATE_FILE)
     if not os.path.exists(state_file):
         return False
@@ -54,6 +76,13 @@ def load_state(model: Llama, cache_dir: str) -> bool:
 
 
 def save_state(model: Llama, cache_dir: str) -> None:
+    """
+    Save the model state.
+
+    Args:
+        model (Llama): The model.
+        cache_dir (str): The cache dir.
+    """
     state_file = os.path.join(cache_dir, STATE_FILE)
     with open_writeb(state_file) as state_out:
         llama_state: LlamaState = model.save_state()
@@ -65,6 +94,14 @@ def append_new_message(
         *,
         text: str,
         role: FullRole) -> None:
+    """
+    Appends a message to the conversation.
+
+    Args:
+        messages (list[ChatCompletionRequestMessage]): The conversation array.
+        text (str): The message.
+        role (FullRole): The role.
+    """
     if messages:
         last_msg = messages[-1]
         if last_msg["role"] == role and last_msg["content"] == text:
@@ -94,6 +131,16 @@ def load_system_prompt(
         *,
         cache_dir: str,
         system_prompt_key: str) -> list[ChatCompletionRequestMessage]:
+    """
+    Load the system prompt from a file or construct it.
+
+    Args:
+        cache_dir (str): The cache dir.
+        system_prompt_key (str): The system prompt name.
+
+    Returns:
+        list[ChatCompletionRequestMessage]: The conversation array.
+    """
     sys_prompt_file = os.path.join(cache_dir, SYS_PROMPT_FILE)
     if os.path.exists(sys_prompt_file):
         with open_reads(sys_prompt_file) as sys_in:

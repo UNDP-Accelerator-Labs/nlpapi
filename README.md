@@ -5,6 +5,10 @@ This repo contains a python based API server that provides various NLP APIs.
 
 A public facing UI can be found [here](https://nlpapi.sdg-innovation-commons.org/search/).
 
+## API usage
+
+You can see some API scenarios [here](/scenarios.md).
+
 ## Setup Python
 
 In order to setup python install `python >= 3.11` and `conda`.
@@ -32,6 +36,55 @@ You can also call individual lints via make. See `make help`.
 `make run-local` which will create a `userdata/env.local` file where you need
 to fill in the correct values. Then run `make run-local` again. Also, makes
 sure to add the `gguf` file into the `models` folder (to run the LLM).
+
+You can force a vector database to be loaded by setting `NO_QDRANT=false` in the
+env file. This, however, requires you to provide credentials for the qdrant
+database. It is not possible to access the qdrant database on Azure since it
+is private to the docker compose and doesn't expose any endpoints. However, you
+can create a local database by either running a docker image with it or by
+providing a `file://path/to/database` as qdrant URL.
+
+You can deactivate the LLM by setting `HAS_LLAMA=false` in the env file.
+
+## Diagnosing qdrant
+
+The qdrant UI is exposed on the server via the
+[`/qdrant/dashboard`](https://nlpapi.sdg-innovation-commons.org/qdrant/dashboard)
+endpoint.
+You will have to provide the internal qdrant api token for accessing the
+dashboard.
+
+## Running a docker compose locally
+
+Use the `make build-dev` command to create a local docker compose file. This
+requires a config file in the root folder: `docker.config.json`. After building
+the local docker compose you can run it via `make compose`. Both commands are
+unified as `make run-docker-api`. `sample.config.json` provides a sample config
+file. It does not specify a local vector database by default. You can replace
+the `null` with a valid local configuration, though.
+
+## Publishing the local copy
+
+Make sure to have a clean workspace and all your commits are pushed to github.
+Have your docker daemon running.
+Run `make azlogin` to log in to the azure account. Then, run
+`make publich-local` this will push the local images and end with the docker
+compose file printed to stdout. Copy the docker compose content to the
+deployment configuration tab on azure and save. This will update the app.
+
+## Publishing a main version
+
+When on the main branch call `make publish` to create the version tag. The
+CI will build and push all docker images. Once that is done, from the same
+commit, run `make build` locally to get the docker compose file. After that
+you can also retrieve the current docker compose file via `make show-compose`.
+Take the docker compose file output from either command and copy it to the
+deployment configuration tab on azure and save. This will update the app.
+
+## More below
+
+Some of the following information might be redundant and / or slightly
+outdated.
 
 ## Running the server
 

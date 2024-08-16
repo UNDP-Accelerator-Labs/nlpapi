@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Model for text embedding."""
 import threading
 
 from scattermind.system.base import GraphId, NodeId
@@ -33,6 +34,12 @@ LOCK = threading.RLock()
 
 
 class EmbedModelNode(Node):
+    """
+    The model uses a sentence transformer to create embeddings from a text.
+
+    Args:
+        Node (_type_): _description_
+    """
     def __init__(self, kind: str, graph: Graph, node_id: NodeId) -> None:
         super().__init__(kind, graph, node_id)
         self._model: SentenceTransformer | None = None

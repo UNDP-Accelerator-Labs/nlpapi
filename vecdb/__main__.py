@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Testing the vector database by inserting some embeddings."""
 import argparse
 import json
 import time
@@ -34,6 +35,12 @@ EMBED_SIZE = 384  # 768
 
 
 def parse_args() -> argparse.Namespace:
+    """
+    Parse command line arguments.
+
+    Returns:
+        argparse.Namespace: The arguments.
+    """
     parser = argparse.ArgumentParser(
         description="Reads or writes from/to the vector db.")
     parser.add_argument(
@@ -72,6 +79,15 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_config(config_fname: str) -> ScattermindAPI:
+    """
+    Load the scattermind API.
+
+    Args:
+        config_fname (str): The config file name.
+
+    Returns:
+        ScattermindAPI: The scattermind API.
+    """
     with open(config_fname, "rb") as fin:
         config_obj = json.load(fin)
     return load_api(config_obj)
@@ -80,6 +96,17 @@ def load_config(config_fname: str) -> ScattermindAPI:
 def load_graph(
         smind: ScattermindAPI,
         graph_fname: str) -> tuple[GNamespace, str, str]:
+    """
+    Load the embedding model.
+
+    Args:
+        smind (ScattermindAPI): The scattermind API.
+        graph_fname (str): The graph name.
+
+    Returns:
+        tuple[GNamespace, str, str]: The namespace and the input and output
+            fields.
+    """
     with open(graph_fname, "rb") as fin:
         graph_def_obj = json.load(fin)
     ns = smind.load_graph(graph_def_obj)
@@ -94,6 +121,15 @@ def load_graph(
 
 @contextmanager
 def timing(name: str) -> Iterator[None]:
+    """
+    Time a block.
+
+    Args:
+        name (str): The name of the block.
+
+    Yields:
+        None: The block that needs to be timed.
+    """
     start_time = time.monotonic()
     try:
         yield
@@ -103,6 +139,7 @@ def timing(name: str) -> Iterator[None]:
 
 
 def run() -> None:
+    """Run the test."""
     # python -m vecdb --input out.csv --name test:dot --db file://vec.db
 
     # ./run.sh

@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""The language module."""
 import uuid
 from collections.abc import Mapping
 from typing import Any
@@ -23,6 +24,7 @@ from app.system.language.pipeline import extract_language
 
 
 class LanguageModule(Module):
+    """The language module."""
     def __init__(self, db: DBConnector) -> None:
         self._db = db
 

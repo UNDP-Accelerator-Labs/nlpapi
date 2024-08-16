@@ -191,6 +191,16 @@ def ensure_folder(folder: str | None) -> str | None:
 
 
 def get_tmp(basefile: str) -> str:
+    """
+    Determines the folder where temporary files can be stored depending on a
+    given base file.
+
+    Args:
+        basefile (str): The base file.
+
+    Returns:
+        str: The folder where temporary files can be stored.
+    """
     return ensure_folder(os.path.dirname(basefile))
 
 
@@ -211,6 +221,16 @@ def open_read(filename: str, *, text: bool) -> IO[Any]:
 
 
 def open_read(filename: str, *, text: bool) -> IO[Any]:
+    """
+    Opens a file for reading.
+
+    Args:
+        filename (str): The file name.
+        text (bool): Whether the file should be opened in text mode.
+
+    Returns:
+        IO[Any]: The file handle.
+    """
 
     def actual_read() -> IO[Any]:
         return cast(IO[Any], open(  # pylint: disable=consider-using-with
@@ -274,6 +294,18 @@ def open_append(
         *,
         text: bool,
         **kwargs: Any) -> IO[Any]:
+    """
+    Opens a file for appending.
+
+    Args:
+        filename (str): The file name.
+        text (bool): Whether the file should be opened in text mode.
+        **kwargs (Any): Additional arguments provided to the underlying open
+            call.
+
+    Returns:
+        IO[Any]: The file handle.
+    """
     return cast(IO[Any], open(  # pylint: disable=consider-using-with
         filename,
         get_mode("a", text),
@@ -283,6 +315,18 @@ def open_append(
 
 @contextlib.contextmanager
 def open_write(filename: str, *, text: bool) -> Iterator[IO[Any]]:
+    """
+    Opens a file for writing. After writing to the file handle the content of
+    the original file is replaced in an atomic operation. Readers of the file
+    will never see the truncated state or partial writes.
+
+    Args:
+        filename (str): The file name.
+        text (bool): Whether the file should be opened in text mode.
+
+    Yields:
+        IO[Any]: The file handle.
+    """
     filename = normalize_file(filename)
 
     mode = get_mode("w", text)
@@ -316,6 +360,17 @@ def open_write(filename: str, *, text: bool) -> Iterator[IO[Any]]:
 
 @contextlib.contextmanager
 def named_write(filename: str) -> Iterator[str]:
+    """
+    Provides a safe file name for writing. After writing to the provided file
+    the content is moved over to the original file overwriting it in an atomic
+    operation. Readers of the original file will never see partial writes.
+
+    Args:
+        filename (str): The original file name.
+
+    Yields:
+        str: The file name to use instead.
+    """
     filename = normalize_file(filename)
 
     tname = None
@@ -336,6 +391,12 @@ def named_write(filename: str) -> Iterator[str]:
 
 
 def remove_file(fname: str) -> None:
+    """
+    Removes a file even if it doesn't exist.
+
+    Args:
+        fname (str): The file name.
+    """
     try:
         os.remove(fname)
     except FileNotFoundError:
@@ -343,10 +404,30 @@ def remove_file(fname: str) -> None:
 
 
 def get_subfolders(path: str) -> list[str]:
+    """
+    Returns all subfolders of the given path. The function only returns direct
+    children.
+
+    Args:
+        path (str): The path.
+
+    Returns:
+        list[str]: The subfolders.
+    """
     return sorted((fobj.name for fobj in os.scandir(path) if fobj.is_dir()))
 
 
 def get_files(path: str, ext: str) -> list[str]:
+    """
+    Returns all files in a given path. Only direct children are returned.
+
+    Args:
+        path (str): The path.
+        ext (str): The extension to filter the results by.
+
+    Returns:
+        list[str]: The list of files in the folder.
+    """
     return sorted((
         fobj.name
         for fobj in os.scandir(path)
@@ -355,6 +436,16 @@ def get_files(path: str, ext: str) -> list[str]:
 
 
 def get_folder(path: str, ext: str) -> Iterable[tuple[str, bool]]:
+    """
+    Returns all children of the given path.
+
+    Args:
+        path (str): The path.
+        ext (str): The extension to filter by.
+
+    Yields:
+        tuple[str, bool]: The object name and whether it is a folder.
+    """
     for fobj in sorted(os.scandir(path), key=lambda fobj: fobj.name):
         if fobj.is_dir():
             yield fobj.name, True
@@ -363,4 +454,13 @@ def get_folder(path: str, ext: str) -> Iterable[tuple[str, bool]]:
 
 
 def listdir(path: str) -> list[str]:
+    """
+    Lists a directory.
+
+    Args:
+        path (str): The path.
+
+    Returns:
+        list[str]: All direct children of the path.
+    """
     return sorted(os.listdir(path))

@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Database access for LLM powered deep dives."""
 from collections.abc import Iterable
 from typing import cast, Literal, overload, TypedDict
 from uuid import UUID
@@ -36,6 +37,7 @@ DeepDiveProcessRow = TypedDict('DeepDiveProcessRow', {
     "verify": int,
     "categories": int,
 })
+"""Prompt ids for verification and category prompts."""
 
 
 DeepDiveSegmentationInfo = TypedDict('DeepDiveSegmentationInfo', {
@@ -43,6 +45,7 @@ DeepDiveSegmentationInfo = TypedDict('DeepDiveSegmentationInfo', {
     "chunk_padding": int,
     "categories": list[str],
 })
+"""Information on chunking and what categories to expect."""
 
 
 DeepDivePromptInfo = TypedDict('DeepDivePromptInfo', {
@@ -51,6 +54,8 @@ DeepDivePromptInfo = TypedDict('DeepDivePromptInfo', {
     "post_prompt": str | None,
     "categories": list[str] | None,
 })
+"""System prompts and categories for a given prompt. If categories is None the
+prompt is a verification prompt."""
 
 
 CollectionObj = TypedDict('CollectionObj', {
@@ -60,22 +65,27 @@ CollectionObj = TypedDict('CollectionObj', {
     "deep_dive_name": str,
     "is_public": bool,
 })
+"""A collection."""
 
 
 CollectionOptions = TypedDict('CollectionOptions', {
     "is_public": bool,
 })
+"""Collection options."""
 
 
 VerifyResult = TypedDict('VerifyResult', {
     "reason": str,
     "is_hit": bool,
 })
+"""Result of a verification prompt."""
+
 
 DeepDiveResult = TypedDict('DeepDiveResult', {
     "reason": str,
     "values": dict[str, int],
 })
+"""Result of a category prompt."""
 
 
 DocumentObj = TypedDict('DocumentObj', {
@@ -92,6 +102,7 @@ DocumentObj = TypedDict('DocumentObj', {
     "tag": str | None,
     "tag_reason": str | None,
 })
+"""Full document information."""
 
 
 SegmentObj = TypedDict('SegmentObj', {
@@ -107,6 +118,7 @@ SegmentObj = TypedDict('SegmentObj', {
     "deep_dive_result": DeepDiveResult | None,
     "error": str | None,
 })
+"""Full segment information."""
 
 
 SegmentStats = TypedDict('SegmentStats', {
@@ -116,15 +128,38 @@ SegmentStats = TypedDict('SegmentStats', {
     "has_error": bool,
     "count": int,
 })
+"""Statistics about current segments."""
 
 
 def get_deep_dives(db: DBConnector) -> list[str]:
+    """
+    Returns a list of all available deep dives.
+
+    Args:
+        db (DBConnector): The database connector.
+
+    Returns:
+        list[str]: The names of the deep dives.
+    """
     with db.get_session() as session:
         stmt = sa.select(DeepDiveProcess.name)
         return [row.name for row in session.execute(stmt)]
 
 
 def get_process_id(session: Session, name: str) -> int:
+    """
+    Get the id of a deep dive process.
+
+    Args:
+        session (Session): The database session.
+        name (str): The name of the deep dive.
+
+    Raises:
+        ValueError: If the deep dive doesn't exist.
+
+    Returns:
+        int: The deep dive process id.
+    """
     stmt = sa.select(DeepDiveProcess.id)
     stmt = stmt.where(DeepDiveProcess.name == name)
     stmt = stmt.limit(1)
@@ -136,6 +171,19 @@ def get_process_id(session: Session, name: str) -> int:
 
 def get_deep_dive_process(
         session: Session, process_id: int) -> DeepDiveProcessRow:
+    """
+    Retrieves the specification of a deep dive process.
+
+    Args:
+        session (Session): The database session.
+        process_id (int): The deep dive process id.
+
+    Raises:
+        ValueError: If the deep dive process doesn't exist.
+
+    Returns:
+        DeepDiveProcessRow: The deep dive process specification.
+    """
     stmt = sa.select(DeepDiveProcess.verify_id, DeepDiveProcess.categories_id)
     stmt = stmt.where(DeepDiveProcess.id == process_id)
     stmt = stmt.limit(1)
@@ -150,6 +198,17 @@ def get_deep_dive_process(
 def get_deep_dive_prompt_info(
         session: Session,
         prompt_ids: set[int]) -> dict[int, DeepDivePromptInfo]:
+    """
+    Retrieves the prompt specifications for the given prompt ids.
+
+    Args:
+        session (Session): The database session.
+        prompt_ids (set[int]): The prompt ids to retrieve.
+
+    Returns:
+        dict[int, DeepDivePromptInfo]: The mapping of prompt id to
+            specification.
+    """
     stmt = sa.select(
         DeepDivePrompt.id,
         DeepDivePrompt.name,
@@ -173,6 +232,21 @@ def add_collection(
         user: UUID,
         name: str,
         deep_dive: str) -> int:
+    """
+    Adds a new collection.
+
+    Args:
+        db (DBConnector): The database connector.
+        user (UUID): The user uuid.
+        name (str): The name of the collection.
+        deep_dive (str): The deep dive process name.
+
+    Raises:
+        ValueError: If the collection could not be added.
+
+    Returns:
+        int: The collection id.
+    """
     with db.get_session() as session:
         process_id = get_process_id(session, deep_dive)
         stmt = sa.insert(DeepDiveCollection).values(
@@ -191,6 +265,15 @@ def set_options(
         collection_id: int,
         options: CollectionOptions,
         user: UUID | None) -> None:
+    """
+    Sets the options for the given collection.
+
+    Args:
+        db (DBConnector): The database connector.
+        collection_id (int): The collection id.
+        options (CollectionOptions): The option values to set.
+        user (UUID | None): The user uuid.
+    """
     with db.get_session() as session:
         verify_user(session, collection_id, user, write=True)
         stmt = sa.update(DeepDiveCollection)
@@ -201,6 +284,16 @@ def set_options(
 
 
 def get_collections(db: DBConnector, user: UUID) -> Iterable[CollectionObj]:
+    """
+    Retrieves the collections visible to the given user.
+
+    Args:
+        db (DBConnector): The database connector.
+        user (UUID): The user uuid.
+
+    Yields:
+        CollectionObj: The collection.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             DeepDiveCollection.id,
@@ -231,6 +324,25 @@ def verify_user(
         *,
         write: bool,
         allow_none: bool = False) -> bool:
+    """
+    Verifies that the given user is allowed to perform an operation.
+
+    Args:
+        session (Session): The database session.
+        collection_id (int): The collection id.
+        user (UUID | None): The user uuid.
+        write (bool): Whether the operation requires write access to the
+            collection.
+        allow_none (bool, optional): Whether to allow an empty user uuid.
+            Defaults to False.
+
+    Raises:
+        PreventDefaultResponse: If the user is not allowed to access the
+            collection id.
+
+    Returns:
+        bool: True, if the user is *not* allowed to write to the collection.
+    """
     if user is None:
         if not allow_none:
             raise PreventDefaultResponse(401, "invalid collection for user")
@@ -256,6 +368,22 @@ def add_documents(
         user: UUID | None,
         *,
         allow_none: bool = False) -> list[int]:
+    """
+    Adds documents to a collection.
+
+    Args:
+        db (DBConnector): The database connector.
+        collection_id (int): The collection id.
+        main_ids (list[str]): The main ids to add.
+        user (UUID | None): The user uuid.
+        allow_none (bool, optional): Whether to allow an unspecified user.
+            This is useful if a collection is created automatically and not via
+            user action. Defaults to False.
+
+    Returns:
+        list[int]: The list of collection member ids of successfully added
+            documents.
+    """
     res: list[int] = []
     with db.get_session() as session:
         verify_user(
@@ -290,6 +418,27 @@ def convert_deep_dive_result(
         ddr: dict[str, int | str] | None,
         *,
         categories: list[str] | None) -> DeepDiveResult | None:
+    """
+    Converts a deep dive result to the current unified format. Deep dive
+    results can either have all fields in the object directly
+    `{"reason": ..., "a": 1, "b": 5, ...}` or separate the scores out
+    `{"reason": ..., "values": {"a": 1, "b": 5, ...}}`. The second variety
+    is preferred as it avoids problems with a potential `reason` category and
+    makes handling the object overall easier. The first variety is easier for
+    an LLM to create.
+
+    Args:
+        ddr (dict[str, int  |  str] | None): The deep dive result.
+        categories (list[str] | None): The expected categories. If None, no
+            checks are performed.
+
+    Raises:
+        ValueError: If there is an error interpreting the result.
+
+    Returns:
+        DeepDiveResult | None: The standardized result or None if the result
+            was None.
+    """
     if ddr is None:
         return None
     if "values" not in ddr:
@@ -326,6 +475,20 @@ def get_documents(
         user: UUID | None,
         *,
         allow_none: bool = False) -> tuple[bool, list[DocumentObj]]:
+    """
+    Gets all documents for a collection.
+
+    Args:
+        db (DBConnector): The database connector.
+        collection_id (int): The collection id.
+        user (UUID | None): The user uuid.
+        allow_none (bool, optional): Whether to allow an unset user uuid.
+            Defaults to False.
+
+    Returns:
+        tuple[bool, list[DocumentObj]]: Boolean indicating whether the
+            collection is readonly for the user and the list of documents.
+    """
     with db.get_session() as session:
         is_readonly = verify_user(
             session, collection_id, user, write=False, allow_none=allow_none)
@@ -385,6 +548,15 @@ def set_url_title(
         doc_id: int,
         url: str,
         title: str) -> None:
+    """
+    Sets the url and title of a document.
+
+    Args:
+        db (DBConnector): The database connector.
+        doc_id (int): The document id.
+        url (str): The url.
+        title (str): The title.
+    """
     with db.get_session() as session:
         stmt = sa.update(DeepDiveElement)
         stmt = stmt.where(DeepDiveElement.id == doc_id)
@@ -399,6 +571,15 @@ def set_tag(
         doc_id: int,
         tag: str | None,
         tag_reason: str) -> None:
+    """
+    Sets the tag (i.e., country) of a document.
+
+    Args:
+        db (DBConnector): The database connector.
+        doc_id (int): The document id.
+        tag (str | None): The tag or None.
+        tag_reason (str): The reason.
+    """
     with db.get_session() as session:
         stmt = sa.update(DeepDiveElement)
         stmt = stmt.where(DeepDiveElement.id == doc_id)
@@ -413,6 +594,15 @@ def set_verify(
         doc_id: int,
         is_valid: bool,
         reason: str) -> None:
+    """
+    Sets the verification field of a document.
+
+    Args:
+        session (Session): The database session.
+        doc_id (int): The document id.
+        is_valid (bool): Whether the document is valid.
+        reason (str): The reason.
+    """
     stmt = sa.update(DeepDiveElement)
     stmt = stmt.where(DeepDiveElement.id == doc_id)
     stmt = stmt.values(
@@ -425,6 +615,14 @@ def set_deep_dive(
         session: Session,
         doc_id: int,
         deep_dive: DeepDiveResult) -> None:
+    """
+    Sets the category result of a document.
+
+    Args:
+        session (Session): The database session.
+        doc_id (int): The document id.
+        deep_dive (DeepDiveResult): The deep dive result.
+    """
     stmt = sa.update(DeepDiveElement)
     stmt = stmt.where(DeepDiveElement.id == doc_id)
     stmt = stmt.values(deep_dive_result=deep_dive)
@@ -432,11 +630,27 @@ def set_deep_dive(
 
 
 def set_error(db: DBConnector, doc_id: int, error: str) -> None:
+    """
+    Sets the error for a document.
+
+    Args:
+        db (DBConnector): The database connector.
+        doc_id (int): The document id.
+        error (str): The error.
+    """
     with db.get_session() as session:
         set_doc_error(session, doc_id, error)
 
 
 def set_doc_error(session: Session, doc_id: int, error: str) -> None:
+    """
+    Sets the error for a document in a database session.
+
+    Args:
+        session (Session): The database session.
+        doc_id (int): The document id.
+        error (str): The error.
+    """
     stmt = sa.update(DeepDiveElement)
     stmt = stmt.where(DeepDiveElement.id == doc_id)
     stmt = stmt.values(error=error)
@@ -450,6 +664,17 @@ def requeue(
         main_ids: list[str],
         *,
         allow_none: bool = False) -> None:
+    """
+    Requeues documents for processing.
+
+    Args:
+        db (DBConnector): The database connector.
+        collection_id (int): The collection id.
+        user (UUID | None): The user uuid.
+        main_ids (list[str]): The list of documents as main ids.
+        allow_none (bool, optional): Whether the user uuid can be None.
+            Defaults to False.
+    """
     with db.get_session() as session:
         verify_user(
             session, collection_id, user, write=True, allow_none=allow_none)
@@ -475,6 +700,17 @@ def requeue_error(
         main_ids: list[str],
         *,
         allow_none: bool = False) -> None:
+    """
+    Requeues only the segments containing an error for reprocessing.
+
+    Args:
+        db (DBConnector): The database connector.
+        collection_id (int): The collection id.
+        user (UUID | None): The user uuid.
+        main_ids (list[str]): The list of main ids.
+        allow_none (bool, optional): Whether the user uuid can be None.
+            Defaults to False.
+    """
     with db.get_session() as session:
         verify_user(
             session, collection_id, user, write=True, allow_none=allow_none)
@@ -506,6 +742,17 @@ def requeue_meta(
         main_ids: list[str],
         *,
         allow_none: bool = False) -> None:
+    """
+    Requeue only the document meta data for reprocessing.
+
+    Args:
+        db (DBConnector): The database connector.
+        collection_id (int): The collection id.
+        user (UUID | None): The user uuid.
+        main_ids (list[str]): The list of documents as main ids.
+        allow_none (bool, optional): Whether the user uuid can be None.
+            Defaults to False.
+    """
     with db.get_session() as session:
         verify_user(
             session, collection_id, user, write=True, allow_none=allow_none)
@@ -518,6 +765,15 @@ def requeue_meta(
 
 
 def get_documents_in_queue(db: DBConnector) -> Iterable[DocumentObj]:
+    """
+    Retrieve documents that need processing.
+
+    Args:
+        db (DBConnector): The database connector.
+
+    Yields:
+        DocumentObj: The document.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             DeepDiveElement.id,
@@ -578,6 +834,17 @@ def add_segments(
         db: DBConnector,
         doc: DocumentObj,
         full_text: str) -> int:
+    """
+    Add segments for the given document.
+
+    Args:
+        db (DBConnector): The database connector.
+        doc (DocumentObj): The document.
+        full_text (str): The full text of the document.
+
+    Returns:
+        int: The number of pages for the document.
+    """
     page = 0
     with db.get_session() as session:
         collection_id = doc["deep_dive"]
@@ -599,6 +866,15 @@ def add_segments(
 
 
 def get_segments_in_queue(db: DBConnector) -> Iterable[SegmentObj]:
+    """
+    Retrieves all unprocessed segments.
+
+    Args:
+        db (DBConnector): The database connector.
+
+    Yields:
+        SegmentObj: The segment.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             DeepDiveSegment.id,
@@ -649,6 +925,17 @@ def get_segments(
         session: Session,
         collection_id: int,
         main_id: str) -> Iterable[SegmentObj]:
+    """
+    Gets all segments of the given document.
+
+    Args:
+        session (Session): The database session.
+        collection_id (int): The collection id.
+        main_id (str): The document main id.
+
+    Yields:
+        SegmentObj: The segment.
+    """
     stmt = sa.select(
         DeepDiveSegment.id,
         DeepDiveSegment.main_id,
@@ -689,6 +976,15 @@ def set_verify_segment(
         seg_id: int,
         is_valid: bool,
         reason: str) -> None:
+    """
+    Sets the verification result of a segment.
+
+    Args:
+        db (DBConnector): The database connector.
+        seg_id (int): The segment id.
+        is_valid (bool): Whether the segment is valid.
+        reason (str): The reason.
+    """
     with db.get_session() as session:
         stmt = sa.update(DeepDiveSegment)
         stmt = stmt.where(DeepDiveSegment.id == seg_id)
@@ -702,6 +998,14 @@ def set_deep_dive_segment(
         db: DBConnector,
         seg_id: int,
         deep_dive: DeepDiveResult) -> None:
+    """
+    Sets the category result of a segment.
+
+    Args:
+        db (DBConnector): The database connector.
+        seg_id (int): The segment id.
+        deep_dive (DeepDiveResult): The result.
+    """
     with db.get_session() as session:
         stmt = sa.update(DeepDiveSegment)
         stmt = stmt.where(DeepDiveSegment.id == seg_id)
@@ -710,6 +1014,14 @@ def set_deep_dive_segment(
 
 
 def set_error_segment(db: DBConnector, seg_id: int, error: str) -> None:
+    """
+    Set the error for a segment.
+
+    Args:
+        db (DBConnector): The database connector.
+        seg_id (int): The segment id.
+        error (str): The error.
+    """
     with db.get_session() as session:
         stmt = sa.update(DeepDiveSegment)
         stmt = stmt.where(DeepDiveSegment.id == seg_id)
@@ -719,6 +1031,14 @@ def set_error_segment(db: DBConnector, seg_id: int, error: str) -> None:
 
 def remove_segments(
         session: Session, collection_id: int, main_ids: list[str]) -> None:
+    """
+    Remove all segments for the given documents in the given collection.
+
+    Args:
+        session (Session): The database session.
+        collection_id (int): The collection id.
+        main_ids (list[str]): The documents as main ids.
+    """
     stmt = sa.delete(DeepDiveSegment).where(sa.and_(
         DeepDiveSegment.main_id.in_(main_ids),
         DeepDiveSegment.deep_dive_id == collection_id))
@@ -730,6 +1050,20 @@ def combine_segments(
         doc: DocumentObj,
         categories: list[str],
         ) -> Literal["empty", "incomplete", "done"]:
+    """
+    Combines the segments of a document and writes the final results. If
+    successful, the segments get removed from the database.
+
+    Args:
+        db (DBConnector): The database connector.
+        doc (DocumentObj): The document.
+        categories (list[str]): The expected categories.
+
+    Returns:
+        str: `empty` if no segments existed, `incomplete` if not all results
+            were available, and `done` if the segments were combined
+            successfully. The database only updates on `done`.
+    """
     with db.get_session() as session:
         collection_id = doc["deep_dive"]
         main_id = doc["main_id"]
@@ -808,6 +1142,15 @@ def combine_segments(
 
 
 def segment_stats(db: DBConnector) -> Iterable[SegmentStats]:
+    """
+    Compute statistics about the current segments in the queue.
+
+    Args:
+        db (DBConnector): The database connector.
+
+    Yields:
+        SegmentStats: Segment statistics.
+    """
     with db.get_session() as session:
         stmt = sa.select(
             DeepDiveSegment.deep_dive_id,
@@ -831,6 +1174,12 @@ def segment_stats(db: DBConnector) -> Iterable[SegmentStats]:
 
 
 def create_deep_dive_tables(db: DBConnector) -> None:
+    """
+    Creates all deep dive tables.
+
+    Args:
+        db (DBConnector): The database connector.
+    """
     db.create_tables([
         DeepDivePrompt,
         DeepDiveProcess,
