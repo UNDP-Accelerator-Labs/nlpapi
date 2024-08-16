@@ -5,6 +5,10 @@ This repo contains a python based API server that provides various NLP APIs.
 
 A public facing UI can be found [here](https://nlpapi.sdg-innovation-commons.org/search/).
 
+## API usage
+
+You can see some API scenarios [here](/scenarios.md).
+
 ## Setup Python
 
 In order to setup python install `python >= 3.11` and `conda`.
