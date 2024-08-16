@@ -172,8 +172,8 @@ class TagModelNode(Node):
         if len(texts) == 1:
             # NOTE: fixing the extract_keywords "autocorrect"
             task_keyword_scores = [task_keyword_scores]
-        for task, keyword_scores in zip(
-                inputs.get_current_tasks(), task_keyword_scores):
+        for task_ix, task in enumerate(inputs.get_current_tasks()):
+            keyword_scores = task_keyword_scores[task_ix]
             keywords: list[str] = []
             scores: list[float] = []
             print(keyword_scores)
@@ -187,7 +187,8 @@ class TagModelNode(Node):
                 [task],
                 {
                     "tags": state.create_single(
-                        str_to_tensor(",".join(keywords))),
+                        str_to_tensor(
+                            ",".join(keywords) if keywords else " ")),
                     "scores": state.create_single(
                         create_tensor(scores, dtype="float")),
                 })

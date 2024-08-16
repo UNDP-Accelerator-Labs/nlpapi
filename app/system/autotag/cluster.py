@@ -313,7 +313,7 @@ def tag_doc(
             error_msg = f"{error_msg}\nmissing result for {tid}"
             success = False
             continue
-        keywords = tensor_to_str(result["tags"]).split(",")
+        keywords = tensor_to_str(result["tags"]).strip().split(",")
         if not keywords or (len(keywords) == 1 and not keywords[0]):
             continue
         scores = list(result["scores"].cpu().tolist())
