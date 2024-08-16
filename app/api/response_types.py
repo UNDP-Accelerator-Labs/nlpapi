@@ -43,6 +43,10 @@ VersionResponse = TypedDict('VersionResponse', {
     "error": list[str] | None,
 })
 """Provides information about the currently running server."""
+HeartbeatResponse = TypedDict('HeartbeatResponse', {
+    "okay": bool,
+})
+"""Heartbeat response."""
 StatsResponse = TypedDict('StatsResponse', {
     "vecdbs": list[VecDBStat],
     "queues": list[QueueStat],

@@ -46,6 +46,7 @@ from app.api.response_types import (
     DocumentResponse,
     ErrorProcessQueue,
     FulltextResponse,
+    HeartbeatResponse,
     RequeueResponse,
     Snippy,
     SnippyResponse,
@@ -1353,6 +1354,27 @@ def setup(
 
     # *** misc ***
 
+    @server.json_get(f"{prefix}/heartbeat")
+    @server.middleware(verify_readonly)
+    def _get_heartbeat(_req: QSRH, _rargs: ReqArgs) -> HeartbeatResponse:
+        """
+        The `/api/heartbeat` endpoint gives a quick response that indicates
+        whether the server was properly loaded. The response is fully static.
+
+        @api
+        @readonly
+
+        Args:
+            _req (QSRH): The request.
+            rargs (ReqArgs): The arguments. GET
+
+        Returns:
+            HeartbeatResponse: Indicating the app health.
+        """
+        return {
+            "okay": True,
+        }
+
     @server.json_get(f"{prefix}/version")
     @server.middleware(verify_readonly)
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
@@ -2351,6 +2373,15 @@ def fallback_server(
     server.set_common_invalid_paths(["/", "//"])
 
     # *** misc ***
+
+    @server.json_get(f"{prefix}/heartbeat")
+    def _get_heartbeat(_req: QSRH, _rargs: ReqArgs) -> HeartbeatResponse:
+        # NOTE: this endpoint is identical to the one above except that it
+        # indicates that the server is not okay. no duplicate documentation
+        # is provided
+        return {
+            "okay": False,
+        }
 
     @server.json_get(f"{prefix}/version")
     def _get_version(_req: QSRH, _rargs: ReqArgs) -> VersionResponse:
