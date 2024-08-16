@@ -79,6 +79,15 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_config(config_fname: str) -> ScattermindAPI:
+    """
+    Load the scattermind API.
+
+    Args:
+        config_fname (str): The config file name.
+
+    Returns:
+        ScattermindAPI: The scattermind API.
+    """
     with open(config_fname, "rb") as fin:
         config_obj = json.load(fin)
     return load_api(config_obj)
