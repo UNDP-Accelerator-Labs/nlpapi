@@ -168,12 +168,9 @@ class TagModelNode(Node):
             prep(tensor_to_str(val))
             for val in inputs.get_data("text").iter_values()
         ]
-        task_keyword_scores = model.extract_keywords(texts, top_n=top_n)
-        if len(texts) == 1:
-            # NOTE: fixing the extract_keywords "autocorrect"
-            task_keyword_scores = [task_keyword_scores]
         for task_ix, task in enumerate(inputs.get_current_tasks()):
-            keyword_scores = task_keyword_scores[task_ix]
+            keyword_scores = model.extract_keywords(
+                texts[task_ix], top_n=top_n)
             keywords: list[str] = []
             scores: list[float] = []
             print(keyword_scores)
