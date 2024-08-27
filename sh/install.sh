@@ -97,6 +97,7 @@ fi
 ! read -r -d '' PY_NLTK_DOWNLOAD <<'EOF'
 import nltk
 nltk.download("punkt")
+nltk.download("punkt_tab")
 nltk.download("averaged_perceptron_tagger")
 nltk.download("words")
 EOF
