@@ -281,50 +281,49 @@ def tag_doc(
     smind = graph_tags.get_api()
     ns = graph_tags.get_ns()
     input_field = only(graph_tags.get_input_fields())
-    texts = [
-        snippet
-        for (snippet, _) in snippify_text(
-            full_text,
-            chunk_size=CHUNK_SIZE,
-            chunk_padding=CHUNK_PADDING)
-    ]
-    tasks = [
-        smind.enqueue_task(
-            ns,
-            {
-                input_field: text,
-            })
-        for text in texts
-    ]
     success = True
     error_msg = ""
     kwords: collections.defaultdict[str, float] = \
         collections.defaultdict(lambda: 0.0)
-    for tid, resp in smind.wait_for(tasks, timeout=300, auto_clear=True):
-        if resp["error"] is not None:
-            error = resp["error"]
-            error_msg = (
-                f"{error_msg}\n{error['code']} ({error['ctx']}): "
-                f"{error['message']}\n{NL.join(error['traceback'])}")
-            success = False
-            continue
-        result = resp["result"]
-        if result is None:
-            error_msg = f"{error_msg}\nmissing result for {tid}"
-            success = False
-            continue
-        keywords = tensor_to_str(result["tags"]).strip().split(",")
-        if not keywords or (len(keywords) == 1 and not keywords[0]):
-            continue
-        scores = list(result["scores"].cpu().tolist())
-        if len(keywords) != len(scores):
-            error_msg = (
-                f"{error_msg}\nkeywords and scores mismatch: "
-                f"{keywords=} {scores=}")
-            success = False
-            continue
-        for keyword, score in zip(keywords, scores):
-            kwords[keyword] += score
+    for (snippet, _) in snippify_text(
+            full_text,
+            chunk_size=CHUNK_SIZE,
+            chunk_padding=CHUNK_PADDING):
+        if not success:
+            break
+        tasks = [
+            smind.enqueue_task(
+                ns,
+                {
+                    input_field: text,
+                })
+            for text in [snippet]
+        ]
+        for tid, resp in smind.wait_for(tasks, timeout=300, auto_clear=True):
+            if resp["error"] is not None:
+                error = resp["error"]
+                error_msg = (
+                    f"{error_msg}\n{error['code']} ({error['ctx']}): "
+                    f"{error['message']}\n{NL.join(error['traceback'])}")
+                success = False
+                continue
+            result = resp["result"]
+            if result is None:
+                error_msg = f"{error_msg}\nmissing result for {tid}"
+                success = False
+                continue
+            keywords = tensor_to_str(result["tags"]).strip().split(",")
+            if not keywords or (len(keywords) == 1 and not keywords[0]):
+                continue
+            scores = list(result["scores"].cpu().tolist())
+            if len(keywords) != len(scores):
+                error_msg = (
+                    f"{error_msg}\nkeywords and scores mismatch: "
+                    f"{keywords=} {scores=}")
+                success = False
+                continue
+            for keyword, score in zip(keywords, scores):
+                kwords[keyword] += score
     if not success:
         return None, error_msg
     top_kwords = sorted(
