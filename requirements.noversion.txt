@@ -19,6 +19,7 @@ matplotlib
 matplotlib-inline
 mypy
 mypy-extensions
+nltk
 numpy
 opencage
 pandas
