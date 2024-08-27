@@ -107,9 +107,9 @@ if [ -z "${MODE}" ] || [ "${MODE}" = "worker" ]; then
     echo "initializing spacy"
     ${PYTHON} -m spacy download en_core_web_sm
     ${PYTHON} -m spacy download xx_ent_wiki_sm
-    echo "initializing nltk"
-    ${PYTHON} -c "${PY_NLTK_DOWNLOAD}"
 fi
+echo "initializing nltk"
+${PYTHON} -c "${PY_NLTK_DOWNLOAD}"
 
 ! read -r -d '' PY_TORCH_VERIFY <<'EOF'
 import sys
