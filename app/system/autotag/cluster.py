@@ -500,10 +500,13 @@ def tagger_cluster(
         with db.get_session() as session:
             keywords = sorted(get_keywords(session, tag_group))
             cluster_args = get_tag_group_cluster_args(session, tag_group)
-        all_embeds = get_text_results_immediate(
-            keywords,
-            graph_profile=articles_graph,
-            output_sample=[1.0])
+        all_embeds: list[list[float] | None] = []
+        for keyword in keywords:
+            cur_embeds = get_text_results_immediate(
+                [keyword],
+                graph_profile=articles_graph,
+                output_sample=[1.0])
+            all_embeds.extend(cur_embeds)
         final_kw: list[str] = []
         embeds: list[list[float]] = []
         for keyword, embed in zip(keywords, all_embeds):
