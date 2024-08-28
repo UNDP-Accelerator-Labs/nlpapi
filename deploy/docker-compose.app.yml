@@ -86,13 +86,13 @@ services:
       - 6380
     volumes:
       - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
-  # worker-2:
-  #   image: $DOCKER_WORKER
-  #   restart: always
-  #   expose:
-  #     - 6380
-  #   volumes:
-  #     - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
+  worker-2:
+    image: $DOCKER_WORKER
+    restart: always
+    expose:
+      - 6380
+    volumes:
+      - ${WEBAPP_STORAGE_HOME}/smind_cache:/smind_cache
   api:
     image: $DOCKER_API
     restart: always
