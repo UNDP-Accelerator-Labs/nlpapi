@@ -45,6 +45,7 @@ from app.system.autotag.autotag import (
     get_tags_for_main_id,
     is_ready,
     is_updating_tag_group,
+    remove_tag_member,
     write_tag,
 )
 from app.system.autotag.platform import fill_in_everything, process_main_ids
@@ -212,6 +213,7 @@ def register_tagger(
                 process_queue_redis=process_queue_redis,
                 graph_tags=graph_tags,
                 get_full_text=get_full_text,
+                doc_is_remove=doc_is_remove,
                 process_enqueue=process_enqueue)
         if entry["stage"] == "cluster":
             return tagger_cluster(
@@ -407,6 +409,7 @@ def tagger_tag(
         process_queue_redis: Redis,
         graph_tags: GraphProfile,
         get_full_text: FullTextFn,
+        doc_is_remove: IsRemoveFn,
         process_enqueue: ProcessEnqueue[TaggerPayload]) -> str:
     """
     Computes the auto-tags for pending documents.
@@ -417,6 +420,8 @@ def tagger_tag(
         graph_tags (GraphProfile): Model for extracting document keywords.
         get_full_text (FullTextFn): Gets the full text of a document
             (via main id).
+        doc_is_remove (IsRemoveFn): Whether a document (via main id) has been
+            removed.
         process_enqueue (ProcessEnqueue[TaggerPayload]): Enqueues the next
             step.
 
@@ -434,6 +439,13 @@ def tagger_tag(
         for elem in list(get_incomplete(session)):
             main_id = elem["main_id"]
             tag_group = elem["tag_group"]
+            is_remove, error_remove = doc_is_remove(main_id)
+            if error_remove is not None:
+                errors.append(error_remove)
+                continue
+            if is_remove:
+                remove_tag_member(session, tag_group, main_id)
+                continue
             keywords, error = tag_doc(
                 main_id,
                 graph_tags=graph_tags,
